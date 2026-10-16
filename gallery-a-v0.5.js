@@ -38,14 +38,41 @@
   const pct = (v, total) => (v / total * 100).toFixed(5) + '%';
   const isNorthSouthFace = rack => /^G-\d+[AB]$/.test(str(rack)) || /^Z-11[AB]$/.test(str(rack));
 
-  // Keep the G-series sides fully separate and preserve a visible grey A/B spine.
-  // Each pair stays anchored to the supplied Gallery A drawing. The slightly
-  // enlarged faces fit into their allotted group without overlapping each other
-  // or the neighboring G pair (a problem with the original independent 1.26x grow).
+  // One consistent 8-unit gray divider throughout the reference drawing.
+  // This is slightly thinner than the earlier 10-unit G-series separators.
+  // Every A/B face remains an independent Kintone rack selection target.
+  const DIVIDER_THICKNESS = 8;
   const G_FACE_WIDTH = 70.5;
-  const G_DIVIDER_WIDTH = 10;
   const G_PAIR_ANCHORS = new Map(G_FLOOR.map(pair =>
     [pair.number, PLAN_FACES.find(face => face.rack === pair.a)]));
+
+  // The Z-11 faces had previously been independently enlarged until they
+  // overlapped and obscured their original divider. Keep them as a true pair.
+  const Z11_A = PLAN_FACES.find(face => face.rack === 'Z-11A');
+  const Z11_B = PLAN_FACES.find(face => face.rack === 'Z-11B');
+  const Z11_WIDTH = Z11_A.w * 1.20;
+  const Z11_PAIR_LEFT = (Z11_A.x + Z11_B.x + Z11_B.w) / 2 -
+    (2 * Z11_WIDTH + DIVIDER_THICKNESS) / 2;
+
+  // For horizontal Z-series racks, fill the space formerly occupied by the
+  // thick original gray spine with a thinner centered separator, without
+  // moving the outside edge of either face or introducing a white gap.
+  const Z_HORIZONTAL_FACES = new Map();
+  const Z_HORIZONTAL_SPINES = [];
+  Z_FLOOR.forEach(pair => {
+    const upper = PLAN_FACES.find(face => face.rack === pair.b);
+    const lower = PLAN_FACES.find(face => face.rack === pair.a);
+    if (!upper || !lower) return;
+    const upperBottom = upper.y + upper.h;
+    const lowerBottom = lower.y + lower.h;
+    const spineY = (upperBottom + lower.y - DIVIDER_THICKNESS) / 2;
+    Z_HORIZONTAL_FACES.set(pair.b, { ...upper, h: spineY - upper.y });
+    Z_HORIZONTAL_FACES.set(pair.a, {
+      ...lower, y: spineY + DIVIDER_THICKNESS,
+      h: lowerBottom - (spineY + DIVIDER_THICKNESS)
+    });
+    Z_HORIZONTAL_SPINES.push({ upper, y: spineY });
+  });
 
   const displayBox = box => {
     if (!box || !box.rack) return box;
@@ -56,30 +83,51 @@
         const h = first.h * 1.08;
         return {
           ...box,
-          x: first.x + (g[2] === 'B' ? G_FACE_WIDTH + G_DIVIDER_WIDTH : 0),
+          x: first.x + (g[2] === 'B' ? G_FACE_WIDTH + DIVIDER_THICKNESS : 0),
           y: first.y - (h - first.h) / 2,
           w: G_FACE_WIDTH,
           h
         };
       }
     }
-    if (!isNorthSouthFace(box.rack)) return box;
-    // Keep the separate Z-11 reference faces at their previously used size.
-    const w = box.w * 1.20;
-    const h = box.h * 1.08;
-    const x = Math.max(0, Math.min(PLAN_WIDTH - w, box.x - (w - box.w) / 2));
-    const y = Math.max(0, Math.min(PLAN_HEIGHT - h, box.y - (h - box.h) / 2));
-    return { ...box, x, y, w, h };
+    const z11 = /^Z-11([AB])$/.exec(str(box.rack));
+    if (z11) {
+      const h = Z11_A.h * 1.08;
+      return {
+        ...box,
+        x: Z11_PAIR_LEFT + (z11[1] === 'B' ? Z11_WIDTH + DIVIDER_THICKNESS : 0),
+        y: Z11_A.y - (h - Z11_A.h) / 2,
+        w: Z11_WIDTH,
+        h
+      };
+    }
+    return Z_HORIZONTAL_FACES.get(box.rack) || box;
   };
 
   const displaySpine = spine => {
+    // G-series vertical A/B dividers, perfectly flush with both enlarged faces.
     for (const first of G_PAIR_ANCHORS.values()) {
       if (first && Math.abs(spine.x - (first.x + first.w)) < .75 &&
           Math.abs(spine.y - first.y) < .75) {
         const shown = displayBox(first);
         return { ...spine, x: shown.x + shown.w, y: shown.y,
-          w: G_DIVIDER_WIDTH, h: shown.h };
+          w: DIVIDER_THICKNESS, h: shown.h };
       }
+    }
+    // The same thickness and flush alignment for Z-11A / Z-11B.
+    if (Math.abs(spine.x - (Z11_A.x + Z11_A.w)) < .75 &&
+        Math.abs(spine.y - Z11_A.y) < .75) {
+      const shown = displayBox(Z11_A);
+      return { ...spine, x: shown.x + shown.w, y: shown.y,
+        w: DIVIDER_THICKNESS, h: shown.h };
+    }
+    // Z-5 through Z-10 separators are horizontal, but have the same thickness.
+    const pair = Z_HORIZONTAL_SPINES.find(p =>
+      Math.abs(spine.x - p.upper.x) < 1.5 &&
+      Math.abs(spine.y - (p.upper.y + p.upper.h)) < 2.5);
+    if (pair) {
+      return { ...spine, x: pair.upper.x, y: pair.y,
+        w: pair.upper.w, h: DIVIDER_THICKNESS };
     }
     return spine;
   };
