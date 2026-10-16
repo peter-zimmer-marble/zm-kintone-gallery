@@ -434,6 +434,9 @@
           '<span>' + (i + 1) + '</span>') + '</button>';
     }).join('');
     thumbnails.scrollLeft = scroll;
+    const selectedThumbnail = thumbnails.querySelector('.is-current');
+    if (selectedThumbnail && selectedThumbnail.scrollIntoView)
+      selectedThumbnail.scrollIntoView({block:'nearest',inline:'nearest'});
     if (!blobUrl && !failure) requestVisualPhoto(image.key,true);
   }
   function openVisualLightbox(recordId, trigger) {
