@@ -29,10 +29,10 @@
   const MAPPED = [...Z_WALL, ...Z_FLOOR.flatMap(p => [p.a,p.b]), ...G_FLOOR.flatMap(p => [p.a,p.b]), ...Z_NORTH];
   const QUERY_RACKS = [...new Set([...MAPPED, ...UNMAPPED])];
 
-  // Temporary Outside: six free-standing A-frames ordered road (TO-6) to
-  // building (TO-1). Looking at the sketch, north is LEFT, A on the left,
+  // Temporary Outside: six free-standing A-frames ordered road (TO-1) to
+  // building (TO-6). Looking at the sketch, north is LEFT, A on the left,
   // B on the right. Unknown unsided codes remain visible for review.
-  const TO_PAIRS = [6, 5, 4, 3, 2, 1].map(n => ({ number: n, a: `TO-${n}A`, b: `TO-${n}B` }));
+  const TO_PAIRS = [1, 2, 3, 4, 5, 6].map(n => ({ number: n, a: `TO-${n}A`, b: `TO-${n}B` }));
   const TO_MAPPED = TO_PAIRS.flatMap(pair => [pair.a, pair.b]);
   const TO_UNMAPPED = TO_PAIRS.map(pair => `TO-${pair.number}`);
   const TO_QUERY_RACKS = [...TO_MAPPED, ...TO_UNMAPPED];
@@ -468,7 +468,7 @@
     const boardWidth = Math.round(790 * state.zoom);
     root.innerHTML = `<div class="zmwm-reference-controls">
       <div class="zmwm-reference-context"><span class="zmwm-reference-tag">TO RACK PLAN</span>
-        <span>6 A-frames · 12 usable sides · TO-6 nearest road</span></div>
+        <span>6 A-frames · 12 usable sides · TO-1 nearest road</span></div>
       <div class="zmwm-reference-zoom" aria-label="Map zoom">
         <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
         <span>${Math.round(state.zoom * 100)}%</span>
@@ -480,7 +480,7 @@
       <div class="zmwm-to-board" style="width:${boardWidth}px;--zmwm-to-zoom:${state.zoom}" role="group"
         aria-label="Six double-sided TO racks from road to building; A on the north left, B on the south right.">
         <div class="zmwm-to-edge zmwm-to-road"><span class="zmwm-to-edge-label">ROAD</span>
-          <span class="zmwm-to-edge-hint">TO-6 closest to road</span></div>
+          <span class="zmwm-to-edge-hint">TO-1 closest to road</span></div>
         <div class="zmwm-to-map-body">
           <div class="zmwm-to-compass"><span aria-hidden="true">←</span><strong>NORTH</strong><small>Left of map</small></div>
           <div class="zmwm-to-stack">
@@ -489,7 +489,7 @@
           </div>
         </div>
         <div class="zmwm-to-edge zmwm-to-building"><span class="zmwm-to-edge-label">BUILDING</span>
-          <span class="zmwm-to-edge-hint">TO-1 closest to building</span></div>
+          <span class="zmwm-to-edge-hint">TO-6 closest to building</span></div>
       </div>
     </div>
     <div class="zmwm-reference-legend"><span><i class="zmwm-swatch sw-blue"></i>Rack face</span>
