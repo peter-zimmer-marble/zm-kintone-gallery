@@ -2,12 +2,12 @@
 
 This repository hosts **public frontend JavaScript and CSS only** for four read-only warehouse map views inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
 
-## Existing GitHub Pages URLs (do not change in Kintone)
+## Current GitHub Pages URLs (after work-account username change)
 
-- JavaScript: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.js`
-- CSS: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.css`
+- JavaScript: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/gallery-a-v0.5.js`
+- CSS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/gallery-a-v0.5.css`
 
-The filenames still say `v0.5` to preserve the **already installed Kintone links**; their shared implementation supports all four views (all four views updated to the shared map design in code v0.9). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
+**One-time migration after the GitHub username change (2026-10-16):** The old `petercampau-gif.github.io` hostname must be replaced with `peter-zimmer-marble.github.io` in Kintone's JavaScript/CSS customization settings for the Warehouse Map test app. Update the existing JavaScript and CSS links (do not add duplicates), click **Save**, then **Update App**, and confirm Gallery A, Temporary Outside, Gallery C, and Gallery B all render. Repository URL redirects do not guarantee GitHub Pages host redirects. After the migration, normal future file updates need only a page refresh.\n\nThe filenames still say `v0.5` to preserve the Kintone file path settings; their shared implementation supports all four views (all four views updated to the shared map design in code v0.9). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
 ## One-time Kintone setup for Gallery C and Gallery B
 
@@ -77,7 +77,7 @@ Live inventory counts; two most common distinct `color_combined` materials with 
 
 ## Updating safely
 
-Test updates against the offline fixture (all four desktop/tablet/mobile views), commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. Existing Kintone links pick up new files after refresh. **Changes to the shared files affect all four map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
+Test updates against the offline fixture (all four desktop/tablet/mobile views), commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. After updating Kintone to the new hostname, its links pick up new file contents after refresh. **Changes to the shared files affect all four map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
 
 ## Verification status
 
