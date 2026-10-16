@@ -11,6 +11,9 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 
 ## Move Visual Search to ZM Inventory (App 6)
 
+**Updated:** Visual Search v2 supersedes the original v1 assets below. For an already-installed app use the v2 replacement steps in the next section; do not install both versions.
+
+
 **Status:** New standalone files are ready for installation. The main Kintone app is NOT yet changed. Retain the working Visual Search view in Warehouse Map - TEST until the new location is live and verified.
 
 **Install these dedicated assets into ZM Inventory only (not the shared gallery files):**
@@ -36,6 +39,39 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 **Safety:** The new script runs only on the view named Visual Search with its own unique HTML root, reads Inventory App 6 through authenticated GET requests, and never writes records. CSS is scoped entirely within its own root. The server hosts code only, not inventory data or photo exports.
 
 **Verification:** Simulated Kintone event, record, filter, display, pagination and navigation tests passed; actual Kintone App 6 photos and interactions still require live verification.
+
+## Visual Search v2 — photo click fix and cache-busting deployment
+
+The standalone Inventory App 6 Visual Search has **v2 asset paths**. To avoid
+stale v1 JavaScript/CSS caches and ensure that the updated event handling is
+actually used in Kintone, an administrator must **replace** the previous
+v1 URLs in **ZM Inventory → App Settings → JavaScript and CSS customization**.
+Do **not** leave both v1 and v2 installed: duplicate scripts will register
+conflicting view handlers.
+
+- PC JavaScript: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-visual-search-v2.js`
+- PC CSS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-visual-search-v2.css`
+- If Visual Search is used on mobile, also replace the v1 URLs with the matching v2 URLs in **Mobile JavaScript/CSS**.
+
+Preserve all other Inventory App customizations and their order; keep the
+existing `<div id="zm-visual-search-root"></div>` Custom View HTML. Save
+and **Update App**, then refresh the view. Confirm that photo cards display
+**Enlarge photo** (or `N photos · Enlarge`) and clicking the image opens
+the viewer; the text below it should be the only record link. The small
+`data-visual-version="2.0"` marker on the view root is available for
+troubleshooting.
+
+In v2, photo clicks are caught during DOM event **capture**, and explicitly
+call `preventDefault`/`stopPropagation` before Kintone link-navigation
+listeners can respond. The image is a separate `button`; the material
+details alone are an `a` linking to Inventory App 6.
+
+**V2 verification:** Mock Kintone tests passed for single activation, 13-field
+read-only query, photographic click interception, keeping detail links
+navigable, opening a three-photo viewer, next-photo controls, filename-based
+downloading, and cleanup on other views. Actual Kintone should still be
+checked after the URL swap. The original v1 assets remain in GitHub as a
+rollback option; **use only one version at a time in Kintone**.
 
 ## Visual Search privacy / data-minimization audit
 
