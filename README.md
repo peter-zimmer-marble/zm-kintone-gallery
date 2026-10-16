@@ -86,12 +86,14 @@ query** to select inventory marked `In`; its values are not requested in the
 response. **Job** is intentionally requested and displayed only for records
 with a nonblank Job value, but is not included in the text-search terms.
 Pricing, material costs, margins, suppliers, notes, and unrelated fields are
-**not requested** or searchable. For nonrectangular pieces, the v2 script also reads
-Kintone's **form field schema** using the current signed-in session and includes
-only confirmed numeric/text dimension C and D fields in its record request, when
-those labels can be matched safely. If those extra fields are unavailable or
-restricted, the view falls back to the original 13 fields, preserving basic
-shape and dimensions. The view clears cached inventory when leaving.
+**not requested** or searchable. ZM Inventory's field settings confirm the
+extra measurements as **Length 2 (for L shapes)** / `length_2` and
+**Width 2 (for L shapes)** / `width_2`. The view explicitly requests
+only those two additional fields (15 fields total) alongside the 13-field
+baseline; it no longer guesses field names from the form schema. If Kintone
+rejects those optional fields due to access restrictions, the view retries
+using only the baseline 13 fields, preserving the rest of Visual Search.
+The view clears cached inventory when leaving.
 
 **This is data minimization, not an independent access-control boundary.**
 The card details and popup heading link to the full Inventory App 6 record, and Kintone field,
@@ -184,7 +186,7 @@ The visual framework lives in `gallery-a-v0.5.js` / `gallery-a-v0.5.css` despite
 The **Visual Search** Custom View browses authenticated inventory. The version in Warehouse Map - TEST temporarily uses its existing gallery HTML root. The **new** ZM Inventory version uses the distinct HTML container and two standalone assets listed in the migration section above.
 
 - One **card per physical inventory record**, sorted by material/color name (not grouped by color).
-- **Photo first**, then a moderately larger, **bold color name** beneath it, followed by **length × width in inches**. Nonrectangle pieces also display their **shape** prominently; additional L-remnant dimensions **C** and **D** appear (when present and accessible), and are preserved in the photo popup heading. An optional **Job** section appears only for assigned records; piece type, rack and record number also appear.
+- **Photo first**, then a moderately larger, **bold color name** beneath it, followed by **length × width in inches**. Nonrectangle pieces also display their **shape** prominently; optional `length_2` and `width_2` values appear as **Length 2** and **Width 2** (when populated and accessible), and are preserved in the photo popup heading. An optional **Job** section appears only for assigned records; piece type, rack and record number also appear.
 - **Click the card's photograph** to open a full-size photo viewer. **Click the card's material details** or **the material name/dimensions at the top of the popup** to open the associated Kintone Inventory App **6** record in a new tab. Photo click remains a separate button and never navigates to the record.
 - The photo viewer browses **all image attachments** in `exact_picture` first, then `example_picture`, keeping their original order and removing duplicate file keys. Use previous/next arrows, selectable thumbnails, left/right keyboard arrows, or swipe on touchscreens. Escape, the close button, or the backdrop closes the viewer. Exact photos and example photos are distinctly labeled; the card preview tries other images if its primary image cannot load. Missing photos display a placeholder (no fabricated imagery).
 - **Download photo** saves the selected full-resolution, authenticated Kintone image to the user's device with a sanitized filename in the form `Color Combined - Length x Width in - Record 123.jpg`. **Never append a photo number**, even when a record has multiple pictures. Note that a browser may add its own `(1)` suffix to avoid replacing a previously downloaded file. The image format determines the extension (JPG/PNG/WebP/etc.). Shape, extra dimensions, Job/customer details, pricing, and other confidential fields are **not included in the filename**. Downloads reuse an already authenticated in-browser image blob and do not expose public file URLs.
@@ -194,9 +196,9 @@ The **Visual Search** Custom View browses authenticated inventory. The version i
 - Page-by-record-ID API reads allow more than 10,000 inventory records without the query offset limitation. **No Kintone record writes** are performed.
 - Material *category* (Granite/Quartz/Marble/etc.) was not added, because no confirmed material-category field exists in the current map's Inventory App 6 field list. Piece type (Slab/Remnant) is available now.
 
-**Nonrectangle dimension recognition:** The original Kintone app's shape values include Rectangle, Triangle, Left Hand L, and Right Hand L. The extra-dimension fields are displayed conditionally within the native app; the exact codes have not been independently verified here. The standalone script detects labels such as `C`, `Dimension C`, `D`, `Dimension D`, `Leg Width` or `Additional Height` through Kintone's form metadata, and only requests those additional values. Verify an actual L-shaped remnant after updating. If the C/D measurements are not visible, inspect their field labels/codes in Kintone so we can expand the safe mapping—do not add arbitrary fields or all record fields.
+**Nonrectangle dimension fields:** Kintone screenshots confirm the actual codes `length_2` and `width_2` (labeled "Length 2 (for L shapes)" and "Width 2 (for L shapes)"). Visual Search fetches just these two optional fields, displays each populated measurement with its inch unit on nonrectangular cards and the image popup, and omits them from download filenames. Rectangle cards do not display these fields. The values are deliberately labeled with their Kintone field names; no unverified assumption is made that one corresponds to geometric C or D. Confirm against an actual L-shaped record after deployment. Field access remains governed by Kintone's field permissions.
 
-**Verification:** The standalone Visual Search passed simulated Kintone API and interaction checks for image ordering and deduplication, failed-photo fallback, secure blob rendering, modal navigation, thumbnails, keyboard arrows, mobile swipe, close/focus restoration, image download filenames and file extensions, and record-link separation. The 13-field privacy allowlist is unchanged. Actual Kintone photo viewer and download behavior should still be verified in the signed-in app (including on mobile). The legacy Warehouse Map - TEST Visual Search remains separate and unchanged.
+**Verification:** The standalone Visual Search passed simulated Kintone API and interaction checks for image ordering and deduplication, failed-photo fallback, secure blob rendering, modal navigation, thumbnails, keyboard arrows, mobile swipe, close/focus restoration, image download filenames and file extensions, and record-link separation. A specific fixture test confirms `length_2` / `width_2` in the authenticated request (15 narrowly allowed fields), matching L-shaped card and popup dimensions, hiding extras on rectangles, preserving the original filename, and retrying the 13-field baseline when optional fields are forbidden. Actual Kintone behavior should still be verified in the signed-in app (including on mobile). The legacy Warehouse Map - TEST Visual Search remains separate and unchanged.
 
 ## Features shared across all five rack maps
 
