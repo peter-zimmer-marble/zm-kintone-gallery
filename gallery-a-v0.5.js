@@ -1,7 +1,7 @@
 /*
- * ZM Warehouse Maps: Gallery A, Temporary Outside, Gallery C (Kintone Custom Views, v0.7)
+ * ZM Warehouse Maps: Gallery A, Temporary Outside, Gallery C, Gallery B (Kintone Custom Views, v0.8)
  * Copyright (c) 2026 ZM. Read-only: GET requests only, no data writes.
- * Install inside the Warehouse Map app; use the same view HTML in all three Custom Views.
+ * Install inside the Warehouse Map app; use the same view HTML in all four Custom Views.
  * Uses existing versioned GitHub Pages links; inventory stays in authenticated Kintone.
  */
 (function () {
@@ -11,6 +11,7 @@
     GALLERY_A_VIEW_NAMES: ['Gallery A', 'Inside Slab Gallery'],
     TO_VIEW_NAME: 'Temporary Outside',
     GALLERY_C_VIEW_NAME: 'Gallery C',
+    GALLERY_B_VIEW_NAME: 'Gallery B',
     INVENTORY_APP_ID: 6,
     RACK_APP_ID: 7,
     PAGE_SIZE: 500,
@@ -39,6 +40,29 @@
   const TO_QUERY_RACKS = [...TO_MAPPED, ...TO_UNMAPPED];
   const TO_FACES = TO_PAIRS.flatMap(pair => [{rack:pair.a}, {rack:pair.b}]);
 
+  // Gallery B (Light Pole): eight actual A-frames with A on the north/left.
+  // Physical grid: road side LP-1,3,5,7; building side LP-2,4,6,8.
+  // The crossed-out LP-9 location has NO physical rack; Kintone LP-9 assignments
+  // are shown as unconfirmed (not silently mapped into another physical rack).
+  const GALLERY_B_ROWS = [[1, 3, 5, 7], [2, 4, 6, 8]];
+  const GALLERY_B_MAPPED = GALLERY_B_ROWS.flatMap(nums =>
+    nums.flatMap(n => [`LP-${n}A`, `LP-${n}B`]));
+  const GALLERY_B_FACES = GALLERY_B_MAPPED.map(rack => ({rack}));
+  const GALLERY_B_UNMAPPED = ['LP-9A', 'LP-9B',
+    ...Array.from({length:9}, (_,i) => `LP-${i+1}`)];
+  const GALLERY_B_ALIASES = new Map([...GALLERY_B_MAPPED, ...GALLERY_B_UNMAPPED]
+    .map(rack => [rack.replace(/-/g, ''), rack]).filter(([alias,rack]) => alias !== rack));
+  const GALLERY_B_QUERY_RACKS = [...new Set([...GALLERY_B_MAPPED, ...GALLERY_B_UNMAPPED,
+    ...GALLERY_B_ALIASES.keys()])];
+  // Key = correct Kintone location, value = outdated physical label in the yard.
+  // We never redirect inventory from one rack to another based on these tags.
+  const GALLERY_B_PHYSICAL_TAGS = Object.freeze({
+    'LP-5A':'LP-7A', 'LP-5B':'LP-7B',
+    'LP-7A':'LP-9A', 'LP-7B':'LP-9B'
+  });
+  const GALLERY_B_AUDIT_RACK = 'LP-7A';
+  const isGalleryB = () => state.view === 'gallery-b';
+
   // Gallery C (By Trucks): coordinates traced directly from Outside Slab Gallery C.pdf.
   // Orientation: road at top, building at bottom, north points left.
   // All 30 locations are usable. Six have *provisional* restrictions, not hard blocks.
@@ -56,16 +80,18 @@
     ...GALLERY_C_ALIASES.keys()])];
   const GALLERY_C_LIMITED = new Set(['OS-DBL','OS-DAR','OT103-L','OT103-R','OS-7A','OS-10A']);
   const isGalleryC = () => state.view === 'gallery-c';
-  const canonicalRack = rack => isGalleryC() ? (GALLERY_C_ALIASES.get(rack) || rack) : rack;
+  const canonicalRack = rack => isGalleryC() ? (GALLERY_C_ALIASES.get(rack) || rack) :
+    isGalleryB() ? (GALLERY_B_ALIASES.get(rack) || rack) : rack;
 
   const viewForName = name => SETTINGS.GALLERY_A_VIEW_NAMES.includes(name) ? 'gallery-a' :
     name === SETTINGS.TO_VIEW_NAME ? 'temporary-outside' :
-    name === SETTINGS.GALLERY_C_VIEW_NAME ? 'gallery-c' : null;
+    name === SETTINGS.GALLERY_C_VIEW_NAME ? 'gallery-c' :
+    name === SETTINGS.GALLERY_B_VIEW_NAME ? 'gallery-b' : null;
   const isTO = () => state.view === 'temporary-outside';
-  const mappedRacks = () => isGalleryC() ? GALLERY_C_MAPPED : isTO() ? TO_MAPPED : MAPPED;
-  const unmappedRacks = () => isGalleryC() ? GALLERY_C_UNMAPPED : isTO() ? TO_UNMAPPED : UNMAPPED;
-  const queryRacks = () => isGalleryC() ? GALLERY_C_QUERY_RACKS : isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
-  const planFaces = () => isGalleryC() ? GALLERY_C_FACES : isTO() ? TO_FACES : PLAN_FACES;
+  const mappedRacks = () => isGalleryB() ? GALLERY_B_MAPPED : isGalleryC() ? GALLERY_C_MAPPED : isTO() ? TO_MAPPED : MAPPED;
+  const unmappedRacks = () => isGalleryB() ? GALLERY_B_UNMAPPED : isGalleryC() ? GALLERY_C_UNMAPPED : isTO() ? TO_UNMAPPED : UNMAPPED;
+  const queryRacks = () => isGalleryB() ? GALLERY_B_QUERY_RACKS : isGalleryC() ? GALLERY_C_QUERY_RACKS : isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
+  const planFaces = () => isGalleryB() ? GALLERY_B_FACES : isGalleryC() ? GALLERY_C_FACES : isTO() ? TO_FACES : PLAN_FACES;
 
   // Original Google Drawing PDF coordinate space (points): 1203 by 1045.
   // Individual face locations are traced from the provided vector shapes.
@@ -400,8 +426,9 @@
       ${flagged ? `<span class="zmwm-layout-warning" aria-hidden="true">!</span>` : ''}</button>`;
   }
 
-  function mapTitle() { return isGalleryC() ? 'Gallery C' : isTO() ? 'Temporary Outside' : 'Gallery A'; }
-  function mapDescription() { return isGalleryC() ? 'Outside slab storage · By Trucks.' :
+  function mapTitle() { return isGalleryB() ? 'Gallery B' : isGalleryC() ? 'Gallery C' : isTO() ? 'Temporary Outside' : 'Gallery A'; }
+  function mapDescription() { return isGalleryB() ? 'Outside slab storage · Light Pole.' :
+    isGalleryC() ? 'Outside slab storage · By Trucks.' :
     isTO() ? 'Temporary outdoor A-frame storage, from road to building.' :
     'Explore material by its physical rack position.'; }
 
@@ -426,13 +453,13 @@
       </section>
       <div class="zmwm-content">
         <section class="zmwm-map-wrap" aria-label="Warehouse schematic">
-          <div class="zmwm-content-heading"><div><h2>${isGalleryC() ? 'Gallery C <span class="zmwm-subtle">/ By Trucks</span>' : isTO() ? 'Temporary Outside <span class="zmwm-subtle">/ TO racks</span>' : 'Gallery A <span class="zmwm-subtle">/ Main Showroom</span>'}</h2><p>${isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north">← NORTH</span></div>
+          <div class="zmwm-content-heading"><div><h2>${isGalleryB() ? 'Gallery B <span class="zmwm-subtle">/ Light Pole</span>' : isGalleryC() ? 'Gallery C <span class="zmwm-subtle">/ By Trucks</span>' : isTO() ? 'Temporary Outside <span class="zmwm-subtle">/ TO racks</span>' : 'Gallery A <span class="zmwm-subtle">/ Main Showroom</span>'}</h2><p>${isGalleryB() ? 'Eight A-frames. Temporary rack-tag mismatches on LP-5 and LP-7; LP-7A awaiting inventory audit.' : isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north">← NORTH</span></div>
           <div id="zmwm-plan" class="zmwm-plan"></div>
           <div id="zmwm-unmapped" class="zmwm-unmapped"></div>
         </section>
         <aside id="zmwm-inspector" class="zmwm-inspector" aria-label="Selected rack inventory"></aside>
       </div>
-      <footer class="zmwm-footer">${isGalleryC() ? 'Gallery C positions trace the supplied Outside Slab Gallery C drawing; not surveyed or to scale. Six access restrictions are provisional. ' : isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
+      <footer class="zmwm-footer">${isGalleryB() ? 'Gallery B positions follow the Light Pole drawing with LP-9 removed, and corrected location names LP-5/LP-7. Physical tags and the LP-7A record location require an audit. Not surveyed or to scale. ' : isGalleryC() ? 'Gallery C positions trace the supplied Outside Slab Gallery C drawing; not surveyed or to scale. Six access restrictions are provisional. ' : isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
     </main>`;
   }
 
@@ -443,10 +470,10 @@
     const unmappedRecords = unmappedRacks().reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
     const matchingRecords = [...g.filtered.values()].reduce((sum, records) => sum + records.length, 0);
     root.innerHTML = [
-      { title: 'USABLE FACES', value: mappedRacks().length, meta: isGalleryC() ? '6 provisional access limits' : isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
+      { title: 'USABLE FACES', value: mappedRacks().length, meta: isGalleryB() ? '8 double-sided LP racks' : isGalleryC() ? '6 provisional access limits' : isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
       { title: 'PHYSICAL PIECES', value: mappedRecords, meta: 'In mapped rack faces' },
       { title: 'MATCHES', value: matchingRecords, meta: 'Current filters · includes unplaced' },
-      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isGalleryC() ? 'Unsided OS rack code' : isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
+      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isGalleryB() ? 'Unsided or former LP-9 locations' : isGalleryC() ? 'Unsided OS rack code' : isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
     ].map(item => `<article class="zmwm-stat"><span>${item.title}</span><strong>${item.value.toLocaleString()}</strong><small>${item.meta}</small></article>`).join('');
   }
 
@@ -535,6 +562,83 @@
 
   // Gallery C shares all Kintone data/query controls with the other two maps.
   // Only face geometry, access warnings, and presentation are specific to this view.
+  function galleryBFaceHtml(rack, g) {
+    const all = g.all.get(rack) || [];
+    const filtered = g.filtered.get(rack) || [];
+    const activeFilter = Boolean(state.search || state.sale || state.kind);
+    const records = activeFilter ? filtered : all;
+    const selected = state.selected === rack;
+    const physicalTag = GALLERY_B_PHYSICAL_TAGS[rack];
+    const needsAudit = rack === GALLERY_B_AUDIT_RACK;
+    const colors = rackPreviewTitle(records) || 'No pieces assigned';
+    const count = activeFilter ? `${filtered.length}/${all.length}` : `${all.length}`;
+    const classes = ['zmwm-gallery-b-face', selected ? 'is-selected' : '',
+      physicalTag ? 'has-wrong-tag' : '', needsAudit ? 'needs-audit' : '',
+      activeFilter && !filtered.length ? 'is-dim' : '', all.length ? 'has-pieces' : 'is-empty'
+    ].filter(Boolean).join(' ');
+    const info = physicalTag ? ` Physical rack tag currently reads ${physicalTag}.` : '';
+    const auditInfo = needsAudit ? ' Inventory assigned here has unverified physical location pending yard audit.' : '';
+    return `<button type="button" class="${classes}" data-rack="${esc(rack)}"
+      aria-pressed="${selected}"
+      aria-label="${esc(rack)}: ${all.length} pieces.${esc(info + auditInfo)} ${esc(colors)}. Open rack details."
+      title="${esc(rack)} — ${all.length} pieces.${esc(info + auditInfo)} ${esc(colors)}">
+      <span class="zmwm-gallery-b-face-header"><strong>${esc(rack)}</strong><span class="zmwm-gallery-b-count">${count}</span></span>
+      ${rackPreviewMarkup(records)}
+      ${physicalTag ? `<span class="zmwm-gallery-b-tag-note">Tag: ${esc(physicalTag)}</span>` : ''}
+      ${needsAudit ? '<span class="zmwm-gallery-b-audit-note">Location unverified</span>' : ''}
+    </button>`;
+  }
+
+  function renderGalleryB(g) {
+    const root = document.getElementById('zmwm-plan');
+    if (!root) return;
+    const previous = root.querySelector('.zmwm-reference-scroll');
+    const previousLeft = previous ? previous.scrollLeft : 0;
+    const previousZoom = previous ? Number(previous.dataset.zoom || '1') : state.zoom;
+    const boardWidth = Math.round(1050 * state.zoom);
+    const rows = GALLERY_B_ROWS.map((numbers, rowIndex) =>
+      `<div class="zmwm-gallery-b-row" role="group" aria-label="${rowIndex === 0 ? 'Road-side' : 'Building-side'} rack row">
+        ${numbers.map(n => `<div class="zmwm-gallery-b-pair" role="group" aria-label="LP-${n} double-sided rack">
+          ${galleryBFaceHtml(`LP-${n}A`, g)}<span class="zmwm-gallery-b-divider" aria-hidden="true"></span>${galleryBFaceHtml(`LP-${n}B`, g)}
+        </div>`).join('')}
+      </div>`).join('');
+    root.innerHTML = `<div class="zmwm-reference-controls">
+      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">GALLERY B / LIGHT POLE</span>
+        <span>8 A-frames · 16 usable sides · LP-9 removed</span></div>
+      <div class="zmwm-reference-zoom" aria-label="Map zoom">
+        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
+        <span>${Math.round(state.zoom*100)}%</span>
+        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
+      </div>
+    </div>
+    <div class="zmwm-reference-scroll zmwm-gallery-b-scroll" data-zoom="${state.zoom}" tabindex="0"
+      aria-label="Gallery B outdoor rack map. North is to the left, road above, building below. Scroll horizontally to reach more racks.">
+      <div class="zmwm-gallery-b-board" style="width:${boardWidth}px" role="group" aria-label="Gallery B Light Pole yard; two rows with eight A-frames.">
+        <div class="zmwm-gallery-b-road"><strong>ROAD</strong><small>Road-side row</small></div>
+        <div class="zmwm-gallery-b-racks">${rows}</div>
+        <div class="zmwm-gallery-b-bottom"><span class="zmwm-gallery-b-compass"><b aria-hidden="true">⬅</b> NORTH</span>
+          <span class="zmwm-gallery-b-area"><strong>Gallery B</strong><small>Light Pole</small></span></div>
+        <div class="zmwm-gallery-b-building">BUILDING <span aria-hidden="true">↓</span></div>
+      </div>
+    </div>
+    <div class="zmwm-reference-legend">
+      <span><i class="zmwm-swatch sw-blue"></i>Rack face</span>
+      <span><i class="zmwm-to-legend-divider"></i>A/B divider</span>
+      <span><i class="zmwm-swatch zmwm-gallery-b-swatch-warn"></i>Physical tag mismatch (temporary)</span>
+      <span><i class="zmwm-swatch zmwm-gallery-b-swatch-audit"></i>Pending location audit</span>
+      <small>LP-5 is physically tagged LP-7; LP-7 is tagged LP-9. LP-9 has no mapped rack. Map is not to scale.</small>
+    </div>`;
+    const next = root.querySelector('.zmwm-reference-scroll');
+    if (next) next.scrollLeft = previousZoom === state.zoom ? previousLeft : previousLeft * state.zoom / previousZoom;
+    const issues = document.getElementById('zmwm-unmapped');
+    if (issues) {
+      const unplaced = GALLERY_B_UNMAPPED.filter(rack => (g.all.get(rack) || []).length);
+      issues.innerHTML = unplaced.length ? `<div class="zmwm-unmapped-head"><span>UNCONFIRMED LP ASSIGNMENTS</span>
+          <small>Former LP-9 and unsided LP codes have no confirmed mapped face. Review before pulling inventory.</small></div>
+          <div class="zmwm-unmapped-list">${unplaced.map(r => faceHtml(r,g)).join('')}</div>` : '';
+    }
+  }
+
   function galleryCFaceHtml(face, g) {
     const rack = face.rack;
     const all = g.all.get(rack) || [];
@@ -611,6 +715,7 @@
   }
 
   function renderPlan(g) {
+    if (isGalleryB()) { renderGalleryB(g); return; }
     if (isGalleryC()) { renderGalleryC(g); return; }
     if (isTO()) { renderToPlan(g); return; }
     const root = document.getElementById('zmwm-plan');
@@ -723,12 +828,18 @@
     const loc = meta ? toText(field(meta, 'location')) : '';
     const rackType = meta ? toText(field(meta, 'rack_type')) : '';
     const isUnmapped = unmappedRacks().includes(rack);
-    const isReference = !isTO() && !isGalleryC() && REFERENCE_ONLY.has(rack);
+    const isReference = !isTO() && !isGalleryC() && !isGalleryB() && REFERENCE_ONLY.has(rack);
     const isLimited = isGalleryC() && GALLERY_C_LIMITED.has(rack);
+    const physicalTag = isGalleryB() ? GALLERY_B_PHYSICAL_TAGS[rack] : '';
+    const needsLocationAudit = isGalleryB() && rack === GALLERY_B_AUDIT_RACK;
+    const noPhysicalRack = isGalleryB() && /^LP-9[AB]$/.test(rack);
     root.innerHTML = `<div class="zmwm-inspector-head"><span class="zmwm-eyebrow">RACK DETAIL</span>
       <div class="zmwm-inspector-title"><h2>${esc(rack)}</h2><span>${visible.length}${visible.length !== all.length ? ' / ' + all.length : ''} pieces</span></div><button type="button" class="zmwm-back-to-map" data-action="back-to-map">↑ Back to rack map</button>
       <p>${isReference ? 'Reference face on drawing — not confirmed usable. Please verify any assignments here.' : isUnmapped ? 'Rack code needs side / location review' : 'Live inventory assigned to this rack face'}</p>
       ${isLimited ? '<div class="zmwm-gallery-c-notice" role="note"><strong>⚠ LIMITED ACCESS · PROVISIONAL</strong><span>Not suitable for full slabs. This is a starting assumption; verify before placing material here.</span></div>' : ''}
+      ${physicalTag ? `<div class="zmwm-gallery-b-notice" role="note"><strong>⚠ PHYSICAL TAG DOES NOT MATCH</strong><span>This location is ${esc(rack)} in Kintone, but the physical rack is currently labeled ${esc(physicalTag)}. Yard retagging is pending; verify the location before pulling material.</span></div>` : ''}
+      ${needsLocationAudit ? '<div class="zmwm-gallery-b-notice audit" role="note"><strong>⚠ INVENTORY LOCATION UNVERIFIED</strong><span>Inventory assigned to LP-7A in Kintone has not been physically confirmed at this location. A yard audit is pending; do not assume the piece is here.</span></div>' : ''}
+      ${noPhysicalRack ? '<div class="zmwm-gallery-b-notice audit" role="note"><strong>⚠ NO LP-9 STORAGE POSITION</strong><span>The former LP-9 A-frame was moved into the LP-7 position. Any records still assigned LP-9A/B require a location audit, not automatic reassignment.</span></div>' : ''}
       ${loc || rackType ? `<div class="zmwm-inspector-meta">${loc ? `<span>${esc(loc)}</span>` : ''}${rackType ? `<span>${esc(rackType)}</span>` : ''}</div>` : ''}
     </div>
     <div class="zmwm-piece-list">${visible.length ? visible.map(itemHTML).join('') : `<div class="zmwm-empty-inspector">${all.length ? 'No pieces match your current filters.' : 'No current pieces assigned to this rack.'}</div>`}</div>
