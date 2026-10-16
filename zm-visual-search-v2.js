@@ -70,48 +70,14 @@
     return Number.isFinite(n) ? n : NaN;
   };
 
-  // Extra L-remnant dimensions (C / D) are conditionally displayed in the
-  // Kintone form. Resolve their real codes from *field labels*, rather than
-  // assuming codes or requesting a full record with sensitive fields.
-  function visualDimensionNameMatch(name,letter) {
-    const normalized = str(name).toLowerCase().replace(/[_\-():/]/g,' ')
-      .replace(/\s+/g,' ').trim();
-    if (!normalized || /\b(cost|price|margin|profit|job|customer|supplier|paid|rate|sale)\b/i.test(normalized)) return false;
-    if (normalized === letter.toLowerCase()) return true;
-    const tokens = normalized.split(' ');
-    const letterIndex = tokens.indexOf(letter.toLowerCase());
-    const dimensionWords = new Set(['dim','dimension','dimensions','remnant','l','shape',
-      'leg','bump','extra','additional','width','length','height','side','measurement','size']);
-    if (letterIndex >= 0 && tokens.length <= 5 &&
-        tokens.every(token => token === letter.toLowerCase() || dimensionWords.has(token))) return true;
-    if (letter === 'C' &&
-        /^(?:leg|bump|additional|extra|raised leg) width$/.test(normalized)) return true;
-    if (letter === 'D' &&
-        /^(?:leg|bump|additional|extra|raised leg) height$/.test(normalized)) return true;
-    return false;
-  }
-  function visualFindExtraDimensions(properties) {
-    const candidates = Object.entries(properties || {}).filter(([code,item]) =>
-      item && ['NUMBER','SINGLE_LINE_TEXT','CALC'].includes(str(item.type)) &&
-      !/\b(cost|price|margin|profit|job|customer|supplier|paid|rate|sale)\b/i.test(
-        str(item.label) + ' ' + str(code)));
-    return ['C','D'].flatMap(letter => {
-      const found = candidates.find(([code,item]) => visualDimensionNameMatch(item.label,letter)) ||
-        candidates.find(([code,item]) => visualDimensionNameMatch(code,letter));
-      return found ? [{name:letter,code:found[0]}] : [];
-    });
-  }
-  async function visualDiscoverExtraDimensions() {
-    if (!kintone.app || typeof kintone.app.getFormFields !== 'function') return [];
-    try {
-      const schema = await kintone.app.getFormFields();
-      const properties = schema && (schema.properties || schema);
-      return visualFindExtraDimensions(properties);
-    } catch (error) {
-      // A field-schema permission issue must not break basic photo browsing.
-      return [];
-    }
-  }
+  // Verified directly in ZM Inventory's Kintone field settings:
+  // Length 2 (for L shapes) = length_2; Width 2 (for L shapes) = width_2.
+  // Request only these explicit optional measurement fields, never a full record
+  // or form schema, to preserve the strict exclusion of pricing and private data.
+  const VISUAL_EXTRA_DIMENSION_FIELDS = Object.freeze([
+    {name:'Length 2', code:'length_2'},
+    {name:'Width 2', code:'width_2'}
+  ]);
   function visualGeometry(record) {
     const length = visualDimension(field(record,'length'));
     const width = visualDimension(field(record,'width'));
@@ -123,8 +89,7 @@
     return {
       basic:length + ' × ' + width + ' in',
       shape:nonRect ? shape : '',
-      extras:extras.map(dim => dim.name + ': ' + dim.value).join(' · ') +
-        (extras.length ? ' in' : ''),
+      extras:extras.map(dim => dim.name + ': ' + dim.value + ' in').join(' · '),
       nonRect
     };
   }
@@ -616,7 +581,8 @@
     renderVisualFeedback();
     renderVisualResults();
     try {
-      visualState.extraDimensionFields = await visualDiscoverExtraDimensions();
+      // The exact field codes are supplied by ZM Inventory's field settings.
+      visualState.extraDimensionFields = VISUAL_EXTRA_DIMENSION_FIELDS;
       if (token !== visualState.token || !visualState.active) return;
       const records = await fetchVisualRecords();
       if (token !== visualState.token || !visualState.active) return;
