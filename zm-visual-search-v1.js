@@ -47,9 +47,15 @@
   // physical maps, but has its own image-first, read-only user interface.
   // It does not change any warehouse-map layout or write to Kintone.
   const VISUAL_PAGE_SIZE = 32;
-  const VISUAL_FIELDS = ['$id','Record_number','color','color_combined','zmv_num',
-    'type','length','width','shape','finish','thickness','rack','sale_status',
-    'inventory_status','exact_picture','example_picture','job'];
+  // Strict field allowlist: only values required for the visible cards/filters.
+  // Never request pricing, costs, margins, customer/job names, notes, or any
+  // other unrelated inventory fields. Kintone itself enforces access rights.
+  // inventory_status is used only in the query (not returned to the browser).
+  const VISUAL_FIELDS = Object.freeze([
+    '$id', 'color', 'color_combined', 'zmv_num',
+    'type', 'length', 'width', 'shape', 'rack', 'sale_status',
+    'exact_picture', 'example_picture'
+  ]);
   const visualState = {
     active:false, records:[], search:'', kind:'', sale:'', minLength:'', minWidth:'',
     photosOnly:false, shown:VISUAL_PAGE_SIZE, loading:false, error:'', updatedAt:null,
@@ -84,7 +90,7 @@
     if (!terms.length) return true;
     const haystack = [getId(record),getColor(record),getRack(record),
       field(record,'color'),field(record,'zmv_num'),field(record,'type'),
-      field(record,'job'),field(record,'finish'),field(record,'shape')]
+      field(record,'shape')]
       .map(value => str(value).toLocaleLowerCase()).join(' ');
     return terms.every(term => haystack.includes(term));
   }
@@ -351,6 +357,10 @@
     visualState.urls.forEach(url => URL.revokeObjectURL(url));
     visualState.urls.clear();
     visualState.failed.clear();
+    // Drop cached inventory when leaving Visual Search; never retain
+    // per-piece data in memory across unrelated Kintone views.
+    visualState.records = [];
+    visualState.updatedAt = null;
   }
   function startVisualSearch() {
     stopVisualSearch();
