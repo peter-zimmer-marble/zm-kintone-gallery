@@ -1056,13 +1056,14 @@
     return '<article class="zmwm-visual-card"><a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) + ', ' + esc(length) +
       ' by ' + esc(width) + ' inches. Open Kintone record ' + esc(id) + '">' +
+      '<div class="zmwm-visual-card-heading"><h3>' + esc(name) + '</h3></div>' +
       '<div class="zmwm-visual-photo"' +
       (primary ? ' data-visual-photo="' + esc(primary) + '"' : '') +
       (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') + '>' +
       (primary ? '<span class="zmwm-visual-photo-pending">Photo loading…</span>' :
         '<span class="zmwm-visual-no-photo">No photo available</span>') +
       (label ? '<span class="zmwm-visual-status ' + statusClass(sale) + '">' + esc(label) + '</span>' : '') +
-      '</div><div class="zmwm-visual-card-details"><h3>' + esc(name) + '</h3>' +
+      '</div><div class="zmwm-visual-card-details">' +
       '<div class="zmwm-visual-size">' + esc(length) + ' × ' + esc(width) + ' in</div>' +
       '<div class="zmwm-visual-card-meta"><span>' + esc(type) +
       (shape && shape.toLowerCase() !== 'rectangle' ? ' · ' + esc(shape) : '') +
