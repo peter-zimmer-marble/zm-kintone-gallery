@@ -191,3 +191,119 @@
   #zm-warehouse-map-root .zmwm-reference-controls {padding:8px;}
   #zm-warehouse-map-root .zmwm-reference-legend {gap:9px;}
 }
+
+/*
+ * Gallery A readability pass (2026-10-15).
+ * Intentionally appended to the existing production stylesheet so that the
+ * currently configured Kintone GitHub Pages URL stays unchanged.
+ * No data, access, or record behavior is modified.
+ */
+#zm-warehouse-map-root .zmwm-app { padding:20px 22px; }
+#zm-warehouse-map-root .zmwm-head { margin-bottom:14px; }
+#zm-warehouse-map-root .zmwm-head-left { gap:15px; }
+#zm-warehouse-map-root .zmwm-mark { padding:12px 13px; }
+#zm-warehouse-map-root .zmwm-eyebrow { font-size:10.5px; margin-bottom:4px; }
+#zm-warehouse-map-root h1 { font-size:26px; }
+#zm-warehouse-map-root .zmwm-head p { font-size:13px; margin-top:3px; }
+#zm-warehouse-map-root .zmwm-feedback { min-height:21px; }
+#zm-warehouse-map-root .zmwm-loaded { font-size:12px; padding-bottom:6px; }
+#zm-warehouse-map-root .zmwm-overview { margin:3px 0 13px; }
+#zm-warehouse-map-root .zmwm-stat { padding:12px 16px; gap:2px; }
+#zm-warehouse-map-root .zmwm-stat span { font-size:11px; }
+#zm-warehouse-map-root .zmwm-stat strong { font-size:25px; }
+#zm-warehouse-map-root .zmwm-stat small { font-size:11px; }
+#zm-warehouse-map-root .zmwm-filterbar { margin-bottom:13px; }
+#zm-warehouse-map-root .zmwm-search-wrap input { padding:11px 12px 11px 7px; font-size:14px; }
+#zm-warehouse-map-root .zmwm-content { grid-template-columns:minmax(0,1fr) 350px; gap:15px; }
+#zm-warehouse-map-root .zmwm-content-heading { padding-bottom:9px; }
+#zm-warehouse-map-root .zmwm-content-heading p { font-size:13px; margin:4px 0 0; }
+#zm-warehouse-map-root .zmwm-reference-controls { padding:8px 12px; }
+#zm-warehouse-map-root .zmwm-reference-context { font-size:12px; }
+#zm-warehouse-map-root .zmwm-reference-tag { font-size:10px; }
+
+/* Rack names and color counts are legible at a normal Kintone browser zoom. */
+#zm-warehouse-map-root .zmwm-layout-face {
+  padding:7px 6px;
+  gap:5px;
+  border-color:#56636a;
+}
+#zm-warehouse-map-root .zmwm-layout-name {
+  font-size:13.6px;
+  line-height:1.12;
+  letter-spacing:0;
+}
+#zm-warehouse-map-root .zmwm-layout-summary { gap:3px; }
+#zm-warehouse-map-root .zmwm-layout-summary-line {
+  align-items:start;
+  gap:5px;
+  padding:3px 4px;
+  font-size:11.6px;
+  line-height:1.18;
+  border-color:rgba(60,90,96,.22);
+  background:rgba(255,255,255,.60);
+}
+#zm-warehouse-map-root .zmwm-layout-summary-name {
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  white-space:normal;
+  line-clamp:2;
+  line-height:1.18;
+  font-weight:750;
+  overflow:hidden;
+  overflow-wrap:normal;
+  text-overflow:ellipsis;
+}
+#zm-warehouse-map-root .zmwm-layout-summary-count { font-size:11px; line-height:1.17; }
+#zm-warehouse-map-root .zmwm-layout-summary-more { font-size:10px; line-height:1.18; font-weight:800; }
+#zm-warehouse-map-root .zmwm-layout-empty-note { font-size:11px; }
+#zm-warehouse-map-root .zmwm-layout-qty {
+  min-width:26px;
+  padding:2px 5px;
+  font-size:11px;
+  line-height:1.2;
+  background:#fff;
+  border-color:rgba(61,91,105,.25);
+}
+/* G-series faces are physically narrower than Z-series faces. */
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth { padding:5px 4px; gap:4px; }
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth .zmwm-layout-name { font-size:12px; }
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth .zmwm-layout-summary { gap:2px; }
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth .zmwm-layout-summary-line {
+  font-size:10px;
+  line-height:1.15;
+  padding:2px 3px;
+  gap:3px;
+}
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth .zmwm-layout-summary-count { font-size:9.5px; }
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth .zmwm-layout-summary-more { font-size:9px; }
+#zm-warehouse-map-root .zmwm-layout-face.is-northsouth .zmwm-layout-qty { min-width:22px; font-size:10px; padding:1px 4px; }
+
+/* Rack inspector: stronger hierarchy and easier record scanning. */
+#zm-warehouse-map-root .zmwm-inspector-head { padding:16px 17px 13px; }
+#zm-warehouse-map-root .zmwm-inspector-title h2 { font-size:26px; }
+#zm-warehouse-map-root .zmwm-inspector-title span { font-size:12px; }
+#zm-warehouse-map-root .zmwm-inspector-head p { font-size:12px; margin-top:6px; }
+#zm-warehouse-map-root .zmwm-piece { padding:13px 14px; gap:12px; }
+#zm-warehouse-map-root .zmwm-piece-photo { width:60px; height:78px; flex-basis:60px; }
+#zm-warehouse-map-root .zmwm-piece-top { font-size:11px; gap:7px; }
+#zm-warehouse-map-root .zmwm-piece h4 { font-size:15px; line-height:1.28; margin:6px 0 5px; }
+#zm-warehouse-map-root .zmwm-piece-meta { font-size:12px; line-height:1.45; }
+#zm-warehouse-map-root .zmwm-piece-note { font-size:12px; }
+#zm-warehouse-map-root .zmwm-status { font-size:10px; padding:4px 6px; }
+#zm-warehouse-map-root .zmwm-piece-allocation-label { font-size:10px; }
+#zm-warehouse-map-root .zmwm-piece-allocation strong { font-size:13px; line-height:1.35; }
+#zm-warehouse-map-root .zmwm-record-link { font-size:13px; margin-top:8px; }
+
+@media (max-width:1290px) {
+  #zm-warehouse-map-root .zmwm-content { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:900px) {
+  #zm-warehouse-map-root .zmwm-app { padding:15px; }
+}
+@media (max-width:560px) {
+  #zm-warehouse-map-root .zmwm-app { padding:12px; }
+  #zm-warehouse-map-root .zmwm-stat { padding:12px; }
+  #zm-warehouse-map-root .zmwm-stat strong { font-size:23px; }
+  #zm-warehouse-map-root .zmwm-piece { padding:12px; }
+}
