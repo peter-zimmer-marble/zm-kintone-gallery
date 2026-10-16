@@ -62,13 +62,73 @@
     photosOnly:false, shown:VISUAL_PAGE_SIZE, loading:false, error:'', updatedAt:null,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
-    touchStartX:null
+    touchStartX:null, extraDimensionFields:[]
   };
   const visualDimension = value => toText(value) || '?';
   const visualNumericDimension = value => {
     const n = Number(toText(value).replace(/,/g, ''));
     return Number.isFinite(n) ? n : NaN;
   };
+
+  // Extra L-remnant dimensions (C / D) are conditionally displayed in the
+  // Kintone form. Resolve their real codes from *field labels*, rather than
+  // assuming codes or requesting a full record with sensitive fields.
+  function visualDimensionNameMatch(name,letter) {
+    const normalized = str(name).toLowerCase().replace(/[_\-():/]/g,' ')
+      .replace(/\s+/g,' ').trim();
+    if (!normalized || /\b(cost|price|margin|profit|job|customer|supplier|paid|rate|sale)\b/i.test(normalized)) return false;
+    if (normalized === letter.toLowerCase()) return true;
+    const tokens = normalized.split(' ');
+    const letterIndex = tokens.indexOf(letter.toLowerCase());
+    const dimensionWords = new Set(['dim','dimension','dimensions','remnant','l','shape',
+      'leg','bump','extra','additional','width','length','height','side','measurement','size']);
+    if (letterIndex >= 0 && tokens.length <= 5 &&
+        tokens.every(token => token === letter.toLowerCase() || dimensionWords.has(token))) return true;
+    if (letter === 'C' &&
+        /^(?:leg|bump|additional|extra|raised leg) width$/.test(normalized)) return true;
+    if (letter === 'D' &&
+        /^(?:leg|bump|additional|extra|raised leg) height$/.test(normalized)) return true;
+    return false;
+  }
+  function visualFindExtraDimensions(properties) {
+    const candidates = Object.entries(properties || {}).filter(([code,item]) =>
+      item && ['NUMBER','SINGLE_LINE_TEXT','CALC'].includes(str(item.type)) &&
+      !/\b(cost|price|margin|profit|job|customer|supplier|paid|rate|sale)\b/i.test(
+        str(item.label) + ' ' + str(code)));
+    return ['C','D'].flatMap(letter => {
+      const found = candidates.find(([code,item]) => visualDimensionNameMatch(item.label,letter)) ||
+        candidates.find(([code,item]) => visualDimensionNameMatch(code,letter));
+      return found ? [{name:letter,code:found[0]}] : [];
+    });
+  }
+  async function visualDiscoverExtraDimensions() {
+    if (!kintone.app || typeof kintone.app.getFormFields !== 'function') return [];
+    try {
+      const schema = await kintone.app.getFormFields();
+      const properties = schema && (schema.properties || schema);
+      return visualFindExtraDimensions(properties);
+    } catch (error) {
+      // A field-schema permission issue must not break basic photo browsing.
+      return [];
+    }
+  }
+  function visualGeometry(record) {
+    const length = visualDimension(field(record,'length'));
+    const width = visualDimension(field(record,'width'));
+    const shape = toText(field(record,'shape'));
+    const nonRect = Boolean(shape && shape.toLowerCase() !== 'rectangle');
+    const extras = nonRect ? visualState.extraDimensionFields
+      .map(dim => ({name:dim.name,value:toText(field(record,dim.code))}))
+      .filter(dim => dim.value !== '') : [];
+    return {
+      basic:length + ' × ' + width + ' in',
+      shape:nonRect ? shape : '',
+      extras:extras.map(dim => dim.name + ': ' + dim.value).join(' · ') +
+        (extras.length ? ' in' : ''),
+      nonRect
+    };
+  }
+
   // Kintone attachment fields can each contain multiple image files.
   // Preserve exact-picture order, then example-picture order, without duplicates.
   function visualImages(record) {
@@ -122,9 +182,9 @@
     const fallback = images[1] ? images[1].key : '';
     const length = visualDimension(field(record,'length'));
     const width = visualDimension(field(record,'width'));
+    const geometry = visualGeometry(record);
     const rack = toText(field(record,'rack')) || 'Location not set';
     const type = toText(field(record,'type')) || 'Stone';
-    const shape = toText(field(record,'shape'));
     const sale = getSale(record);
     const job = toText(field(record,'job'));
     const label = sale === 'Avl' ? 'Available' : sale === 'SOLD' ? 'Sold' : sale === 'Hold' ? 'Hold' : '';
@@ -150,11 +210,14 @@
       ' by ' + esc(width) + ' inches. Open Kintone record ' + esc(id) + '">' +
       '<div class="zmwm-visual-card-details">' +
       '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
-      '<div class="zmwm-visual-size">' + esc(length) + ' × ' + esc(width) + ' in</div>' +
+      '<div class="zmwm-visual-size">' + esc(geometry.basic) + '</div>' +
+      (geometry.nonRect ? '<div class="zmwm-visual-geometry">' +
+        '<span class="zmwm-visual-shape">' + esc(geometry.shape) + '</span>' +
+        (geometry.extras ? '<span class="zmwm-visual-extras">' +
+          esc(geometry.extras) + '</span>' : '') + '</div>' : '') +
       (job ? '<div class="zmwm-visual-job"><span class="zmwm-visual-job-label">Job</span>' +
         '<span class="zmwm-visual-job-value">' + esc(job) + '</span></div>' : '') +
       '<div class="zmwm-visual-card-meta"><span>' + esc(type) +
-      (shape && shape.toLowerCase() !== 'rectangle' ? ' · ' + esc(shape) : '') +
       '</span><span>' + esc(rack) + ' · #' + esc(id) + '</span></div>' +
       '</div></a></article>';
   }
@@ -188,8 +251,12 @@
         '<section class="zmwm-visual-lightbox-panel">' +
           '<header class="zmwm-visual-lightbox-header">' +
             '<div><div class="zmwm-visual-lightbox-eyebrow">INVENTORY PHOTOS</div>' +
-              '<h2 id="zmwm-visual-lightbox-title"></h2>' +
-              '<p id="zmwm-visual-lightbox-meta"></p></div>' +
+              '<a class="zmwm-visual-lightbox-record-link" id="zmwm-visual-lightbox-record-link"' +
+                ' target="_blank" rel="noopener noreferrer" href="#">' +
+                '<h2 id="zmwm-visual-lightbox-title"></h2>' +
+                '<p id="zmwm-visual-lightbox-meta"></p>' +
+                '<span class="zmwm-visual-lightbox-record-hint">Open inventory record ↗</span>' +
+              '</a></div>' +
             '<button type="button" class="zmwm-visual-lightbox-close"' +
               ' data-visual-action="close-photo" aria-label="Close photo viewer">×</button>' +
           '</header>' +
@@ -370,7 +437,7 @@
       .replace(/[. ]+$/g,'');
     return cleaned || 'Unknown';
   }
-  function visualDownloadFilename(record, image, index, total) {
+  function visualDownloadFilename(record, image) {
     const extensions = {
       'image/jpeg':'jpg','image/jpg':'jpg','image/png':'png',
       'image/webp':'webp','image/gif':'gif','image/avif':'avif',
@@ -385,8 +452,7 @@
     const dims = visualSafeFilenamePart(length === '?' ? 'Unknown' : length,24) +
       ' x ' + visualSafeFilenamePart(width === '?' ? 'Unknown' : width,24) + ' in';
     const recNumber = visualSafeFilenamePart(getId(record),24);
-    const numbered = total > 1 ? ' - Photo ' + (index + 1) : '';
-    return name + ' - ' + dims + ' - Record ' + recNumber + numbered + '.' + ext;
+    return name + ' - ' + dims + ' - Record ' + recNumber + '.' + ext;
   }
   function renderVisualLightbox() {
     const current = visualState.lightbox;
@@ -398,6 +464,7 @@
     const failure = visualState.failed.has(image.key);
     const title = root.querySelector('#zmwm-visual-lightbox-title');
     const meta = root.querySelector('#zmwm-visual-lightbox-meta');
+    const recordLink = root.querySelector('#zmwm-visual-lightbox-record-link');
     const stage = root.querySelector('#zmwm-visual-lightbox-image');
     const caption = root.querySelector('#zmwm-visual-lightbox-caption');
     const download = root.querySelector('[data-visual-action="download-photo"]');
@@ -406,14 +473,19 @@
     const thumbnails = root.querySelector('#zmwm-visual-lightbox-thumbnails');
     if (!title || !meta || !stage || !caption || !download || !thumbnails) return;
     const name = getColorCombined(current.record);
+    const geometry = visualGeometry(current.record);
     title.textContent = name;
-    meta.textContent = visualDimension(field(current.record,'length')) + ' × ' +
-      visualDimension(field(current.record,'width')) + ' in · Record #' + getId(current.record);
+    meta.textContent = geometry.basic +
+      (geometry.nonRect ? ' · ' + geometry.shape +
+        (geometry.extras ? ' · ' + geometry.extras : '') : '') +
+      ' · Record #' + getId(current.record);
+    if (recordLink) recordLink.href = '/k/' + SETTINGS.INVENTORY_APP_ID +
+      '/show#record=' + encodeURIComponent(getId(current.record));
     const number = current.index + 1;
     const total = current.images.length;
     caption.textContent = image.kind + ' · Photo ' + number + ' of ' + total;
     download.disabled = !blobUrl;
-    download.title = blobUrl ? visualDownloadFilename(current.record,image,current.index,total) :
+    download.title = blobUrl ? visualDownloadFilename(current.record,image) :
       'Wait for photo to finish loading';
     if (previous) previous.disabled = total < 2;
     if (next) next.disabled = total < 2;
@@ -480,7 +552,7 @@
     } else if (event.key === 'Tab') {
       const root = document.getElementById('zmwm-visual-lightbox');
       if (!root) return;
-      const focusable = [...root.querySelectorAll('button:not([disabled])')];
+      const focusable = [...root.querySelectorAll('a[href],button:not([disabled])')];
       if (!focusable.length) return;
       const first = focusable[0], last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -498,7 +570,7 @@
     if (!url) return;
     const link = document.createElement('a');
     link.href = url; // authenticated Kintone image already loaded as a local blob
-    link.download = visualDownloadFilename(current.record,image,current.index,current.images.length);
+    link.download = visualDownloadFilename(current.record,image);
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
@@ -508,20 +580,32 @@
   // Keyset pagination avoids Kintone's 10,000-record offset limit. All reads
   // are GETs from the inventory app; no cursor resources or writes are created.
   async function fetchVisualRecords() {
-    const records = [];
-    let last = 0;
-    for (let page=0;page<80;page++) {
-      const cond = 'inventory_status in ("In")' + (last ? ' and $id > ' + last : '');
-      const data = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,VISUAL_FIELDS,
-        cond + ' order by $id asc limit ' + SETTINGS.PAGE_SIZE);
-      const batch = Array.isArray(data.records) ? data.records : [];
-      records.push(...batch);
-      if (batch.length < SETTINGS.PAGE_SIZE) return records;
-      const id = Number(getId(batch[batch.length-1]));
-      if (!Number.isSafeInteger(id) || id <= last) throw new Error('Unable to page inventory record IDs.');
-      last = id;
+    async function getRecords(fields) {
+      const records = [];
+      let last = 0;
+      for (let page=0;page<80;page++) {
+        const cond = 'inventory_status in ("In")' + (last ? ' and $id > ' + last : '');
+        const data = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,fields,
+          cond + ' order by $id asc limit ' + SETTINGS.PAGE_SIZE);
+        const batch = Array.isArray(data.records) ? data.records : [];
+        records.push(...batch);
+        if (batch.length < SETTINGS.PAGE_SIZE) return records;
+        const id = Number(getId(batch[batch.length-1]));
+        if (!Number.isSafeInteger(id) || id <= last) throw new Error('Unable to page inventory record IDs.');
+        last = id;
+      }
+      throw new Error('Too many records for this view. Narrow the query before retrying.');
     }
-    throw new Error('Too many records for this view. Narrow the scope before retrying.');
+    const optional = visualState.extraDimensionFields.map(dim => dim.code);
+    if (optional.length) {
+      try {
+        return await getRecords([...VISUAL_FIELDS,...optional]);
+      } catch (error) {
+        // Fall back to baseline fields if extra dimensions are restricted.
+        visualState.extraDimensionFields = [];
+      }
+    }
+    return getRecords(VISUAL_FIELDS);
   }
   async function loadVisualSearch() {
     if (!visualState.active) return;
@@ -532,6 +616,8 @@
     renderVisualFeedback();
     renderVisualResults();
     try {
+      visualState.extraDimensionFields = await visualDiscoverExtraDimensions();
+      if (token !== visualState.token || !visualState.active) return;
       const records = await fetchVisualRecords();
       if (token !== visualState.token || !visualState.active) return;
       visualState.records = records;
@@ -583,6 +669,7 @@
     // per-piece data in memory across unrelated Kintone views.
     visualState.records = [];
     visualState.updatedAt = null;
+    visualState.extraDimensionFields = [];
   }
   function startVisualSearch() {
     stopVisualSearch();
