@@ -13,6 +13,7 @@
     GALLERY_C_VIEW_NAME: 'Gallery C',
     GALLERY_B_VIEW_NAME: 'Gallery B',
     GALLERY_D_VIEW_NAME: 'Gallery D',
+    VISUAL_SEARCH_VIEW_NAME: 'Visual Search',
     INVENTORY_APP_ID: 6,
     RACK_APP_ID: 7,
     PAGE_SIZE: 500,
@@ -111,7 +112,8 @@
     name === SETTINGS.TO_VIEW_NAME ? 'temporary-outside' :
     name === SETTINGS.GALLERY_C_VIEW_NAME ? 'gallery-c' :
     name === SETTINGS.GALLERY_B_VIEW_NAME ? 'gallery-b' :
-    name === SETTINGS.GALLERY_D_VIEW_NAME ? 'gallery-d' : null;
+    name === SETTINGS.GALLERY_D_VIEW_NAME ? 'gallery-d' :
+    name === SETTINGS.VISUAL_SEARCH_VIEW_NAME ? 'visual-search' : null;
   const isTO = () => state.view === 'temporary-outside';
   const mappedRacks = () => isGalleryD() ? GALLERY_D_MAPPED : isGalleryB() ? GALLERY_B_MAPPED : isGalleryC() ? GALLERY_C_MAPPED : isTO() ? TO_MAPPED : MAPPED;
   const unmappedRacks = () => isGalleryD() ? GALLERY_D_UNMAPPED : isGalleryB() ? GALLERY_B_UNMAPPED : isGalleryC() ? GALLERY_C_UNMAPPED : isTO() ? TO_UNMAPPED : UNMAPPED;
@@ -988,6 +990,367 @@
     state.photoUrls.clear();
   }
 
+
+  // Visual Search uses the same authenticated Inventory App 6 records as the
+  // physical maps, but has its own image-first, read-only user interface.
+  // It does not change any warehouse-map layout or write to Kintone.
+  const VISUAL_PAGE_SIZE = 32;
+  const VISUAL_FIELDS = ['$id','Record_number','color','color_combined','zmv_num',
+    'type','length','width','shape','finish','thickness','rack','sale_status',
+    'inventory_status','exact_picture','example_picture','job'];
+  const visualState = {
+    active:false, records:[], search:'', kind:'', sale:'', minLength:'', minWidth:'',
+    photosOnly:false, shown:VISUAL_PAGE_SIZE, loading:false, error:'', updatedAt:null,
+    token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
+    inflight:new Map(), observer:null
+  };
+  const visualDimension = value => toText(value) || '?';
+  const visualNumericDimension = value => {
+    const n = Number(toText(value).replace(/,/g, ''));
+    return Number.isFinite(n) ? n : NaN;
+  };
+  function visualPhotoKeys(record) {
+    const found = [];
+    for (const name of ['exact_picture', 'example_picture']) {
+      const photos = field(record, name);
+      const photo = Array.isArray(photos) ? photos.find(p =>
+        p && p.fileKey && /^image\//i.test(str(p.contentType))) : null;
+      if (photo && !found.includes(str(photo.fileKey))) found.push(str(photo.fileKey));
+    }
+    return found;
+  }
+  function visualMatches(record) {
+    if (visualState.kind === 'slab' && !isSlab(record)) return false;
+    if (visualState.kind === 'remnant' && !isRemnant(record)) return false;
+    if (visualState.sale && getSale(record) !== visualState.sale) return false;
+    if (visualState.photosOnly && !visualPhotoKeys(record).length) return false;
+    if (visualState.minLength !== '' &&
+      !(visualNumericDimension(field(record,'length')) >= Number(visualState.minLength))) return false;
+    if (visualState.minWidth !== '' &&
+      !(visualNumericDimension(field(record,'width')) >= Number(visualState.minWidth))) return false;
+    const terms = visualState.search.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+    const haystack = [getId(record),getColor(record),getRack(record),
+      field(record,'color'),field(record,'zmv_num'),field(record,'type'),
+      field(record,'job'),field(record,'finish'),field(record,'shape')]
+      .map(value => str(value).toLocaleLowerCase()).join(' ');
+    return terms.every(term => haystack.includes(term));
+  }
+  function visualMatchesSorted() {
+    return visualState.records.filter(visualMatches).sort((a,b) =>
+      getColorCombined(a).localeCompare(getColorCombined(b),undefined,{sensitivity:'base'}) ||
+      num(getId(a)) - num(getId(b)));
+  }
+  function visualCard(record) {
+    const id = getId(record);
+    const name = getColorCombined(record);
+    const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
+    const [primary, fallback] = visualPhotoKeys(record);
+    const length = visualDimension(field(record,'length'));
+    const width = visualDimension(field(record,'width'));
+    const rack = toText(field(record,'rack')) || 'Location not set';
+    const type = toText(field(record,'type')) || 'Stone';
+    const shape = toText(field(record,'shape'));
+    const sale = getSale(record);
+    const label = sale === 'Avl' ? 'Available' : sale === 'SOLD' ? 'Sold' : sale === 'Hold' ? 'Hold' : '';
+    return '<article class="zmwm-visual-card"><a class="zmwm-visual-link" href="' + url +
+      '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) + ', ' + esc(length) +
+      ' by ' + esc(width) + ' inches. Open Kintone record ' + esc(id) + '">' +
+      '<div class="zmwm-visual-photo"' +
+      (primary ? ' data-visual-photo="' + esc(primary) + '"' : '') +
+      (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') + '>' +
+      (primary ? '<span class="zmwm-visual-photo-pending">Photo loading…</span>' :
+        '<span class="zmwm-visual-no-photo">No photo available</span>') +
+      (label ? '<span class="zmwm-visual-status ' + statusClass(sale) + '">' + esc(label) + '</span>' : '') +
+      '</div><div class="zmwm-visual-card-details"><h3>' + esc(name) + '</h3>' +
+      '<div class="zmwm-visual-size">' + esc(length) + ' × ' + esc(width) + ' in</div>' +
+      '<div class="zmwm-visual-card-meta"><span>' + esc(type) +
+      (shape && shape.toLowerCase() !== 'rectangle' ? ' · ' + esc(shape) : '') +
+      '</span><span>' + esc(rack) + ' · #' + esc(id) + '</span></div>' +
+      '</div></a></article>';
+  }
+  function visualShell() {
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root">' +
+      '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
+      '<h1>Visual Search</h1><p>Browse individual pieces by photo, size and material name.</p></div>' +
+      '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
+      '<button type="button" data-visual-action="refresh">↻ Refresh</button></div></header>' +
+      '<div class="zmwm-visual-toolbar" role="search" aria-label="Photo inventory filters">' +
+      '<label class="zmwm-visual-field zmwm-visual-search-field"><span>SEARCH</span>' +
+      '<input id="zmwm-visual-search" type="search" placeholder="Name, color, record #, rack…" autocomplete="off"></label>' +
+      '<label class="zmwm-visual-field"><span>PIECE TYPE</span><select id="zmwm-visual-kind">' +
+      '<option value="">All pieces</option><option value="slab">Slabs</option>' +
+      '<option value="remnant">Remnants</option></select></label>' +
+      '<label class="zmwm-visual-field"><span>AVAILABILITY</span><select id="zmwm-visual-sale">' +
+      '<option value="">All statuses</option><option value="Avl">Available</option>' +
+      '<option value="Hold">Hold</option><option value="SOLD">Sold</option></select></label>' +
+      '<label class="zmwm-visual-field zmwm-visual-number"><span>MIN. LENGTH (IN)</span>' +
+      '<input id="zmwm-visual-min-length" type="number" min="0" step="any" placeholder="Any"></label>' +
+      '<label class="zmwm-visual-field zmwm-visual-number"><span>MIN. WIDTH (IN)</span>' +
+      '<input id="zmwm-visual-min-width" type="number" min="0" step="any" placeholder="Any"></label>' +
+      '<label class="zmwm-visual-toggle"><input id="zmwm-visual-photos-only" type="checkbox">' +
+      '<span>Photos only</span></label>' +
+      '<button class="zmwm-visual-reset" type="button" data-visual-action="reset">Reset</button></div>' +
+      '<div id="zmwm-visual-feedback" class="zmwm-visual-feedback" role="status" aria-live="polite"></div>' +
+      '<div id="zmwm-visual-results"></div>' +
+      '<footer class="zmwm-visual-footer">Inventory currently marked In in Kintone. ' +
+      'Photos and dimensions are sourced from the existing records; nothing is edited here.</footer>' +
+      mapSignature() + '</main>';
+  }
+  function renderVisualFeedback() {
+    const node = document.getElementById('zmwm-visual-feedback');
+    if (!node) return;
+    if (visualState.loading) {
+      node.textContent = 'Loading current Kintone inventory…';
+    } else if (visualState.error) {
+      node.textContent = 'Could not load inventory: ' + visualState.error;
+    } else {
+      node.textContent = 'LIVE KINTONE DATA · ' + visualState.records.length.toLocaleString() +
+        ' pieces in shop · Refreshed ' + (visualState.updatedAt ?
+          visualState.updatedAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '—');
+    }
+  }
+  function renderVisualResults() {
+    const container = document.getElementById('zmwm-visual-results');
+    if (!container || !visualState.active) return;
+    if (visualState.observer) { visualState.observer.disconnect(); visualState.observer = null; }
+    if (visualState.loading) {
+      container.innerHTML = '<div class="zmwm-visual-loading">Finding your inventory pieces…</div>';
+      return;
+    }
+    if (visualState.error) {
+      container.innerHTML = '<div class="zmwm-visual-empty">Inventory could not be loaded. ' +
+        '<button type="button" data-visual-action="refresh">Try again</button></div>';
+      return;
+    }
+    const results = visualMatchesSorted();
+    const visible = results.slice(0,visualState.shown);
+    container.innerHTML = '<div class="zmwm-visual-count">' + results.length.toLocaleString() +
+      ' matching ' + (results.length === 1 ? 'piece' : 'pieces') +
+      ' <span>· Showing ' + visible.length.toLocaleString() + '</span></div>' +
+      (results.length ? '<div class="zmwm-visual-grid">' + visible.map(visualCard).join('') + '</div>' :
+        '<div class="zmwm-visual-empty">No pieces match those filters.</div>') +
+      (visible.length < results.length ? '<div class="zmwm-visual-more-wrap"><button type="button" ' +
+        'data-visual-action="more">Show more pieces</button></div>' : '');
+    prepareVisualPhotos();
+  }
+  function fillVisualSlot(slot, url) {
+    if (!slot) return;
+    const badge = slot.querySelector('.zmwm-visual-status');
+    slot.textContent = '';
+    const image = document.createElement('img');
+    image.src = url;
+    image.alt = 'Photo of inventory piece';
+    image.loading = 'lazy';
+    slot.appendChild(image);
+    if (badge) slot.appendChild(badge);
+  }
+  function markVisualPhotoFailure(key) {
+    visualState.failed.add(key);
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root || !visualState.active) return;
+    root.querySelectorAll('[data-visual-photo]').forEach(slot => {
+      if (slot.dataset.visualPhoto !== key) return;
+      const alternate = slot.dataset.visualFallback;
+      if (alternate && alternate !== key) {
+        slot.dataset.visualPhoto = alternate;
+        delete slot.dataset.visualFallback;
+        requestVisualPhoto(alternate);
+      } else {
+        const badge = slot.querySelector('.zmwm-visual-status');
+        slot.textContent = '';
+        const textNode = document.createElement('span');
+        textNode.className = 'zmwm-visual-no-photo';
+        textNode.textContent = 'Photo unavailable';
+        slot.appendChild(textNode);
+        if (badge) slot.appendChild(badge);
+        delete slot.dataset.visualPhoto;
+      }
+    });
+  }
+  function requestVisualPhoto(key) {
+    if (!visualState.active || !key) return;
+    if (visualState.urls.has(key)) {
+      const root = document.getElementById('zmwm-visual-root');
+      if (root) root.querySelectorAll('[data-visual-photo]').forEach(slot => {
+        if (slot.dataset.visualPhoto === key) fillVisualSlot(slot,visualState.urls.get(key));
+      });
+      return;
+    }
+    if (visualState.failed.has(key)) { markVisualPhotoFailure(key); return; }
+    if (visualState.pendingKeys.has(key) || visualState.inflight.has(key)) return;
+    visualState.pending.push(key);
+    visualState.pendingKeys.add(key);
+    drainVisualPhotoQueue();
+  }
+  function drainVisualPhotoQueue() {
+    while (visualState.active && visualState.inflight.size < 4 && visualState.pending.length) {
+      const key = visualState.pending.shift();
+      visualState.pendingKeys.delete(key);
+      if (visualState.urls.has(key) || visualState.failed.has(key)) continue;
+      const xhr = new XMLHttpRequest();
+      visualState.inflight.set(key,xhr);
+      xhr.open('GET', kintone.api.url('/k/v1/file.json',true) +
+        '?fileKey=' + encodeURIComponent(key), true);
+      xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
+      xhr.responseType = 'blob';
+      const done = ok => {
+        visualState.inflight.delete(key);
+        if (!visualState.active) return;
+        if (ok && xhr.response && /^image\//i.test(xhr.response.type)) {
+          const url = URL.createObjectURL(xhr.response);
+          visualState.urls.set(key,url);
+          requestVisualPhoto(key);
+        } else markVisualPhotoFailure(key);
+        drainVisualPhotoQueue();
+      };
+      xhr.onload = () => done(xhr.status === 200);
+      xhr.onerror = () => done(false);
+      xhr.send();
+    }
+  }
+  function prepareVisualPhotos() {
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root || !visualState.active) return;
+    const slots = [...root.querySelectorAll('[data-visual-photo]')];
+    const watch = slot => requestVisualPhoto(slot.dataset.visualPhoto);
+    if (typeof IntersectionObserver === 'function') {
+      visualState.observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            visualState.observer.unobserve(entry.target);
+            watch(entry.target);
+          }
+        });
+      },{rootMargin:'350px 0px'});
+      slots.forEach(slot => {
+        const url = visualState.urls.get(slot.dataset.visualPhoto);
+        if (url) fillVisualSlot(slot,url);
+        else visualState.observer.observe(slot);
+      });
+    } else slots.forEach(watch);
+  }
+  // Keyset pagination avoids Kintone's 10,000-record offset limit. All reads
+  // are GETs from the inventory app; no cursor resources or writes are created.
+  async function fetchVisualRecords() {
+    const records = [];
+    let last = 0;
+    for (let page=0;page<80;page++) {
+      const cond = 'inventory_status in ("In")' + (last ? ' and $id > ' + last : '');
+      const data = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,VISUAL_FIELDS,
+        cond + ' order by $id asc limit ' + SETTINGS.PAGE_SIZE);
+      const batch = Array.isArray(data.records) ? data.records : [];
+      records.push(...batch);
+      if (batch.length < SETTINGS.PAGE_SIZE) return records;
+      const id = Number(getId(batch[batch.length-1]));
+      if (!Number.isSafeInteger(id) || id <= last) throw new Error('Unable to page inventory record IDs.');
+      last = id;
+    }
+    throw new Error('Too many records for this view. Narrow the scope before retrying.');
+  }
+  async function loadVisualSearch() {
+    if (!visualState.active) return;
+    const token = ++visualState.token;
+    visualState.loading = true;
+    visualState.error = '';
+    renderVisualFeedback();
+    renderVisualResults();
+    try {
+      const records = await fetchVisualRecords();
+      if (token !== visualState.token || !visualState.active) return;
+      visualState.records = records;
+      visualState.updatedAt = new Date();
+      visualState.shown = VISUAL_PAGE_SIZE;
+    } catch (error) {
+      if (token !== visualState.token || !visualState.active) return;
+      visualState.records = [];
+      visualState.error = describeError(error);
+    } finally {
+      if (token === visualState.token && visualState.active) {
+        visualState.loading = false;
+        renderVisualFeedback();
+        renderVisualResults();
+      }
+    }
+  }
+  function resetVisualFilters() {
+    for (const prop of ['search','kind','sale','minLength','minWidth']) visualState[prop] = '';
+    visualState.photosOnly = false;
+    visualState.shown = VISUAL_PAGE_SIZE;
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root) return;
+    for (const id of ['search','kind','sale','min-length','min-width']) {
+      const node = root.querySelector('#zmwm-visual-' + id);
+      if (node) node.value = '';
+    }
+    const checkbox = root.querySelector('#zmwm-visual-photos-only');
+    if (checkbox) checkbox.checked = false;
+    renderVisualResults();
+  }
+  function stopVisualSearch() {
+    visualState.token++;
+    visualState.active = false;
+    if (visualState.observer) { visualState.observer.disconnect(); visualState.observer = null; }
+    visualState.inflight.forEach(xhr => xhr.abort());
+    visualState.inflight.clear();
+    visualState.pending = [];
+    visualState.pendingKeys.clear();
+    visualState.urls.forEach(url => URL.revokeObjectURL(url));
+    visualState.urls.clear();
+    visualState.failed.clear();
+  }
+  function startVisualSearch() {
+    stopVisualSearch();
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;
+    visualState.active = true;
+    visualState.records = [];
+    visualState.updatedAt = null;
+    visualState.error = '';
+    for (const name of ['search','kind','sale','minLength','minWidth']) visualState[name] = '';
+    visualState.photosOnly = false;
+    visualState.shown = VISUAL_PAGE_SIZE;
+    root.innerHTML = visualShell();
+    const ui = root.querySelector('#zmwm-visual-root');
+    if (!ui) return;
+    ui.addEventListener('input',event => {
+      const names = {
+        'zmwm-visual-search':'search',
+        'zmwm-visual-min-length':'minLength',
+        'zmwm-visual-min-width':'minWidth'
+      };
+      const key = names[event.target.id];
+      if (key) {
+        visualState[key] = event.target.value;
+        visualState.shown = VISUAL_PAGE_SIZE;
+        renderVisualResults();
+      }
+    });
+    ui.addEventListener('change',event => {
+      const names = {'zmwm-visual-kind':'kind','zmwm-visual-sale':'sale'};
+      const key = names[event.target.id];
+      if (key) {
+        visualState[key] = event.target.value;
+      } else if (event.target.id === 'zmwm-visual-photos-only') {
+        visualState.photosOnly = event.target.checked;
+      } else return;
+      visualState.shown = VISUAL_PAGE_SIZE;
+      renderVisualResults();
+    });
+    ui.addEventListener('click',event => {
+      const button = event.target.closest('[data-visual-action]');
+      if (!button) return;
+      const action = button.dataset.visualAction;
+      if (action === 'refresh') loadVisualSearch();
+      if (action === 'reset') resetVisualFilters();
+      if (action === 'more') {
+        visualState.shown += VISUAL_PAGE_SIZE;
+        renderVisualResults();
+      }
+    });
+    loadVisualSearch();
+  }
+
   if (typeof window.kintone === 'undefined' || !kintone.events) {
     // Only runs inside Kintone or a dedicated local demo mock.
     return;
@@ -998,11 +1361,21 @@
     const isCorrectView = Boolean(view) &&
       (event.viewType === 'custom' || event.viewType === 'CUSTOM' || !event.viewType);
     if (!isCorrectView) {
+      stopVisualSearch();
       state.renderToken += 1; // Cancel any pending response from a previous view.
       if (state.initialized) { releasePhotos(); state.initialized = false; }
       return event;
     }
     if (!document.getElementById(ROOT_ID)) return event;
+    if (view === 'visual-search') {
+      state.renderToken += 1; // Cancel map loads while browsing Visual Search.
+      releasePhotos();
+      state.initialized = false;
+      state.view = view;
+      startVisualSearch();
+      return event;
+    }
+    stopVisualSearch();
     releasePhotos();
     state.view = view;
     state.records = [];
