@@ -37,6 +37,37 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 
 **Verification:** Simulated Kintone event, record, filter, display, pagination and navigation tests passed; actual Kintone App 6 photos and interactions still require live verification.
 
+## Visual Search privacy / data-minimization audit
+
+The production Inventory App 6 standalone script (`zm-visual-search-v1.js`) uses a
+**12-field response allowlist** in its Kintone Get Records request:
+
+`$id`, `color`, `color_combined`, `zmv_num`, `type`, `length`, `width`,
+`shape`, `rack`, `sale_status`, `exact_picture`, `example_picture`.
+
+The `inventory_status` field is referenced **only in the server-side Kintone
+query** to select inventory marked `In`; its values are not requested in the
+response. Pricing, material cost, customer/job, margin, supplier, notes, other
+private fields, and unused metadata are **not requested** or searched by this
+standalone view. The view also clears cached inventory objects when leaving.
+
+**This is data minimization, not an independent access-control boundary.**
+The cards still link to the full Inventory App 6 record, and Kintone field,
+record, and app permissions determine what each signed-in user can see there or
+through Kintone's own API. Verify restricted pricing fields in **ZM Inventory →
+App Settings → Permissions for Fields**, and appropriate App/Record permissions.
+Those permissions apply across the Kintone app, not only this custom view.
+If staff need differentiated access, use Kintone groups/field permissions. Do
+not rely on hiding prices in this frontend to restrict a viewer with Kintone
+record access. File images and free-text material/color names may themselves
+contain confidential information and need a content review. Test with a
+realistic restricted-role Kintone user, not only an administrator.
+
+The original Visual Search in the Warehouse Map - TEST bundle is still a
+separate legacy implementation; remove the old test view after confirming the
+main Inventory app's standalone version is working. Warehouse map inspectors
+remain unchanged and have their own field allowances.
+
 ## Legacy warehouse-map setup (Galleries C, B, D; test Visual Search during cutover)
 
 In the existing **ZM Warehouse Map - TEST** app, for each new view you have not yet created:
