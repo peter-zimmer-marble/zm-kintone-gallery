@@ -1,20 +1,20 @@
 # ZM Warehouse Maps — Kintone Custom Views
 
-This repository hosts **public frontend JavaScript and CSS only** for four read-only warehouse map views inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
+This repository hosts **public frontend JavaScript and CSS only** for five read-only warehouse map views inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
 
 ## Current GitHub Pages URLs (after work-account username change)
 
 - JavaScript: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/gallery-a-v0.5.js`
 - CSS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/gallery-a-v0.5.css`
 
-**One-time migration after the GitHub username change (2026-10-16):** The old `petercampau-gif.github.io` hostname must be replaced with `peter-zimmer-marble.github.io` in Kintone's JavaScript/CSS customization settings for the Warehouse Map test app. Update the existing JavaScript and CSS links (do not add duplicates), click **Save**, then **Update App**, and confirm Gallery A, Temporary Outside, Gallery C, and Gallery B all render. Repository URL redirects do not guarantee GitHub Pages host redirects. After the migration, normal future file updates need only a page refresh.\n\nThe filenames still say `v0.5` to preserve the Kintone file path settings; their shared implementation supports all four views (all four views updated to the shared map design in code v0.9). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
+**One-time migration after the GitHub username change (2026-10-16):** The old `petercampau-gif.github.io` hostname must be replaced with `peter-zimmer-marble.github.io` in Kintone's JavaScript/CSS customization settings for the Warehouse Map test app. Update the existing JavaScript and CSS links (do not add duplicates), click **Save**, then **Update App**, and confirm Gallery A, Temporary Outside, Gallery C, Gallery B, and Gallery D all render. Repository URL redirects do not guarantee GitHub Pages host redirects. After the migration, normal future file updates need only a page refresh.\n\nThe filenames still say `v0.5` to preserve the Kintone file path settings; their shared implementation supports all five views (all five views updated to the shared map design in code v1.0). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
-## One-time Kintone setup for Gallery C and Gallery B
+## One-time Kintone setup for Gallery C, Gallery B, and Gallery D
 
 In the existing **ZM Warehouse Map - TEST** app, for each new view you have not yet created:
 
 1. Open **App Settings → Views → Add View (+)**.
-2. Name it **exactly** `Gallery C` or `Gallery B` (one view per name).
+2. Name it **exactly** `Gallery C`, `Gallery B`, or `Gallery D` (one view per name).
 3. Select **Custom view** and **Both desktop and mobile-optimized views**.
 4. Paste the same HTML container as the other maps:
 
@@ -23,9 +23,9 @@ In the existing **ZM Warehouse Map - TEST** app, for each new view you have not 
    ```
 
 5. Leave **Enable pagination** unchecked. Leave Kintone View filtering set to **All records**.
-6. Save, then click **Update App**. Choose `Gallery C` or `Gallery B` from the app view dropdown.
+6. Save, then click **Update App**. Choose the new view from the app view dropdown.
 
-**Do not add more JavaScript or CSS links.** The existing URLs automatically detect `Gallery B`, `Gallery C`, `Temporary Outside`, and `Gallery A` (plus legacy `Inside Slab Gallery`). GitHub cannot create or rename native Kintone views, so this is a one-time administrative step.
+**Do not add more JavaScript or CSS links.** The existing URLs automatically detect `Gallery D`, `Gallery B`, `Gallery C`, `Temporary Outside`, and `Gallery A` (plus legacy `Inside Slab Gallery`). GitHub cannot create or rename native Kintone views, so this is a one-time administrative step.
 
 ## Maps and conventions
 
@@ -34,7 +34,14 @@ In the existing **ZM Warehouse Map - TEST** app, for each new view you have not 
 | `Gallery A` | 27 usable faces in Z/G racks, plus Z-11B reference-only | Indoor Main Showroom, matches its PDF drawing; north points left |
 | `Temporary Outside` | `TO-1A/B` through `TO-6A/B` (12 usable faces) | **TO-1 nearest ROAD; TO-6 nearest BUILDING**; A north/left, B south/right |
 | `Gallery C` | 26 faces `OS-1A/B` through `OS-13A/B`, plus `OS-DBL`, `OS-DAR`, `OT103-L`, `OT103-R` — **30 usable faces** | Outside storage **By Trucks**. Layout traced from the supplied Gallery C PDF; road top, building bottom, north left. All 15 A/B separators are consistent gray bars |
+| `Gallery D` | `Robot-3A/B`, `Robot-2A/B` — **4 usable faces** | Outside Robot Room; road top, building bottom, **north down**, Robot-3 left of Robot-2; all faces usable |
 | `Gallery B` | `LP-1A/B` through `LP-8A/B` — **16 usable faces across eight A-frames** | Outside storage **Light Pole**, north points left; road-side top row LP-1/3/5/7, building-side bottom row LP-2/4/6/8. Same 8-unit gray A/B dividers; LP-9A/B physically removed |
+
+### Gallery D (Outside Robot Room)
+
+Gallery D includes two double-sided racks shown left-to-right as `Robot-3A/B`, then `Robot-2A/B`. All four faces are usable, with A left and B right within each rack. ROAD appears above and BUILDING below; unlike the other galleries, **north points down**. Unsided `Robot-3` and `Robot-2` records stay visible under unconfirmed assignments. Uppercase and hyphenless codes (such as `ROBOT3A` and `ROBOT-2B`) are matched to their proper displayed face without moving inventory.
+
+After publishing, create the Kintone Custom View named exactly **Gallery D** (if not already present). Paste `<div id="zm-warehouse-map-root"></div>`, disable pagination, leave filters on All records, and **Update App**. Keep the same existing GitHub Pages JS/CSS links—do not add duplicates. Live records and browser layout have not yet been verified in Kintone.
 
 ### Gallery C provisional restrictions
 
@@ -61,11 +68,11 @@ The four LP-5A/B and LP-7A/B faces have clearly labeled temporary physical-tag w
 
 ## Shared visual standard (v0.9)
 
-All four views now reuse a single implementation for map furniture and wayfinding:
+All five views now reuse a single implementation for map furniture and wayfinding:
 
 - **Title and location:** identical page typography and placement above the plan (`Gallery A / Main Showroom`, `Temporary Outside / TO Racks`, `Gallery C / By Trucks`, `Gallery B / Light Pole`).
-- **North:** one consistent arrow in the upper-right of the map heading. All supplied diagrams point north to the **left**. Duplicate arrows inside the drawings have been removed.
-- **Road and building:** consistent horizontal reference lines with centered ROAD at the top and BUILDING at the bottom for the **three outside** maps. Gallery A is indoors and does not invent road/building boundaries.
+- **North:** one consistent arrow in the upper-right of the map heading. Gallery A, B, C, and Temporary Outside point north **left**; Gallery D points north **down**. Duplicate arrows inside the drawings have been removed.
+- **Road and building:** consistent horizontal reference lines with centered ROAD at the top and BUILDING at the bottom for the **four outside** maps. Gallery A is indoors and does not invent road/building boundaries.
 - **ZM logo:** exactly one, with matching dimensions, placed at the **lower-left of each map's footer** beneath the legend. It remains visible and unchanged by horizontal panning or zoom and never covers an inventory rack.
 - **Map controls/legend:** standardized `RACK MAP` toolbar, zoom controls, rack-face swatch, gray A/B divider marker, selected-rack marker, and map-specific provisional-warning badges. Each map's real rack geometry, zoom behavior, data filters, record links, and accessibility notes remain independent.
 
@@ -77,7 +84,7 @@ Live inventory counts; two most common distinct `color_combined` materials with 
 
 ## Updating safely
 
-Test updates against the offline fixture (all four desktop/tablet/mobile views), commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. After updating Kintone to the new hostname, its links pick up new file contents after refresh. **Changes to the shared files affect all four map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
+Test updates against the offline fixture (all five desktop/tablet/mobile views), commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. After updating Kintone to the new hostname, its links pick up new file contents after refresh. **Changes to the shared files affect all five map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
 
 ## Verification status
 
