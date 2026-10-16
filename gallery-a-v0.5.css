@@ -516,3 +516,22 @@
   #zm-warehouse-map-root .zmwm-map-boundary small {font-size:9px;}
   #zm-warehouse-map-root .zmwm-to-stack {width:100%;flex:1 1 100%;}
 }
+
+/* Gallery D / Outside Robot Room: two full-access double-sided racks.
+   Sketch orientation: road above, building below, NORTH DOWN. */
+#zm-warehouse-map-root .zmwm-gallery-d-scroll {background:#fff;overflow-x:auto;overflow-y:hidden;}
+#zm-warehouse-map-root .zmwm-gallery-d-board {padding:24px 30px 22px;background:#fff;margin:0 auto;}
+#zm-warehouse-map-root .zmwm-gallery-d-racks {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:start;gap:84px;padding:54px 38px 92px;}
+#zm-warehouse-map-root .zmwm-gallery-d-pair {display:flex;flex-direction:column;gap:15px;min-width:0;}
+#zm-warehouse-map-root .zmwm-gallery-d-faces {display:grid;grid-template-columns:minmax(0,1fr) 8px minmax(0,1fr);
+  min-height:250px;isolation:isolate;min-width:0;}
+#zm-warehouse-map-root .zmwm-gallery-d-pair-label {font-size:16px;line-height:1.2;text-align:center;
+  font-weight:850;color:#314c3e;letter-spacing:.1px;}
+#zm-warehouse-map-root .zmwm-gallery-d-faces .zmwm-gallery-b-face {min-height:250px;}
+@media(max-width:900px) {
+  #zm-warehouse-map-root .zmwm-gallery-d-board {padding:15px 16px 16px;}
+  #zm-warehouse-map-root .zmwm-gallery-d-racks {gap:40px;padding:35px 18px 65px;}
+  #zm-warehouse-map-root .zmwm-gallery-d-faces {min-height:222px;}
+  #zm-warehouse-map-root .zmwm-gallery-d-faces .zmwm-gallery-b-face {min-height:222px;}
+}
