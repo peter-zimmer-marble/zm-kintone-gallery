@@ -1,6 +1,6 @@
 # ZM Warehouse Maps — Kintone Custom Views
 
-This repository hosts **public frontend JavaScript and CSS only** for five read-only warehouse map views inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
+This repository hosts **public frontend JavaScript and CSS only** for five read-only warehouse map views plus one visual inventory search view inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
 
 ## Current GitHub Pages URLs (after work-account username change)
 
@@ -9,12 +9,12 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 
 **One-time migration after the GitHub username change (2026-10-16):** The old `petercampau-gif.github.io` hostname must be replaced with `peter-zimmer-marble.github.io` in Kintone's JavaScript/CSS customization settings for the Warehouse Map test app. Update the existing JavaScript and CSS links (do not add duplicates), click **Save**, then **Update App**, and confirm Gallery A, Temporary Outside, Gallery C, Gallery B, and Gallery D all render. Repository URL redirects do not guarantee GitHub Pages host redirects. After the migration, normal future file updates need only a page refresh.\n\nThe filenames still say `v0.5` to preserve the Kintone file path settings; their shared implementation supports all five views (all five views updated to the shared map design in code v1.0). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
-## One-time Kintone setup for Gallery C, Gallery B, and Gallery D
+## One-time Kintone setup for Gallery C, Gallery B, Gallery D, and Visual Search
 
 In the existing **ZM Warehouse Map - TEST** app, for each new view you have not yet created:
 
 1. Open **App Settings → Views → Add View (+)**.
-2. Name it **exactly** `Gallery C`, `Gallery B`, or `Gallery D` (one view per name).
+2. Name it **exactly** `Gallery C`, `Gallery B`, `Gallery D`, or `Visual Search` (one view per name).
 3. Select **Custom view** and **Both desktop and mobile-optimized views**.
 4. Paste the same HTML container as the other maps:
 
@@ -25,7 +25,7 @@ In the existing **ZM Warehouse Map - TEST** app, for each new view you have not 
 5. Leave **Enable pagination** unchecked. Leave Kintone View filtering set to **All records**.
 6. Save, then click **Update App**. Choose the new view from the app view dropdown.
 
-**Do not add more JavaScript or CSS links.** The existing URLs automatically detect `Gallery D`, `Gallery B`, `Gallery C`, `Temporary Outside`, and `Gallery A` (plus legacy `Inside Slab Gallery`). GitHub cannot create or rename native Kintone views, so this is a one-time administrative step.
+**Do not add more JavaScript or CSS links.** The existing URLs automatically detect `Visual Search`, `Gallery D`, `Gallery B`, `Gallery C`, `Temporary Outside`, and `Gallery A` (plus legacy `Inside Slab Gallery`). GitHub cannot create or rename native Kintone views, so this is a one-time administrative step.
 
 ## Maps and conventions
 
@@ -78,7 +78,22 @@ All five views now reuse a single implementation for map furniture and wayfindin
 
 The visual framework lives in `gallery-a-v0.5.js` / `gallery-a-v0.5.css` despite the compatibility-preserving filenames. Any future gallery should use `mapControls`, `mapBoundary`, `mapLegend`, and `mapSignature` instead of copying bespoke headers and logos.
 
-## Features shared across all four maps
+## Visual Search (image-first inventory, read only)
+
+The **Visual Search** Custom View is a separate way to browse inventory in the same authenticated Kintone environment. Set it up using the one-time Custom View instructions above, with the identical HTML container (`<div id="zm-warehouse-map-root"></div>`). Keep the existing JavaScript/CSS links and leave the view filter set to All records.
+
+- One **card per physical inventory record**, sorted by material/color name (not grouped by color).
+- **Material/color name above the photo**, then **recorded length × width in inches below**; piece type, rack and record number also appear. Clicking a card opens Inventory App **6** in a new tab.
+- The photo loader prefers `exact_picture`, then falls back to `example_picture`. Missing photos display an explicit placeholder (no fabricated imagery).
+- Filters include color/name/record/rack text search, slab versus remnant, availability (available/hold/sold), minimum dimensions and **Photos only**. Reset clears all filters.
+- Only records with `inventory_status = "In"` are loaded; this **can include Sold and Hold records** that remain physically on site. This is an inventory tool, not a customer-facing catalog.
+- First **32** matching pieces are shown, with **Show more pieces** for additional cards. Photo requests are lazy and limited to four concurrent downloads. Pictures are fetched using the signed-in Kintone session; no inventory or image copies are committed to public GitHub.
+- Page-by-record-ID API reads allow more than 10,000 inventory records without the query offset limitation. **No Kintone record writes** are performed.
+- Material *category* (Granite/Quartz/Marble/etc.) was not added, because no confirmed material-category field exists in the current map's Inventory App 6 field list. Piece type (Slab/Remnant) is available now.
+
+**Verification:** JavaScript syntax, card content and image preference, filters, simulated Kintone data loading, record-ID pagination, and transitioning back to Gallery D were tested using fictional records. Image rendering and live inventory still need confirmation in the actual `Visual Search` Kintone Custom View.
+
+## Features shared across all five rack maps
 
 Live inventory counts; two most common distinct `color_combined` materials with counts and `+N more`; per-rack search and filters (availability, slab/remnant); read-only inspector with sold-to / job information, piece dimensions, image thumbnails where available and direct Kintone Inventory App 6 record links; map zoom and mobile scrolling. No Kintone data writes are performed.
 
