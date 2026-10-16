@@ -268,8 +268,11 @@
     if (!root || !visualState.active) return;
     root.querySelectorAll('[data-visual-photo]').forEach(slot => {
       if (slot.dataset.visualPhoto !== key) return;
-      const alternate = slot.dataset.visualFallback;
-      if (alternate && alternate !== key) {
+      const record = visualState.records.find(r => getId(r) === str(slot.dataset.visualId));
+      const other = record ? visualImages(record).find(item =>
+        item.key !== key && !visualState.failed.has(item.key)) : null;
+      const alternate = other ? other.key : slot.dataset.visualFallback;
+      if (alternate && alternate !== key && !visualState.failed.has(alternate)) {
         slot.dataset.visualPhoto = alternate;
         delete slot.dataset.visualFallback;
         requestVisualPhoto(alternate);
