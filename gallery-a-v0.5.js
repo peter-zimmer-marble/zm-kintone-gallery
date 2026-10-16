@@ -1,7 +1,7 @@
 /*
- * ZM Warehouse Maps: Shared visual system for Gallery A, TO, Gallery C, Gallery B, Gallery D (v1.0)
+ * ZM Warehouse Maps: Shared map system (Galleries A-D, TO) plus Visual Search (v1.1)
  * Copyright (c) 2026 ZM. Read-only: GET requests only, no data writes.
- * Install inside the Warehouse Map app; use the same view HTML in all five Custom Views.
+ * Install inside Warehouse Map; use the same root HTML in all six Custom Views.
  * Uses existing versioned GitHub Pages links; inventory stays in authenticated Kintone.
  */
 (function () {
