@@ -1,5 +1,5 @@
 /*
- * ZM Warehouse Maps: Gallery A, Temporary Outside, Gallery C, Gallery B (Kintone Custom Views, v0.8)
+ * ZM Warehouse Maps: Shared visual system for Gallery A, TO, Gallery C, Gallery B (v0.9)
  * Copyright (c) 2026 ZM. Read-only: GET requests only, no data writes.
  * Install inside the Warehouse Map app; use the same view HTML in all four Custom Views.
  * Uses existing versioned GitHub Pages links; inventory stays in authenticated Kintone.
@@ -432,6 +432,42 @@
     isTO() ? 'Temporary outdoor A-frame storage, from road to building.' :
     'Explore material by its physical rack position.'; }
 
+  // Shared map chrome. New galleries reuse these elements so all locations
+  // keep identical placement, typography and spacing automatically.
+  function mapLocation() { return isGalleryB() ? 'Light Pole' : isGalleryC() ? 'By Trucks' :
+    isTO() ? 'TO Racks' : 'Main Showroom'; }
+  function mapControls(note) {
+    return `<div class="zmwm-reference-controls">
+      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">RACK MAP</span>
+        <span>${esc(note)}</span></div>
+      <div class="zmwm-reference-zoom" aria-label="Map zoom">
+        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
+        <span>${Math.round(state.zoom*100)}%</span>
+        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
+      </div>
+    </div>`;
+  }
+  function mapBoundary(position, label, hint = '') {
+    return `<div class="zmwm-map-boundary is-${position}">
+      <strong>${esc(label)}</strong>${hint ? `<small>${esc(hint)}</small>` : ''}</div>`;
+  }
+  function mapSignature() {
+    // Below the scrollable drawing, so the logo stays lower-left at any zoom
+    // and cannot cover the racks, direction references, or inventory buttons.
+    return `<div class="zmwm-map-signature"><img src="${GALLERY_LOGO}" alt="Zimmer Marble logo" />
+      <span>ZM / WAREHOUSE MAP</span></div>`;
+  }
+  function mapLegend(extras, note) {
+    const standard = [
+      ['zmwm-swatch ' + (isGalleryC() ? 'zmwm-swatch-green' : 'sw-blue'), 'Rack face'],
+      ['zmwm-to-legend-divider', 'A/B divider'],
+      ['zmwm-swatch sw-selected', 'Selected rack']
+    ];
+    return `<div class="zmwm-reference-legend">${standard.concat(extras).map(([cls,label]) =>
+      `<span><i class="${esc(cls)}"></i>${esc(label)}</span>`).join('')}
+      <small>${esc(note)}</small></div>`;
+  }
+
   function shellHtml() {
     return `<main class="zmwm-app">
       <header class="zmwm-head">
@@ -453,7 +489,7 @@
       </section>
       <div class="zmwm-content">
         <section class="zmwm-map-wrap" aria-label="Warehouse schematic">
-          <div class="zmwm-content-heading"><div><h2>${isGalleryB() ? 'Gallery B <span class="zmwm-subtle">/ Light Pole</span>' : isGalleryC() ? 'Gallery C <span class="zmwm-subtle">/ By Trucks</span>' : isTO() ? 'Temporary Outside <span class="zmwm-subtle">/ TO racks</span>' : 'Gallery A <span class="zmwm-subtle">/ Main Showroom</span>'}</h2><p>${isGalleryB() ? 'Eight A-frames. Temporary rack-tag mismatches on LP-5 and LP-7; LP-7A awaiting inventory audit.' : isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north">← NORTH</span></div>
+          <div class="zmwm-content-heading"><div><h2>${esc(mapTitle())} <span class="zmwm-subtle">/ ${esc(mapLocation())}</span></h2><p>${isGalleryB() ? 'Eight A-frames. Temporary rack-tag mismatches on LP-5 and LP-7; LP-7A awaiting inventory audit.' : isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north" aria-label="North points left"><span class="zmwm-north-arrow" aria-hidden="true">←</span><span>NORTH</span></span></div>
           <div id="zmwm-plan" class="zmwm-plan"></div>
           <div id="zmwm-unmapped" class="zmwm-unmapped"></div>
         </section>
@@ -520,36 +556,23 @@
       ${toFaceHtml(pair.a, g)}<span class="zmwm-to-divider" aria-hidden="true"></span>${toFaceHtml(pair.b, g)}
     </div>`).join('');
     const boardWidth = Math.round(790 * state.zoom);
-    root.innerHTML = `<div class="zmwm-reference-controls">
-      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">TO RACK PLAN</span>
-        <span>6 A-frames · 12 usable sides · TO-1 nearest road</span></div>
-      <div class="zmwm-reference-zoom" aria-label="Map zoom">
-        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
-        <span>${Math.round(state.zoom * 100)}%</span>
-        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
-      </div>
-    </div>
+    root.innerHTML = `${mapControls('6 A-frames · 12 faces · TO-1 nearest road')}
     <div class="zmwm-reference-scroll zmwm-to-scroll" data-zoom="${state.zoom}" tabindex="0"
       aria-label="Temporary Outside map, north to the left. Swipe sideways if needed.">
       <div class="zmwm-to-board" style="width:${boardWidth}px;--zmwm-to-zoom:${state.zoom}" role="group"
         aria-label="Six double-sided TO racks from road to building; A on the north left, B on the south right.">
-        <div class="zmwm-to-edge zmwm-to-road"><span class="zmwm-to-edge-label">ROAD</span>
-          <span class="zmwm-to-edge-hint">TO-1 closest to road</span></div>
+        ${mapBoundary('top','ROAD','TO-1 closest to road')}
         <div class="zmwm-to-map-body">
-          <div class="zmwm-to-compass"><span aria-hidden="true">←</span><strong>NORTH</strong><small>Left of map</small></div>
           <div class="zmwm-to-stack">
             <div class="zmwm-to-column-legend"><span>A SIDE · NORTH</span><span>B SIDE · SOUTH</span></div>
             ${racks}
           </div>
         </div>
-        <div class="zmwm-to-edge zmwm-to-building"><span class="zmwm-to-edge-label">BUILDING</span>
-          <span class="zmwm-to-edge-hint">TO-6 closest to building</span></div>
+        ${mapBoundary('bottom','BUILDING','TO-6 closest to building')}
       </div>
     </div>
-    <div class="zmwm-reference-legend"><span><i class="zmwm-swatch sw-blue"></i>Rack face</span>
-      <span><i class="zmwm-to-legend-divider"></i>A/B separator</span>
-      <span><i class="zmwm-swatch sw-selected"></i>Selected rack</span>
-      <small>Map orientation and rack order follow your sketch; not to scale. Swipe horizontally on small screens.</small></div>`;
+    ${mapLegend([], 'Rack order follows your sketch; not to scale. Swipe horizontally on small screens.')}
+    ${mapSignature()}`;
     const nextScroll = root.querySelector('.zmwm-reference-scroll');
     if (nextScroll) nextScroll.scrollLeft = beforeZoom === state.zoom ? priorLeft : priorLeft * state.zoom / beforeZoom;
     const issues = document.getElementById('zmwm-unmapped');
@@ -602,32 +625,19 @@
           ${galleryBFaceHtml(`LP-${n}A`, g)}<span class="zmwm-gallery-b-divider" aria-hidden="true"></span>${galleryBFaceHtml(`LP-${n}B`, g)}
         </div>`).join('')}
       </div>`).join('');
-    root.innerHTML = `<div class="zmwm-reference-controls">
-      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">GALLERY B / LIGHT POLE</span>
-        <span>8 A-frames · 16 usable sides · LP-9 removed</span></div>
-      <div class="zmwm-reference-zoom" aria-label="Map zoom">
-        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
-        <span>${Math.round(state.zoom*100)}%</span>
-        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
-      </div>
-    </div>
+    root.innerHTML = `${mapControls('8 A-frames · 16 faces · LP-9 removed')}
     <div class="zmwm-reference-scroll zmwm-gallery-b-scroll" data-zoom="${state.zoom}" tabindex="0"
       aria-label="Gallery B outdoor rack map. North is to the left, road above, building below. Scroll horizontally to reach more racks.">
       <div class="zmwm-gallery-b-board" style="width:${boardWidth}px" role="group" aria-label="Gallery B Light Pole yard; two rows with eight A-frames.">
-        <div class="zmwm-gallery-b-road"><strong>ROAD</strong><small>Road-side row</small></div>
+        ${mapBoundary('top','ROAD','Road-side row')}
         <div class="zmwm-gallery-b-racks">${rows}</div>
-        <div class="zmwm-gallery-b-bottom"><span class="zmwm-gallery-b-compass"><b aria-hidden="true">⬅</b> NORTH</span>
-          <span class="zmwm-gallery-b-area"><strong>Gallery B</strong><small>Light Pole</small></span></div>
-        <div class="zmwm-gallery-b-building">BUILDING <span aria-hidden="true">↓</span></div>
+        ${mapBoundary('bottom','BUILDING','Building-side row')}
       </div>
     </div>
-    <div class="zmwm-reference-legend">
-      <span><i class="zmwm-swatch sw-blue"></i>Rack face</span>
-      <span><i class="zmwm-to-legend-divider"></i>A/B divider</span>
-      <span><i class="zmwm-swatch zmwm-gallery-b-swatch-warn"></i>Physical tag mismatch (temporary)</span>
-      <span><i class="zmwm-swatch zmwm-gallery-b-swatch-audit"></i>Pending location audit</span>
-      <small>LP-5 is physically tagged LP-7; LP-7 is tagged LP-9. LP-9 has no mapped rack. Map is not to scale.</small>
-    </div>`;
+    ${mapLegend([['zmwm-swatch zmwm-gallery-b-swatch-warn','Physical tag mismatch'],
+      ['zmwm-swatch zmwm-gallery-b-swatch-audit','Location audit pending']],
+      'LP-5 is tagged LP-7; LP-7 is tagged LP-9. LP-9 has no mapped rack. Not to scale.')}
+    ${mapSignature()}`;
     const next = root.querySelector('.zmwm-reference-scroll');
     if (next) next.scrollLeft = previousZoom === state.zoom ? previousLeft : previousLeft * state.zoom / previousZoom;
     const issues = document.getElementById('zmwm-unmapped');
@@ -674,35 +684,20 @@
     const spines = GALLERY_C_SPINES.map(box => `<span class="zmwm-layout-spine zmwm-gallery-c-spine"
       style="left:${pct(box.x,GALLERY_C_WIDTH)};top:${pct(box.y,GALLERY_C_HEIGHT)};width:${pct(box.w,GALLERY_C_WIDTH)};height:${pct(box.h,GALLERY_C_HEIGHT)}" aria-hidden="true"></span>`).join('');
     const faces = GALLERY_C_FACES.map(face => galleryCFaceHtml(face,g)).join('');
-    root.innerHTML = `<div class="zmwm-reference-controls">
-      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">GALLERY C / BY TRUCKS</span>
-        <span>30 usable locations · 6 provisionally limited-access</span></div>
-      <div class="zmwm-reference-zoom" aria-label="Map zoom">
-        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
-        <span>${Math.round(state.zoom*100)}%</span>
-        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
-      </div>
-    </div>
+    root.innerHTML = `${mapControls('30 faces · 6 provisional access limits')}
     <div class="zmwm-reference-scroll zmwm-gallery-c-scroll" data-zoom="${state.zoom}" tabindex="0"
       aria-label="Gallery C rack map. North points left; road is above and building below. Scroll horizontally if needed.">
       <div class="zmwm-gallery-c-frame" style="min-width:${boardMinWidth}px">
+        ${mapBoundary('top','ROAD')}
         <div class="zmwm-gallery-c-board" role="group" aria-label="Gallery C drawing: 30 rack faces, 6 provisional limited-access locations.">
           ${spines}${faces}
-          <span class="zmwm-gallery-c-road">ROAD</span>
-          <div class="zmwm-gallery-c-caption"><span class="zmwm-gallery-c-north"><span aria-hidden="true">⬅</span> NORTH</span>
-            <strong>Gallery C</strong><small>By Trucks</small></div>
-          <span class="zmwm-gallery-c-building">BUILDING ↓</span>
-          <img class="zmwm-gallery-c-logo" alt="ZM logo" src="${GALLERY_LOGO}">
         </div>
+        ${mapBoundary('bottom','BUILDING')}
       </div>
     </div>
-    <div class="zmwm-reference-legend">
-      <span><i class="zmwm-swatch zmwm-swatch-green"></i>Usable rack face</span>
-      <span><i class="zmwm-to-legend-divider"></i>A/B divider</span>
-      <span><i class="zmwm-swatch zmwm-swatch-amber"></i>Limited access (provisional)</span>
-      <span><i class="zmwm-swatch sw-selected"></i>Selected</span>
-      <small>Limited-access racks are not recommended for full slabs; classification needs verification. Map is not to scale.</small>
-    </div>`;
+    ${mapLegend([['zmwm-swatch zmwm-swatch-amber','Limited access (provisional)']],
+      'Limited-access racks are not recommended for full slabs; classification needs verification. Not to scale.')}
+    ${mapSignature()}`;
     const nextScroll = root.querySelector('.zmwm-reference-scroll');
     if (nextScroll) nextScroll.scrollLeft = previousZoom === state.zoom ? left : left * state.zoom / previousZoom;
     const issues = document.getElementById('zmwm-unmapped');
@@ -727,27 +722,15 @@
     const spineHTML = PLAN_SPINES.map(box => `<span class="zmwm-layout-spine" style="${position(displaySpine(box))}" aria-hidden="true"></span>`).join('');
     const faceHTML = PLAN_FACES.map(face => layoutFaceHtml(face,g)).join('');
     const zoomWidth = Math.round(980 * state.zoom);
-    root.innerHTML = `<div class="zmwm-reference-controls">
-      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">REFERENCE DRAWING</span>
-        <span>27 usable faces · Z-11B shown for orientation only</span></div>
-      <div class="zmwm-reference-zoom" aria-label="Map zoom">
-        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
-        <span>${Math.round(state.zoom*100)}%</span>
-        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
-      </div>
-    </div>
+    root.innerHTML = `${mapControls('27 faces · Z-11B reference only')}
     <div class="zmwm-reference-scroll" data-zoom="${state.zoom}" tabindex="0" aria-label="Scroll horizontally to navigate the rack map on smaller screens">
       <div class="zmwm-reference-board" style="min-width:${zoomWidth}px" role="group" aria-label="Gallery A plan. North points to the left.">
         ${spineHTML}${faceHTML}
-        <div class="zmwm-drawing-title">Gallery A <span>(Main Showroom)</span></div>
-        <div class="zmwm-drawing-north"><span aria-hidden="true">⬅</span> North</div>
-        <img class="zmwm-drawing-logo" alt="ZM logo" src="${GALLERY_LOGO}">
       </div>
     </div>
-    <div class="zmwm-reference-legend"><span><i class="zmwm-swatch sw-blue"></i>Rack face</span>
-      <span><i class="zmwm-swatch sw-flagged"></i>Reference only</span>
-      <span><i class="zmwm-swatch sw-selected"></i>Selected</span>
-      <small>Yellow and lavender follow the original drawing; they are not status indicators. Swipe horizontally on mobile.</small></div>`;
+    ${mapLegend([['zmwm-swatch sw-flagged','Reference only']],
+      'Yellow and lavender follow the original drawing; not inventory statuses. Swipe horizontally on mobile.')}
+    ${mapSignature()}`;
     const nextScroll = root.querySelector('.zmwm-reference-scroll');
     if (nextScroll) nextScroll.scrollLeft = beforeZoom === state.zoom ? priorLeft : priorLeft * state.zoom / beforeZoom;
     const issues = document.getElementById('zmwm-unmapped');

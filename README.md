@@ -7,7 +7,7 @@ This repository hosts **public frontend JavaScript and CSS only** for four read-
 - JavaScript: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.js`
 - CSS: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.css`
 
-The filenames still say `v0.5` to preserve the **already installed Kintone links**; their shared implementation supports all four views (Gallery B / Light Pole added in code v0.8). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
+The filenames still say `v0.5` to preserve the **already installed Kintone links**; their shared implementation supports all four views (all four views updated to the shared map design in code v0.9). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
 ## One-time Kintone setup for Gallery C and Gallery B
 
@@ -59,13 +59,25 @@ The Gallery B map shows **correct Kintone locations** rather than the old names 
 
 The four LP-5A/B and LP-7A/B faces have clearly labeled temporary physical-tag warnings. Once the yard has been relabeled and LP-7A verified, remove these warnings in the shared code (rather than keeping an outdated permanent alert). Gallery B code also handles simple hyphen-free variants, e.g. `LP7A`, as aliases of the correct map face.
 
+## Shared visual standard (v0.9)
+
+All four views now reuse a single implementation for map furniture and wayfinding:
+
+- **Title and location:** identical page typography and placement above the plan (`Gallery A / Main Showroom`, `Temporary Outside / TO Racks`, `Gallery C / By Trucks`, `Gallery B / Light Pole`).
+- **North:** one consistent arrow in the upper-right of the map heading. All supplied diagrams point north to the **left**. Duplicate arrows inside the drawings have been removed.
+- **Road and building:** consistent horizontal reference lines with centered ROAD at the top and BUILDING at the bottom for the **three outside** maps. Gallery A is indoors and does not invent road/building boundaries.
+- **ZM logo:** exactly one, with matching dimensions, placed at the **lower-left of each map's footer** beneath the legend. It remains visible and unchanged by horizontal panning or zoom and never covers an inventory rack.
+- **Map controls/legend:** standardized `RACK MAP` toolbar, zoom controls, rack-face swatch, gray A/B divider marker, selected-rack marker, and map-specific provisional-warning badges. Each map's real rack geometry, zoom behavior, data filters, record links, and accessibility notes remain independent.
+
+The visual framework lives in `gallery-a-v0.5.js` / `gallery-a-v0.5.css` despite the compatibility-preserving filenames. Any future gallery should use `mapControls`, `mapBoundary`, `mapLegend`, and `mapSignature` instead of copying bespoke headers and logos.
+
 ## Features shared across all four maps
 
 Live inventory counts; two most common distinct `color_combined` materials with counts and `+N more`; per-rack search and filters (availability, slab/remnant); read-only inspector with sold-to / job information, piece dimensions, image thumbnails where available and direct Kintone Inventory App 6 record links; map zoom and mobile scrolling. No Kintone data writes are performed.
 
 ## Updating safely
 
-Test updates against the offline fixture, commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. Existing Kintone links pick up new files after refresh. **Changes to the shared files affect all four map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
+Test updates against the offline fixture (all four desktop/tablet/mobile views), commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. Existing Kintone links pick up new files after refresh. **Changes to the shared files affect all four map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
 
 ## Verification status
 
