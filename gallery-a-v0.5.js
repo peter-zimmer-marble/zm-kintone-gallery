@@ -595,7 +595,7 @@
     const previous = root.querySelector('.zmwm-reference-scroll');
     const previousLeft = previous ? previous.scrollLeft : 0;
     const previousZoom = previous ? Number(previous.dataset.zoom || '1') : state.zoom;
-    const boardWidth = Math.round(1050 * state.zoom);
+    const boardWidth = Math.round(1125 * state.zoom);
     const rows = GALLERY_B_ROWS.map((numbers, rowIndex) =>
       `<div class="zmwm-gallery-b-row" role="group" aria-label="${rowIndex === 0 ? 'Road-side' : 'Building-side'} rack row">
         ${numbers.map(n => `<div class="zmwm-gallery-b-pair" role="group" aria-label="LP-${n} double-sided rack">
