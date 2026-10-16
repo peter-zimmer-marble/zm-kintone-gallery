@@ -48,13 +48,14 @@
   // It does not change any warehouse-map layout or write to Kintone.
   const VISUAL_PAGE_SIZE = 32;
   // Strict field allowlist: only values required for the visible cards/filters.
-  // Never request pricing, costs, margins, customer/job names, notes, or any
-  // other unrelated inventory fields. Kintone itself enforces access rights.
+  // Never request pricing, costs, margins, notes, or unrelated inventory fields.
+  // The job field is an intentional exception for the requested card display.
+  // Kintone itself enforces access rights.
   // inventory_status is used only in the query (not returned to the browser).
   const VISUAL_FIELDS = Object.freeze([
     '$id', 'color', 'color_combined', 'zmv_num',
     'type', 'length', 'width', 'shape', 'rack', 'sale_status',
-    'exact_picture', 'example_picture'
+    'exact_picture', 'example_picture', 'job'
   ]);
   const visualState = {
     active:false, records:[], search:'', kind:'', sale:'', minLength:'', minWidth:'',
@@ -110,11 +111,11 @@
     const type = toText(field(record,'type')) || 'Stone';
     const shape = toText(field(record,'shape'));
     const sale = getSale(record);
+    const job = toText(field(record, 'job'));
     const label = sale === 'Avl' ? 'Available' : sale === 'SOLD' ? 'Sold' : sale === 'Hold' ? 'Hold' : '';
     return '<article class="zmwm-visual-card"><a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) + ', ' + esc(length) +
       ' by ' + esc(width) + ' inches. Open Kintone record ' + esc(id) + '">' +
-      '<div class="zmwm-visual-card-heading"><h3>' + esc(name) + '</h3></div>' +
       '<div class="zmwm-visual-photo"' +
       (primary ? ' data-visual-photo="' + esc(primary) + '"' : '') +
       (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') + '>' +
@@ -122,7 +123,10 @@
         '<span class="zmwm-visual-no-photo">No photo available</span>') +
       (label ? '<span class="zmwm-visual-status ' + statusClass(sale) + '">' + esc(label) + '</span>' : '') +
       '</div><div class="zmwm-visual-card-details">' +
+      '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
       '<div class="zmwm-visual-size">' + esc(length) + ' × ' + esc(width) + ' in</div>' +
+      (job ? '<div class="zmwm-visual-job"><span class="zmwm-visual-job-label">Job</span>' +
+        '<span class="zmwm-visual-job-value">' + esc(job) + '</span></div>' : '') +
       '<div class="zmwm-visual-card-meta"><span>' + esc(type) +
       (shape && shape.toLowerCase() !== 'rectangle' ? ' · ' + esc(shape) : '') +
       '</span><span>' + esc(rack) + ' · #' + esc(id) + '</span></div>' +
