@@ -83,11 +83,26 @@
     const width = visualDimension(field(record,'width'));
     const shape = toText(field(record,'shape'));
     const nonRect = Boolean(shape && shape.toLowerCase() !== 'rectangle');
-    const extras = nonRect ? visualState.extraDimensionFields
+    const normalized = shape.toLowerCase().replace(/[\s_-]+/g, '');
+    const lCode = /^(?:lefthandl|lhl)$/.test(normalized) ? 'LHL' :
+      /^(?:righthandl|rhl)$/.test(normalized) ? 'RHL' : '';
+    const extraLength = visualState.extraDimensionFields.some(dim => dim.code === 'length_2') ?
+      toText(field(record,'length_2')) : '';
+    const extraWidth = visualState.extraDimensionFields.some(dim => dim.code === 'width_2') ?
+      toText(field(record,'width_2')) : '';
+    const basic = length + ' × ' + width + ' in';
+    // For L shapes, use one unified, four-dimension string followed by LHL/RHL.
+    // If one value is absent, a dash makes the missing dimension explicit.
+    // When neither additional field is available, retain the primary dimensions.
+    const lParts = [length,width];
+    if (lCode && (extraLength !== '' || extraWidth !== ''))
+      lParts.push(extraLength || '—', extraWidth || '—');
+    const display = lCode ? lParts.join(' × ') + ' in · ' + lCode : basic;
+    const extras = nonRect && !lCode ? visualState.extraDimensionFields
       .map(dim => ({name:dim.name,value:toText(field(record,dim.code))}))
       .filter(dim => dim.value !== '') : [];
     return {
-      basic:length + ' × ' + width + ' in',
+      basic, display, lCode,
       shape:nonRect ? shape : '',
       extras:extras.map(dim => dim.name + ': ' + dim.value + ' in').join(' · '),
       nonRect
@@ -175,8 +190,10 @@
       ' by ' + esc(width) + ' inches. Open Kintone record ' + esc(id) + '">' +
       '<div class="zmwm-visual-card-details">' +
       '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
-      '<div class="zmwm-visual-size">' + esc(geometry.basic) + '</div>' +
-      (geometry.nonRect ? '<div class="zmwm-visual-geometry">' +
+      '<div class="zmwm-visual-size' + (geometry.lCode ? ' zmwm-visual-size-l' : '') +
+      '"' + (geometry.lCode ? ' title="' + esc(geometry.display) + '"' : '') +
+      '>' + esc(geometry.display) + '</div>' +
+      (geometry.nonRect && !geometry.lCode ? '<div class="zmwm-visual-geometry">' +
         '<span class="zmwm-visual-shape">' + esc(geometry.shape) + '</span>' +
         (geometry.extras ? '<span class="zmwm-visual-extras">' +
           esc(geometry.extras) + '</span>' : '') + '</div>' : '') +
@@ -440,9 +457,9 @@
     const name = getColorCombined(current.record);
     const geometry = visualGeometry(current.record);
     title.textContent = name;
-    meta.textContent = geometry.basic +
-      (geometry.nonRect ? ' · ' + geometry.shape +
-        (geometry.extras ? ' · ' + geometry.extras : '') : '') +
+    meta.textContent = (geometry.lCode ? geometry.display :
+      geometry.basic + (geometry.nonRect ? ' · ' + geometry.shape +
+        (geometry.extras ? ' · ' + geometry.extras : '') : '')) +
       ' · Record #' + getId(current.record);
     if (recordLink) recordLink.href = '/k/' + SETTINGS.INVENTORY_APP_ID +
       '/show#record=' + encodeURIComponent(getId(current.record));
