@@ -1,14 +1,15 @@
 /*
- * ZM Inventory — Inside Slab Gallery A map (Kintone Custom View, v0.5)
+ * ZM Warehouse Maps: Gallery A + Temporary Outside (Kintone Custom Views, v0.6)
  * Copyright (c) 2026 ZM. Read-only: GET requests only, no data writes.
- * Install inside Rack app (or its test copy). Custom View name must match VIEW_NAME.
- * No external libraries, tokens, or hosting needed.
+ * Install inside the Warehouse Map app; use the same view HTML in both Custom Views.
+ * Uses existing versioned GitHub Pages links; inventory stays in authenticated Kintone.
  */
 (function () {
   'use strict';
 
   const SETTINGS = {
-    VIEW_NAME: 'Inside Slab Gallery',
+    GALLERY_A_VIEW_NAMES: ['Gallery A', 'Inside Slab Gallery'],
+    TO_VIEW_NAME: 'Temporary Outside',
     INVENTORY_APP_ID: 6,
     RACK_APP_ID: 7,
     PAGE_SIZE: 500,
@@ -27,6 +28,22 @@
   const UNMAPPED = ['Z-11B', ...G_FLOOR.map(p => `G-${p.number}`)];
   const MAPPED = [...Z_WALL, ...Z_FLOOR.flatMap(p => [p.a,p.b]), ...G_FLOOR.flatMap(p => [p.a,p.b]), ...Z_NORTH];
   const QUERY_RACKS = [...new Set([...MAPPED, ...UNMAPPED])];
+
+  // Temporary Outside: six free-standing A-frames ordered road (TO-6) to
+  // building (TO-1). Looking at the sketch, north is LEFT, A on the left,
+  // B on the right. Unknown unsided codes remain visible for review.
+  const TO_PAIRS = [6, 5, 4, 3, 2, 1].map(n => ({ number: n, a: `TO-${n}A`, b: `TO-${n}B` }));
+  const TO_MAPPED = TO_PAIRS.flatMap(pair => [pair.a, pair.b]);
+  const TO_UNMAPPED = TO_PAIRS.map(pair => `TO-${pair.number}`);
+  const TO_QUERY_RACKS = [...TO_MAPPED, ...TO_UNMAPPED];
+  const TO_FACES = TO_PAIRS.flatMap(pair => [{rack:pair.a}, {rack:pair.b}]);
+  const viewForName = name => SETTINGS.GALLERY_A_VIEW_NAMES.includes(name) ? 'gallery-a' :
+    name === SETTINGS.TO_VIEW_NAME ? 'temporary-outside' : null;
+  const isTO = () => state.view === 'temporary-outside';
+  const mappedRacks = () => isTO() ? TO_MAPPED : MAPPED;
+  const unmappedRacks = () => isTO() ? TO_UNMAPPED : UNMAPPED;
+  const queryRacks = () => isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
+  const planFaces = () => isTO() ? TO_FACES : PLAN_FACES;
 
   // Original Google Drawing PDF coordinate space (points): 1203 by 1045.
   // Individual face locations are traced from the provided vector shapes.
@@ -142,6 +159,7 @@
   const ROOT_ID = 'zm-warehouse-map-root';
 
   const state = {
+    view: 'gallery-a',
     records: [],
     rackMeta: new Map(),
     selected: null,
@@ -212,7 +230,9 @@
     state.error = '';
     state.warning = '';
     render();
-    const rackList = QUERY_RACKS.map(r => `"${r}"`).join(', ');
+    const racks = queryRacks();
+    const mapped = mappedRacks();
+    const rackList = racks.map(r => `"${r}"`).join(', ');
     const ids = `rack in (${rackList})`;
     const inventoryFields = [
       '$id', 'Record_number', 'rack', 'color', 'color_combined', 'zmv_num', 'finish',
@@ -225,11 +245,12 @@
       const records = await getRecords(SETTINGS.INVENTORY_APP_ID, inventoryFields,
         `${ids} and inventory_status in ("In")`);
       if (token !== state.renderToken) return;
-      state.records = records.filter(r => QUERY_RACKS.includes(getRack(r)));
+      state.records = records.filter(r => racks.includes(getRack(r)));
       state.updatedAt = new Date();
       state.error = '';
-      if (!state.selected || !QUERY_RACKS.includes(state.selected)) {
-        state.selected = PLAN_FACES.map(f => f.rack).find(rack => MAPPED.includes(rack) && state.records.some(r => getRack(r) === rack)) || MAPPED[0];
+      if (!state.selected || !racks.includes(state.selected)) {
+        state.selected = planFaces().map(f => f.rack).find(rack =>
+          mapped.includes(rack) && state.records.some(r => getRack(r) === rack)) || mapped[0];
       }
       // Rack metadata is useful but optional. Inventory remains usable if this call fails.
       try {
@@ -268,8 +289,9 @@
   }
 
   function groups() {
-    const all = new Map(QUERY_RACKS.map(r => [r, []]));
-    const filtered = new Map(QUERY_RACKS.map(r => [r, []]));
+    const racks = queryRacks();
+    const all = new Map(racks.map(r => [r, []]));
+    const filtered = new Map(racks.map(r => [r, []]));
     for (const r of state.records) {
       const rack = getRack(r);
       if (!all.has(rack)) continue;
@@ -360,8 +382,8 @@
     return `<main class="zmwm-app">
       <header class="zmwm-head">
         <div class="zmwm-head-left"><div class="zmwm-mark">ZM<span> / </span>OPS</div>
-          <div><div class="zmwm-eyebrow">INVENTORY / LOCATION INTELLIGENCE</div><h1>Inside Slab Gallery</h1>
-          <p>Explore material by its physical rack position.</p></div>
+          <div><div class="zmwm-eyebrow">INVENTORY / LOCATION INTELLIGENCE</div><h1>${isTO() ? 'Temporary Outside' : 'Gallery A'}</h1>
+          <p>${isTO() ? 'Temporary outdoor A-frame storage, from road to building.' : 'Explore material by its physical rack position.'}</p></div>
         </div>
         <div class="zmwm-head-tools"><span class="zmwm-readonly">READ ONLY</span><button type="button" class="zmwm-button" data-action="refresh">↻ Refresh</button></div>
       </header>
@@ -377,27 +399,27 @@
       </section>
       <div class="zmwm-content">
         <section class="zmwm-map-wrap" aria-label="Warehouse schematic">
-          <div class="zmwm-content-heading"><div><h2>Gallery A <span class="zmwm-subtle">/ Main Showroom</span></h2><p>Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.</p></div><span class="zmwm-north">← NORTH</span></div>
+          <div class="zmwm-content-heading"><div><h2>${isTO() ? 'Temporary Outside <span class="zmwm-subtle">/ TO racks</span>' : 'Gallery A <span class="zmwm-subtle">/ Main Showroom</span>'}</h2><p>${isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north">← NORTH</span></div>
           <div id="zmwm-plan" class="zmwm-plan"></div>
           <div id="zmwm-unmapped" class="zmwm-unmapped"></div>
         </section>
         <aside id="zmwm-inspector" class="zmwm-inspector" aria-label="Selected rack inventory"></aside>
       </div>
-      <footer class="zmwm-footer">Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. No data is written to Kintone.</footer>
+      <footer class="zmwm-footer">${isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
     </main>`;
   }
 
   function renderOverview(g) {
     const root = document.getElementById('zmwm-overview');
     if (!root) return;
-    const mappedRecords = MAPPED.reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
-    const unmappedRecords = UNMAPPED.reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
+    const mappedRecords = mappedRacks().reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
+    const unmappedRecords = unmappedRacks().reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
     const matchingRecords = [...g.filtered.values()].reduce((sum, records) => sum + records.length, 0);
     root.innerHTML = [
-      { title: 'USABLE FACES', value: MAPPED.length, meta: 'Plus Z-11B reference face' },
+      { title: 'USABLE FACES', value: mappedRacks().length, meta: isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
       { title: 'PHYSICAL PIECES', value: mappedRecords, meta: 'In mapped rack faces' },
       { title: 'MATCHES', value: matchingRecords, meta: 'Current filters · includes unplaced' },
-      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: 'Unsided or unconfirmed face' }
+      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
     ].map(item => `<article class="zmwm-stat"><span>${item.title}</span><strong>${item.value.toLocaleString()}</strong><small>${item.meta}</small></article>`).join('');
   }
 
@@ -410,11 +432,82 @@
       target.innerHTML = `<div class="zmwm-message">Loading rack assignments from Kintone…</div>`;
     } else {
       const updated = state.updatedAt ? state.updatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—';
-      target.innerHTML = `<div class="zmwm-loaded"><span class="zmwm-dot"></span>${DEMO ? 'OCT 14 SNAPSHOT PREVIEW' : 'LIVE KINTONE DATA'} <span class="zmwm-separator">·</span> Refreshed ${esc(updated)}${state.warning ? ' · ' + esc(state.warning) : ''}</div>`;
+      target.innerHTML = `<div class="zmwm-loaded"><span class="zmwm-dot"></span>${DEMO ? 'SAMPLE DATA PREVIEW' : 'LIVE KINTONE DATA'} <span class="zmwm-separator">·</span> Refreshed ${esc(updated)}${state.warning ? ' · ' + esc(state.warning) : ''}</div>`;
+    }
+  }
+
+  function toFaceHtml(rack, g) {
+    const allRecords = g.all.get(rack) || [];
+    const filteredRecords = g.filtered.get(rack) || [];
+    const activeFilter = Boolean(state.search || state.sale || state.kind);
+    const records = activeFilter ? filteredRecords : allRecords;
+    const count = activeFilter ? `${filteredRecords.length}/${allRecords.length}` : `${allRecords.length}`;
+    const selected = state.selected === rack;
+    const previewTitle = rackPreviewTitle(records) || 'No pieces assigned';
+    const classes = ['zmwm-to-face', selected ? 'is-selected' : '',
+      activeFilter && !filteredRecords.length ? 'is-dim' : '',
+      allRecords.length ? 'has-pieces' : 'is-empty'].filter(Boolean).join(' ');
+    return `<button type="button" class="${classes}" data-rack="${esc(rack)}"
+      aria-pressed="${selected}" aria-label="${esc(rack)}: ${allRecords.length} pieces. ${esc(previewTitle)}. Open rack details."
+      title="${esc(rack)} — ${allRecords.length} pieces · ${esc(previewTitle)}">
+      <span class="zmwm-to-face-header"><span class="zmwm-to-face-name">${esc(rack)}</span>
+        <span class="zmwm-to-face-count">${count}</span></span>
+      ${rackPreviewMarkup(records)}
+    </button>`;
+  }
+
+  function renderToPlan(g) {
+    const root = document.getElementById('zmwm-plan');
+    if (!root) return;
+    const priorScroll = root.querySelector('.zmwm-reference-scroll');
+    const priorLeft = priorScroll ? priorScroll.scrollLeft : 0;
+    const beforeZoom = priorScroll ? Number(priorScroll.dataset.zoom || '1') : state.zoom;
+    const racks = TO_PAIRS.map(pair => `<div class="zmwm-to-pair" aria-label="TO-${pair.number} A-frame">
+      ${toFaceHtml(pair.a, g)}<span class="zmwm-to-divider" aria-hidden="true"></span>${toFaceHtml(pair.b, g)}
+    </div>`).join('');
+    const boardWidth = Math.round(790 * state.zoom);
+    root.innerHTML = `<div class="zmwm-reference-controls">
+      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">TO RACK PLAN</span>
+        <span>6 A-frames · 12 usable sides · TO-6 nearest road</span></div>
+      <div class="zmwm-reference-zoom" aria-label="Map zoom">
+        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
+        <span>${Math.round(state.zoom * 100)}%</span>
+        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
+      </div>
+    </div>
+    <div class="zmwm-reference-scroll zmwm-to-scroll" data-zoom="${state.zoom}" tabindex="0"
+      aria-label="Temporary Outside map, north to the left. Swipe sideways if needed.">
+      <div class="zmwm-to-board" style="width:${boardWidth}px;--zmwm-to-zoom:${state.zoom}" role="group"
+        aria-label="Six double-sided TO racks from road to building; A on the north left, B on the south right.">
+        <div class="zmwm-to-edge zmwm-to-road"><span class="zmwm-to-edge-label">ROAD</span>
+          <span class="zmwm-to-edge-hint">TO-6 closest to road</span></div>
+        <div class="zmwm-to-map-body">
+          <div class="zmwm-to-compass"><span aria-hidden="true">←</span><strong>NORTH</strong><small>Left of map</small></div>
+          <div class="zmwm-to-stack">
+            <div class="zmwm-to-column-legend"><span>A SIDE · NORTH</span><span>B SIDE · SOUTH</span></div>
+            ${racks}
+          </div>
+        </div>
+        <div class="zmwm-to-edge zmwm-to-building"><span class="zmwm-to-edge-label">BUILDING</span>
+          <span class="zmwm-to-edge-hint">TO-1 closest to building</span></div>
+      </div>
+    </div>
+    <div class="zmwm-reference-legend"><span><i class="zmwm-swatch sw-blue"></i>Rack face</span>
+      <span><i class="zmwm-to-legend-divider"></i>A/B separator</span>
+      <span><i class="zmwm-swatch sw-selected"></i>Selected rack</span>
+      <small>Map orientation and rack order follow your sketch; not to scale. Swipe horizontally on small screens.</small></div>`;
+    const nextScroll = root.querySelector('.zmwm-reference-scroll');
+    if (nextScroll) nextScroll.scrollLeft = beforeZoom === state.zoom ? priorLeft : priorLeft * state.zoom / beforeZoom;
+    const issues = document.getElementById('zmwm-unmapped');
+    if (issues) {
+      const unplaced = TO_UNMAPPED.filter(r => (g.all.get(r) || []).length);
+      issues.innerHTML = unplaced.length ? `<div class="zmwm-unmapped-head"><span>UNCONFIRMED TO ASSIGNMENTS</span><small>These inventory records have a TO rack number, but no A/B side</small></div>
+        <div class="zmwm-unmapped-list">${unplaced.map(r => faceHtml(r,g)).join('')}</div>` : '';
     }
   }
 
   function renderPlan(g) {
+    if (isTO()) { renderToPlan(g); return; }
     const root = document.getElementById('zmwm-plan');
     if (!root) return;
     // Rebuilding the map on rack click or filtering must not erase the mobile pan position.
@@ -524,8 +617,8 @@
     const meta = state.rackMeta.get(rack);
     const loc = meta ? toText(field(meta, 'location')) : '';
     const rackType = meta ? toText(field(meta, 'rack_type')) : '';
-    const isUnmapped = UNMAPPED.includes(rack);
-    const isReference = REFERENCE_ONLY.has(rack);
+    const isUnmapped = unmappedRacks().includes(rack);
+    const isReference = !isTO() && REFERENCE_ONLY.has(rack);
     root.innerHTML = `<div class="zmwm-inspector-head"><span class="zmwm-eyebrow">RACK DETAIL</span>
       <div class="zmwm-inspector-title"><h2>${esc(rack)}</h2><span>${visible.length}${visible.length !== all.length ? ' / ' + all.length : ''} pieces</span></div><button type="button" class="zmwm-back-to-map" data-action="back-to-map">↑ Back to rack map</button>
       <p>${isReference ? 'Reference face on drawing — not confirmed usable. Please verify any assignments here.' : isUnmapped ? 'Rack code needs side / location review' : 'Live inventory assigned to this rack face'}</p>
@@ -592,7 +685,10 @@
       root.querySelector('#zmwm-sale').value = state.sale;
       root.querySelector('#zmwm-kind').value = state.kind;
       state.initialized = true;
-      root.addEventListener('click', e => {
+      // Reusing the same root across Kintone view changes must not duplicate handlers.
+      if (!root.dataset.zmwmClickBound) {
+        root.dataset.zmwmClickBound = '1';
+        root.addEventListener('click', e => {
         const rackButton = e.target.closest('[data-rack]');
         if (rackButton) { state.selected = rackButton.dataset.rack; render(); if (window.innerWidth <= 780) root.querySelector('#zmwm-inspector')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
         const actionButton = e.target.closest('[data-action]');
@@ -608,7 +704,8 @@
           root.querySelector('#zmwm-kind').value = '';
           render();
         }
-      });
+        });
+      }
       root.querySelector('#zmwm-search').addEventListener('input', e => { state.search = e.target.value; render(); });
       root.querySelector('#zmwm-sale').addEventListener('change', e => { state.sale = e.target.value; render(); });
       root.querySelector('#zmwm-kind').addEventListener('change', e => { state.kind = e.target.value; render(); });
@@ -631,18 +728,25 @@
   }
 
   kintone.events.on(['app.record.index.show', 'mobile.app.record.index.show'], event => {
-    const isCorrectView = event.viewName === SETTINGS.VIEW_NAME &&
+    const view = viewForName(event.viewName);
+    const isCorrectView = Boolean(view) &&
       (event.viewType === 'custom' || event.viewType === 'CUSTOM' || !event.viewType);
     if (!isCorrectView) {
+      state.renderToken += 1; // Cancel any pending response from a previous view.
       if (state.initialized) { releasePhotos(); state.initialized = false; }
       return event;
     }
     if (!document.getElementById(ROOT_ID)) return event;
+    releasePhotos();
+    state.view = view;
+    state.records = [];
+    state.rackMeta = new Map();
     state.initialized = false;
     state.selected = null;
     state.search = '';
     state.sale = '';
     state.kind = '';
+    state.zoom = 1;
     load();
     return event;
   });

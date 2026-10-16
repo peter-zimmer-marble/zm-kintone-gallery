@@ -1,38 +1,52 @@
-# ZM Kintone Gallery A — hosted customizations
+# ZM Warehouse Maps — Kintone Custom Views
 
-This public repository contains the **read-only client-side code** for ZM's Inside Slab Gallery Kintone Custom View. It does not contain live inventory, customer/job data, Kintone API tokens, account credentials, or offline inventory previews.
+This public GitHub Pages repository hosts **only the client-side JavaScript and CSS** for two read-only maps inside ZM's existing `ZM Warehouse Map - TEST` Kintone application. Inventory stays in the authenticated Kintone Inventory app (App 6); rack metadata is optionally read from Rack app (App 7). No private inventory snapshot, customer data, API token, or account credential is stored here.
 
-## Active Kintone test URLs (stable links)
+## Active Kintone customization URLs
 
-Hosted after enabling **Settings → Pages → Deploy from a branch → main / (root)**:
+These original v0.5-named URLs are **stable links** already entered in Kintone; the files now support **both** maps. Keep these filenames in place for automatic updates.
 
 - JavaScript: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.js`
 - CSS: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.css`
 
-GitHub Pages is the delivery mechanism for the Kintone Custom View. The filenames retain `v0.5` for compatibility with the existing Kintone links; the CSS was refined in place on 2026-10-15 to improve rack text, color preview counts, and the detail inspector.
+GitHub Pages uses `main` / `(root)`. Deployments happen automatically after commits. Kintone usually needs only a browser refresh, sometimes a hard refresh or a short wait for cache expiration.
 
-### Kintone test-app setup
+## One-time Kintone setup (app administrator)
 
-Inside `ZM Warehouse Map - TEST` go to `App Settings → JavaScript and CSS customization` and select **Affect only app administrators** during testing. Use **Add link** under JavaScript files for PC to add the JavaScript URL, and under CSS files for PC to add the CSS URL. For Kintone mobile, add the same links under the mobile JavaScript and CSS sections. Save, then click **Update App**.
+In `ZM Warehouse Map - TEST`:
 
-The app also needs a Custom View named exactly `Inside Slab Gallery` with this HTML:
+1. Go to **App Settings → Views**.
+2. Edit the existing Custom View **Inside Slab Gallery**. Change **Name** to exactly `Gallery A`. **Leave its HTML unchanged**:
 
-```html
-<div id="zm-warehouse-map-root"></div>
-```
+   ```html
+   <div id="zm-warehouse-map-root"></div>
+   ```
 
-Use the **Custom view** mode with pagination off. Users must have Kintone read permissions for Inventory App 6 and Rack App 7.
+3. Add a second **Custom view** named exactly `Temporary Outside`. Set **Use this view in: Both desktop and mobile-optimized views**, paste the **same HTML div** above, and leave **Enable pagination** OFF. Leave the view filter as **All records**.
+4. Click **Save** for each view and **Update App** in App Settings. No second Kintone app, JavaScript/CSS upload, or customization link is needed.
+5. Open each view via the Kintone view dropdown and verify counts and record links. The JavaScript also recognizes the old `Inside Slab Gallery` name as a temporary alias until its Kintone view has been renamed.
 
-### Releasing updates without changing Kintone links
+**Important:** GitHub cannot rename or create native Kintone views. The above view-setting changes are the only steps that require an administrator in Kintone. All later JavaScript/CSS edits can be published to the existing links.
 
-The existing test app uses these fixed JavaScript/CSS URLs. ChatGPT can prepare, offline-test, and commit changes **to the same paths**. When the main branch changes, GitHub Pages redeploys automatically; users then refresh Kintone to load the new code. There is no need to re-upload the customization files or click Update App for changes at the same URLs. Updates to an already-open browser tab are not pushed into that tab automatically, and GitHub Pages/browser caching may temporarily serve an older version. A hard refresh (Ctrl+Shift+R) or waiting for caches to expire should resolve this.
+## Map definitions
 
-Because the shared URL updates everyone who uses it, review changes and test the new code **before** committing. Keep App administrators only during development. For a future wider employee rollout, consider a separate staging app and pinned production release URLs to avoid deploying untested code to all employees. Git history provides rollback: revert a commit to restore the previous working code.
+| Custom View | Rack faces | Layout |
+| --- | --- | --- |
+| `Gallery A` | Z-1A through Z-11, G-54/56/58/62/64, 27 confirmed usable sides, plus Z-11B reference face | Preserves the existing indoor gallery map, rack positions, gray dividers, filters and inspector |
+| `Temporary Outside` | `TO-1A/B` through `TO-6A/B` (12 usable faces) | Six A-frame pairs from TO-6 nearest ROAD to TO-1 nearest BUILDING; north points LEFT, A left, B right |
 
-This code makes read-only requests to Kintone and runs under the permissions of whoever is logged in. Since Kintone executes this external JavaScript within an authenticated session, protect GitHub access with MFA, restrict repository write access, and only approve reviewed code changes.
+Unsided TO codes `TO-1` through `TO-6`, if any, appear under **Unconfirmed TO assignments** rather than being assigned arbitrarily to an A/B side. The TO codes are based on the owner's reported identifiers and should be validated against live inventory after creating the view.
 
-## Important
+Both views share the color_combined summaries, search, Avl/Hold/SOLD filters, slab/remnant filters, customer/job allocation details, photo preview, live rack counts, and record links into Inventory App 6. Both views remain **read-only**.
 
-Do **not** upload the original `warehouse-map-preview.html`, inventory CSV, API keys, or other customer information to this public repository. That offline preview embeds inventory records and is not appropriate for public hosting.
+## Releasing code updates
 
-The user confirmed that the map loads **live Kintone inventory** inside `ZM Warehouse Map - TEST` (October 15 screenshot). The frontend formatting and interactive flows were also tested offline. Before rolling out to all employees, verify representative rack counts, Sold To / Job values, record links, and photo permissions against Inventory App 6.
+Commit edits to these same two files on `main` after testing; GitHub Pages automatically redeploys. This updates all Kintone views that reference the links. A currently open Kintone tab must be refreshed to load the new code. Keep this repository access restricted to trusted editors and protect it with MFA. Code executes in an authenticated Kintone session, so changes should be reviewed before publishing.
+
+For rollback, revert the relevant GitHub commit to restore the previous source. The previous version is preserved in Git history.
+
+## Tests and caveats
+
+The Gallery A and Temporary Outside UIs were browser-tested with simulated sample records (desktop/mobile, rack selection, filters, view switching, sold-to/job display, record links, zoom, rack ordering and divider widths). The user's earlier Gallery A live screenshot confirmed the shared source loads inventory in Kintone. The **new Temporary Outside view has not yet been tested against live TO inventory** until the one-time Kintone view is added.
+
+The public GitHub Pages landing page is **not** a public inventory catalog. Do not publish offline previews that embed real inventory/customer records, CSVs, Kintone tokens or other private material.
