@@ -61,22 +61,35 @@
     active:false, records:[], search:'', kind:'', sale:'', minLength:'', minWidth:'',
     photosOnly:false, shown:VISUAL_PAGE_SIZE, loading:false, error:'', updatedAt:null,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
-    inflight:new Map(), observer:null
+    inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
+    touchStartX:null
   };
   const visualDimension = value => toText(value) || '?';
   const visualNumericDimension = value => {
     const n = Number(toText(value).replace(/,/g, ''));
     return Number.isFinite(n) ? n : NaN;
   };
-  function visualPhotoKeys(record) {
-    const found = [];
-    for (const name of ['exact_picture', 'example_picture']) {
-      const photos = field(record, name);
-      const photo = Array.isArray(photos) ? photos.find(p =>
-        p && p.fileKey && /^image\//i.test(str(p.contentType))) : null;
-      if (photo && !found.includes(str(photo.fileKey))) found.push(str(photo.fileKey));
+  // Kintone attachment fields can each contain multiple image files.
+  // Preserve exact-picture order, then example-picture order, without duplicates.
+  function visualImages(record) {
+    const images = [];
+    const seen = new Set();
+    for (const [fieldName, kind] of [['exact_picture','Exact photo'],
+      ['example_picture','Example photo']]) {
+      const files = field(record, fieldName);
+      if (!Array.isArray(files)) continue;
+      for (const file of files) {
+        if (!file || !file.fileKey || !/^image\//i.test(str(file.contentType))) continue;
+        const key = str(file.fileKey);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        images.push({key,kind,name:str(file.name),mime:str(file.contentType).toLowerCase()});
+      }
     }
-    return found;
+    return images;
+  }
+  function visualPhotoKeys(record) {
+    return visualImages(record).map(image => image.key);
   }
   function visualMatches(record) {
     if (visualState.kind === 'slab' && !isSlab(record)) return false;
@@ -104,25 +117,37 @@
     const id = getId(record);
     const name = getColorCombined(record);
     const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
-    const [primary, fallback] = visualPhotoKeys(record);
+    const images = visualImages(record);
+    const primary = images[0] ? images[0].key : '';
+    const fallback = images[1] ? images[1].key : '';
     const length = visualDimension(field(record,'length'));
     const width = visualDimension(field(record,'width'));
     const rack = toText(field(record,'rack')) || 'Location not set';
     const type = toText(field(record,'type')) || 'Stone';
     const shape = toText(field(record,'shape'));
     const sale = getSale(record);
-    const job = toText(field(record, 'job'));
+    const job = toText(field(record,'job'));
     const label = sale === 'Avl' ? 'Available' : sale === 'SOLD' ? 'Sold' : sale === 'Hold' ? 'Hold' : '';
-    return '<article class="zmwm-visual-card"><a class="zmwm-visual-link" href="' + url +
+    const statusBadge = label ? '<span class="zmwm-visual-status ' + statusClass(sale) +
+      '">' + esc(label) + '</span>' : '';
+    const countBadge = images.length > 1 ? '<span class="zmwm-visual-photo-count">' +
+      images.length + ' photos · View all</span>' : '';
+    const photo = primary ?
+      '<button type="button" class="zmwm-visual-photo zmwm-visual-photo-action"' +
+        ' data-visual-action="open-photo" data-visual-id="' + esc(id) + '"' +
+        ' data-visual-photo="' + esc(primary) + '"' +
+        (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') +
+        ' aria-label="Enlarge ' + images.length + ' photo' + (images.length === 1 ? '' : 's') +
+        ' of ' + esc(name) + '">' +
+        '<span class="zmwm-visual-photo-pending">Photo loading…</span>' +
+        statusBadge + countBadge + '</button>' :
+      '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
+        statusBadge + '</div>';
+    return '<article class="zmwm-visual-card">' + photo +
+      '<a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) + ', ' + esc(length) +
       ' by ' + esc(width) + ' inches. Open Kintone record ' + esc(id) + '">' +
-      '<div class="zmwm-visual-photo"' +
-      (primary ? ' data-visual-photo="' + esc(primary) + '"' : '') +
-      (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') + '>' +
-      (primary ? '<span class="zmwm-visual-photo-pending">Photo loading…</span>' :
-        '<span class="zmwm-visual-no-photo">No photo available</span>') +
-      (label ? '<span class="zmwm-visual-status ' + statusClass(sale) + '">' + esc(label) + '</span>' : '') +
-      '</div><div class="zmwm-visual-card-details">' +
+      '<div class="zmwm-visual-card-details">' +
       '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
       '<div class="zmwm-visual-size">' + esc(length) + ' × ' + esc(width) + ' in</div>' +
       (job ? '<div class="zmwm-visual-job"><span class="zmwm-visual-job-label">Job</span>' +
@@ -156,6 +181,33 @@
       '<button class="zmwm-visual-reset" type="button" data-visual-action="reset">Reset</button></div>' +
       '<div id="zmwm-visual-feedback" class="zmwm-visual-feedback" role="status" aria-live="polite"></div>' +
       '<div id="zmwm-visual-results"></div>' +
+      '<div id="zmwm-visual-lightbox" class="zmwm-visual-lightbox" role="dialog"' +
+        ' aria-modal="true" aria-label="Inventory photo viewer" hidden>' +
+        '<div class="zmwm-visual-lightbox-backdrop" data-visual-action="close-photo"></div>' +
+        '<section class="zmwm-visual-lightbox-panel">' +
+          '<header class="zmwm-visual-lightbox-header">' +
+            '<div><div class="zmwm-visual-lightbox-eyebrow">INVENTORY PHOTOS</div>' +
+              '<h2 id="zmwm-visual-lightbox-title"></h2>' +
+              '<p id="zmwm-visual-lightbox-meta"></p></div>' +
+            '<button type="button" class="zmwm-visual-lightbox-close"' +
+              ' data-visual-action="close-photo" aria-label="Close photo viewer">×</button>' +
+          '</header>' +
+          '<div class="zmwm-visual-lightbox-stage">' +
+            '<button type="button" class="zmwm-visual-lightbox-arrow" data-visual-action="previous-photo"' +
+              ' aria-label="Previous photo">‹</button>' +
+            '<div class="zmwm-visual-lightbox-image" id="zmwm-visual-lightbox-image"' +
+              ' aria-live="polite"></div>' +
+            '<button type="button" class="zmwm-visual-lightbox-arrow" data-visual-action="next-photo"' +
+              ' aria-label="Next photo">›</button>' +
+          '</div>' +
+          '<div class="zmwm-visual-lightbox-footer">' +
+            '<span id="zmwm-visual-lightbox-caption"></span>' +
+            '<button type="button" class="zmwm-visual-lightbox-download"' +
+              ' data-visual-action="download-photo" disabled>↓ Download photo</button>' +
+          '</div>' +
+          '<div class="zmwm-visual-lightbox-thumbnails" id="zmwm-visual-lightbox-thumbnails"' +
+            ' aria-label="Select a photo"></div>' +
+        '</section></div>' +
       '<footer class="zmwm-visual-footer">Inventory currently marked In in Kintone. ' +
       'Photos and dimensions are sourced from the existing records; nothing is edited here.</footer>' +
       mapSignature() + '</main>';
@@ -200,6 +252,7 @@
   function fillVisualSlot(slot, url) {
     if (!slot) return;
     const badge = slot.querySelector('.zmwm-visual-status');
+    const count = slot.querySelector('.zmwm-visual-photo-count');
     slot.textContent = '';
     const image = document.createElement('img');
     image.src = url;
@@ -207,6 +260,7 @@
     image.loading = 'lazy';
     slot.appendChild(image);
     if (badge) slot.appendChild(badge);
+    if (count) slot.appendChild(count);
   }
   function markVisualPhotoFailure(key) {
     visualState.failed.add(key);
@@ -221,17 +275,20 @@
         requestVisualPhoto(alternate);
       } else {
         const badge = slot.querySelector('.zmwm-visual-status');
+        const count = slot.querySelector('.zmwm-visual-photo-count');
         slot.textContent = '';
         const textNode = document.createElement('span');
         textNode.className = 'zmwm-visual-no-photo';
         textNode.textContent = 'Photo unavailable';
         slot.appendChild(textNode);
         if (badge) slot.appendChild(badge);
+        if (count) slot.appendChild(count);
         delete slot.dataset.visualPhoto;
       }
     });
+    renderVisualLightbox();
   }
-  function requestVisualPhoto(key) {
+  function requestVisualPhoto(key, priority = false) {
     if (!visualState.active || !key) return;
     if (visualState.urls.has(key)) {
       const root = document.getElementById('zmwm-visual-root');
@@ -241,8 +298,15 @@
       return;
     }
     if (visualState.failed.has(key)) { markVisualPhotoFailure(key); return; }
-    if (visualState.pendingKeys.has(key) || visualState.inflight.has(key)) return;
-    visualState.pending.push(key);
+    if (visualState.inflight.has(key)) return;
+    if (visualState.pendingKeys.has(key)) {
+      if (priority) {
+        visualState.pending = [key,...visualState.pending.filter(item => item !== key)];
+      }
+      return;
+    }
+    if (priority) visualState.pending.unshift(key);
+    else visualState.pending.push(key);
     visualState.pendingKeys.add(key);
     drainVisualPhotoQueue();
   }
@@ -264,6 +328,7 @@
           const url = URL.createObjectURL(xhr.response);
           visualState.urls.set(key,url);
           requestVisualPhoto(key);
+          renderVisualLightbox();
         } else markVisualPhotoFailure(key);
         drainVisualPhotoQueue();
       };
@@ -293,6 +358,146 @@
       });
     } else slots.forEach(watch);
   }
+
+  function visualSafeFilenamePart(value, maximum = 90) {
+    const cleaned = str(value).normalize('NFKC')
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g,'-')
+      .replace(/\s+/g,' ').replace(/^[. ]+|[. ]+$/g,'').slice(0,maximum)
+      .replace(/[. ]+$/g,'');
+    return cleaned || 'Unknown';
+  }
+  function visualDownloadFilename(record, image, index, total) {
+    const extensions = {
+      'image/jpeg':'jpg','image/jpg':'jpg','image/png':'png',
+      'image/webp':'webp','image/gif':'gif','image/avif':'avif',
+      'image/heic':'heic','image/heif':'heif','image/bmp':'bmp',
+      'image/tiff':'tif','image/svg+xml':'svg'
+    };
+    const originalExt = str(image.name).match(/\.([a-z0-9]{2,5})$/i);
+    const ext = extensions[image.mime] || (originalExt ? originalExt[1].toLowerCase() : 'jpg');
+    const length = visualDimension(field(record,'length'));
+    const width = visualDimension(field(record,'width'));
+    const name = visualSafeFilenamePart(getColorCombined(record));
+    const dims = visualSafeFilenamePart(length === '?' ? 'Unknown' : length,24) +
+      ' x ' + visualSafeFilenamePart(width === '?' ? 'Unknown' : width,24) + ' in';
+    const recNumber = visualSafeFilenamePart(getId(record),24);
+    const numbered = total > 1 ? ' - Photo ' + (index + 1) : '';
+    return name + ' - ' + dims + ' - Record ' + recNumber + numbered + '.' + ext;
+  }
+  function renderVisualLightbox() {
+    const current = visualState.lightbox;
+    if (!visualState.active || !current) return;
+    const root = document.getElementById('zmwm-visual-lightbox');
+    if (!root) return;
+    const image = current.images[current.index];
+    const blobUrl = visualState.urls.get(image.key);
+    const failure = visualState.failed.has(image.key);
+    const title = root.querySelector('#zmwm-visual-lightbox-title');
+    const meta = root.querySelector('#zmwm-visual-lightbox-meta');
+    const stage = root.querySelector('#zmwm-visual-lightbox-image');
+    const caption = root.querySelector('#zmwm-visual-lightbox-caption');
+    const download = root.querySelector('[data-visual-action="download-photo"]');
+    const previous = root.querySelector('[data-visual-action="previous-photo"]');
+    const next = root.querySelector('[data-visual-action="next-photo"]');
+    const thumbnails = root.querySelector('#zmwm-visual-lightbox-thumbnails');
+    if (!title || !meta || !stage || !caption || !download || !thumbnails) return;
+    const name = getColorCombined(current.record);
+    title.textContent = name;
+    meta.textContent = visualDimension(field(current.record,'length')) + ' × ' +
+      visualDimension(field(current.record,'width')) + ' in · Record #' + getId(current.record);
+    const number = current.index + 1;
+    const total = current.images.length;
+    caption.textContent = image.kind + ' · Photo ' + number + ' of ' + total;
+    download.disabled = !blobUrl;
+    download.title = blobUrl ? visualDownloadFilename(current.record,image,current.index,total) :
+      'Wait for photo to finish loading';
+    if (previous) previous.disabled = total < 2;
+    if (next) next.disabled = total < 2;
+    if (blobUrl) {
+      stage.innerHTML = '<img src="' + esc(blobUrl) + '" alt="' + esc(name) +
+        ', photo ' + number + ' of ' + total + '">';
+    } else {
+      stage.innerHTML = '<div class="zmwm-visual-lightbox-message">' +
+        (failure ? 'Photo could not be loaded.' : 'Loading photo…') + '</div>';
+    }
+    const scroll = thumbnails.scrollLeft;
+    thumbnails.innerHTML = current.images.map((item,i) => {
+      const small = visualState.urls.get(item.key);
+      return '<button type="button" class="zmwm-visual-lightbox-thumb' +
+        (i === current.index ? ' is-current' : '') + '" data-visual-action="jump-photo"' +
+        ' data-visual-index="' + i + '" aria-label="View ' + esc(item.kind) +
+        ' ' + (i + 1) + ' of ' + total + '" aria-pressed="' + (i === current.index) + '">' +
+        (small ? '<img src="' + esc(small) + '" alt="">' :
+          '<span>' + (i + 1) + '</span>') + '</button>';
+    }).join('');
+    thumbnails.scrollLeft = scroll;
+    if (!blobUrl && !failure) requestVisualPhoto(image.key,true);
+  }
+  function openVisualLightbox(recordId, trigger) {
+    const record = visualState.records.find(item => getId(item) === str(recordId));
+    const images = record ? visualImages(record) : [];
+    const root = document.getElementById('zmwm-visual-lightbox');
+    if (!root || !images.length) return;
+    visualState.lightbox = {record,images,index:0,trigger};
+    root.hidden = false;
+    renderVisualLightbox();
+    const close = root.querySelector('[data-visual-action="close-photo"].zmwm-visual-lightbox-close');
+    if (close) close.focus({preventScroll:true});
+  }
+  function closeVisualLightbox(restoreFocus = true) {
+    const open = visualState.lightbox;
+    const root = document.getElementById('zmwm-visual-lightbox');
+    if (root) root.hidden = true;
+    visualState.lightbox = null;
+    visualState.touchStartX = null;
+    if (restoreFocus && open && open.trigger && open.trigger.isConnected)
+      open.trigger.focus({preventScroll:true});
+  }
+  function navigateVisualLightbox(delta) {
+    const current = visualState.lightbox;
+    if (!current || current.images.length < 2) return;
+    current.index = (current.index + delta + current.images.length) % current.images.length;
+    renderVisualLightbox();
+  }
+  function visualLightboxKeydown(event) {
+    if (!visualState.lightbox) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeVisualLightbox();
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      navigateVisualLightbox(1);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      navigateVisualLightbox(-1);
+    } else if (event.key === 'Tab') {
+      const root = document.getElementById('zmwm-visual-lightbox');
+      if (!root) return;
+      const focusable = [...root.querySelectorAll('button:not([disabled])')];
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      }
+    }
+  }
+  function downloadVisualLightboxPhoto() {
+    const current = visualState.lightbox;
+    if (!current) return;
+    const image = current.images[current.index];
+    const url = visualState.urls.get(image.key);
+    if (!url) return;
+    const link = document.createElement('a');
+    link.href = url; // authenticated Kintone image already loaded as a local blob
+    link.download = visualDownloadFilename(current.record,image,current.index,current.images.length);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   // Keyset pagination avoids Kintone's 10,000-record offset limit. All reads
   // are GETs from the inventory app; no cursor resources or writes are created.
   async function fetchVisualRecords() {
@@ -313,6 +518,7 @@
   }
   async function loadVisualSearch() {
     if (!visualState.active) return;
+    closeVisualLightbox();
     const token = ++visualState.token;
     visualState.loading = true;
     visualState.error = '';
@@ -351,6 +557,11 @@
     renderVisualResults();
   }
   function stopVisualSearch() {
+    closeVisualLightbox(false);
+    if (visualState.keydownHandler) {
+      document.removeEventListener('keydown',visualState.keydownHandler);
+      visualState.keydownHandler = null;
+    }
     visualState.token++;
     visualState.active = false;
     if (visualState.observer) { visualState.observer.disconnect(); visualState.observer = null; }
@@ -380,6 +591,20 @@
     root.innerHTML = visualShell();
     const ui = root.querySelector('#zmwm-visual-root');
     if (!ui) return;
+    visualState.keydownHandler = visualLightboxKeydown;
+    document.addEventListener('keydown',visualState.keydownHandler);
+    ui.addEventListener('touchstart',event => {
+      if (!visualState.lightbox || !event.target.closest('.zmwm-visual-lightbox-stage')) return;
+      visualState.touchStartX = event.touches[0] ? event.touches[0].clientX : null;
+    },{passive:true});
+    ui.addEventListener('touchend',event => {
+      if (!visualState.lightbox || visualState.touchStartX === null ||
+          !event.target.closest('.zmwm-visual-lightbox-stage')) return;
+      const touch = event.changedTouches[0];
+      const distance = touch ? touch.clientX - visualState.touchStartX : 0;
+      visualState.touchStartX = null;
+      if (Math.abs(distance) >= 55) navigateVisualLightbox(distance < 0 ? 1 : -1);
+    },{passive:true});
     ui.addEventListener('input',event => {
       const names = {
         'zmwm-visual-search':'search',
@@ -408,6 +633,19 @@
       const button = event.target.closest('[data-visual-action]');
       if (!button) return;
       const action = button.dataset.visualAction;
+      if (action === 'open-photo') openVisualLightbox(button.dataset.visualId,button);
+      if (action === 'close-photo') closeVisualLightbox();
+      if (action === 'next-photo') navigateVisualLightbox(1);
+      if (action === 'previous-photo') navigateVisualLightbox(-1);
+      if (action === 'jump-photo' && visualState.lightbox) {
+        const index = Number(button.dataset.visualIndex);
+        if (Number.isInteger(index) && index >= 0 &&
+            index < visualState.lightbox.images.length) {
+          visualState.lightbox.index = index;
+          renderVisualLightbox();
+        }
+      }
+      if (action === 'download-photo') downloadVisualLightboxPhoto();
       if (action === 'refresh') loadVisualSearch();
       if (action === 'reset') resetVisualFilters();
       if (action === 'more') {
