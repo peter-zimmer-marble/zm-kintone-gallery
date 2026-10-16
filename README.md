@@ -40,16 +40,17 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 ## Visual Search privacy / data-minimization audit
 
 The production Inventory App 6 standalone script (`zm-visual-search-v1.js`) uses a
-**12-field response allowlist** in its Kintone Get Records request:
+**13-field response allowlist** in its Kintone Get Records request:
 
 `$id`, `color`, `color_combined`, `zmv_num`, `type`, `length`, `width`,
-`shape`, `rack`, `sale_status`, `exact_picture`, `example_picture`.
+`shape`, `rack`, `sale_status`, `exact_picture`, `example_picture`, `job`.
 
 The `inventory_status` field is referenced **only in the server-side Kintone
 query** to select inventory marked `In`; its values are not requested in the
-response. Pricing, material cost, customer/job, margin, supplier, notes, other
-private fields, and unused metadata are **not requested** or searched by this
-standalone view. The view also clears cached inventory objects when leaving.
+response. **Job** is intentionally requested and displayed only for records
+with a nonblank Job value, but is not included in the text-search terms.
+Pricing, material costs, margins, suppliers, notes, and unrelated fields are
+**not requested** or searchable. The view clears cached inventory when leaving.
 
 **This is data minimization, not an independent access-control boundary.**
 The cards still link to the full Inventory App 6 record, and Kintone field,
@@ -59,7 +60,7 @@ App Settings → Permissions for Fields**, and appropriate App/Record permission
 Those permissions apply across the Kintone app, not only this custom view.
 If staff need differentiated access, use Kintone groups/field permissions. Do
 not rely on hiding prices in this frontend to restrict a viewer with Kintone
-record access. File images and free-text material/color names may themselves
+record access. Job names, file images, and free-text material/color names may themselves
 contain confidential information and need a content review. Test with a
 realistic restricted-role Kintone user, not only an administrator.
 
@@ -142,7 +143,7 @@ The visual framework lives in `gallery-a-v0.5.js` / `gallery-a-v0.5.css` despite
 The **Visual Search** Custom View browses authenticated inventory. The version in Warehouse Map - TEST temporarily uses its existing gallery HTML root. The **new** ZM Inventory version uses the distinct HTML container and two standalone assets listed in the migration section above.
 
 - One **card per physical inventory record**, sorted by material/color name (not grouped by color).
-- **Material/color name above the photo**, then **recorded length × width in inches below**; piece type, rack and record number also appear. Clicking a card opens Inventory App **6** in a new tab.
+- **Photo first**, then a moderately larger, **bold color name** beneath it, followed by **length × width in inches**. An optional **Job** section appears only for assigned records; piece type, rack and record number also appear. Clicking a card opens Inventory App **6** in a new tab.
 - The photo loader prefers `exact_picture`, then falls back to `example_picture`. Missing photos display an explicit placeholder (no fabricated imagery).
 - Filters include color/name/record/rack text search, slab versus remnant, availability (available/hold/sold), minimum dimensions and **Photos only**. Reset clears all filters.
 - Only records with `inventory_status = "In"` are loaded; this **can include Sold and Hold records** that remain physically on site. This is an inventory tool, not a customer-facing catalog.
