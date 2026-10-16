@@ -1,6 +1,6 @@
-# ZM Warehouse Maps — Kintone Custom Views
+# ZM Warehouse Maps & Visual Search — Kintone Custom Views
 
-This repository hosts **public frontend JavaScript and CSS only** for five read-only warehouse map views plus one visual inventory search view inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
+This repository hosts **public frontend JavaScript and CSS only** for five read-only maps in ZM Warehouse Map - TEST, plus standalone Visual Search assets for the main ZM Inventory app (App 6). The original Visual Search remains in the warehouse test bundle during migration. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
 
 ## Current GitHub Pages URLs (after work-account username change)
 
@@ -9,7 +9,35 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 
 **One-time migration after the GitHub username change (2026-10-16):** The old `petercampau-gif.github.io` hostname must be replaced with `peter-zimmer-marble.github.io` in Kintone's JavaScript/CSS customization settings for the Warehouse Map test app. Update the existing JavaScript and CSS links (do not add duplicates), click **Save**, then **Update App**, and confirm Gallery A, Temporary Outside, Gallery C, Gallery B, Gallery D, and Visual Search all render. Repository URL redirects do not guarantee GitHub Pages host redirects. After the migration, normal future file updates need only a page refresh.\n\nThe filenames still say `v0.5` to preserve the Kintone file path settings; their shared implementation supports all five views (all five views updated to the shared map design in code v1.0). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
-## One-time Kintone setup for Gallery C, Gallery B, Gallery D, and Visual Search
+## Move Visual Search to ZM Inventory (App 6)
+
+**Status:** New standalone files are ready for installation. The main Kintone app is NOT yet changed. Retain the working Visual Search view in Warehouse Map - TEST until the new location is live and verified.
+
+**Install these dedicated assets into ZM Inventory only (not the shared gallery files):**
+
+- JavaScript: https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-visual-search-v1.js
+- CSS: https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-visual-search-v1.css
+
+1. Open **ZM Inventory (App 6) → App Settings → Views → Add View (+)**.
+2. Name the new view **Visual Search** (exact spelling). Select **Custom view** and **Both desktop and mobile-optimized views**.
+3. Enter this HTML:
+
+   ~~~html
+   <div id="zm-visual-search-root"></div>
+   ~~~
+
+4. Leave pagination disabled and the view's filter as All records. Save the view.
+5. Go to **App Settings → JavaScript and CSS customization** within **ZM Inventory**. Add the standalone JavaScript URL to PC JavaScript and the standalone CSS URL to PC CSS; repeat for Mobile JavaScript/Mobile CSS if mobile is required. **Keep ALL existing customization entries and their order**, and do not change the app's customization scope. Switching the entire app to administrator-only would disable any existing customizations for other users.
+6. Save and **Update App**. Open Visual Search in the real inventory app and confirm photos, sizes, filters and record links. Switch to normal inventory views to verify that their existing functionality remains unchanged.
+7. After live verification on the intended devices, remove the old Visual Search native view from **Warehouse Map - TEST** and, in a separate reviewed code change, remove its legacy bundled implementation without affecting Galleries A–D or Temporary Outside.
+
+**Rollback:** Remove the two new links from ZM Inventory, Save/Update App, then remove the new Visual Search view if needed. The warehouse-map implementation has been intentionally left intact for fallback.
+
+**Safety:** The new script runs only on the view named Visual Search with its own unique HTML root, reads Inventory App 6 through authenticated GET requests, and never writes records. CSS is scoped entirely within its own root. The server hosts code only, not inventory data or photo exports.
+
+**Verification:** Simulated Kintone event, record, filter, display, pagination and navigation tests passed; actual Kintone App 6 photos and interactions still require live verification.
+
+## Legacy warehouse-map setup (Galleries C, B, D; test Visual Search during cutover)
 
 In the existing **ZM Warehouse Map - TEST** app, for each new view you have not yet created:
 
@@ -80,7 +108,7 @@ The visual framework lives in `gallery-a-v0.5.js` / `gallery-a-v0.5.css` despite
 
 ## Visual Search (image-first inventory, read only)
 
-The **Visual Search** Custom View is a separate way to browse inventory in the same authenticated Kintone environment. Set it up using the one-time Custom View instructions above, with the identical HTML container (`<div id="zm-warehouse-map-root"></div>`). Keep the existing JavaScript/CSS links and leave the view filter set to All records.
+The **Visual Search** Custom View browses authenticated inventory. The version in Warehouse Map - TEST temporarily uses its existing gallery HTML root. The **new** ZM Inventory version uses the distinct HTML container and two standalone assets listed in the migration section above.
 
 - One **card per physical inventory record**, sorted by material/color name (not grouped by color).
 - **Material/color name above the photo**, then **recorded length × width in inches below**; piece type, rack and record number also appear. Clicking a card opens Inventory App **6** in a new tab.
