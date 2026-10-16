@@ -122,7 +122,7 @@
 #zm-visual-search-root .zmwm-visual-lightbox-panel {position:relative;display:flex;flex-direction:column;
   width:min(1140px,100%);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);
   background:#f8faf7;color:#293d32;border:1px solid #bacac0;border-radius:10px;
-  overflow:hidden;box-shadow:0 24px 85px rgba(0,0,0,.4);}
+  overflow-x:hidden;overflow-y:auto;box-shadow:0 24px 85px rgba(0,0,0,.4);}
 #zm-visual-search-root .zmwm-visual-lightbox-header {display:flex;justify-content:space-between;
   align-items:center;gap:18px;padding:16px 21px 14px;background:#fff;border-bottom:1px solid #e2e9e3;}
 #zm-visual-search-root .zmwm-visual-lightbox-header > div {min-width:0;}
