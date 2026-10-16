@@ -1,7 +1,7 @@
 /*
- * ZM Warehouse Maps: Gallery A + Temporary Outside (Kintone Custom Views, v0.6)
+ * ZM Warehouse Maps: Gallery A, Temporary Outside, Gallery C (Kintone Custom Views, v0.7)
  * Copyright (c) 2026 ZM. Read-only: GET requests only, no data writes.
- * Install inside the Warehouse Map app; use the same view HTML in both Custom Views.
+ * Install inside the Warehouse Map app; use the same view HTML in all three Custom Views.
  * Uses existing versioned GitHub Pages links; inventory stays in authenticated Kintone.
  */
 (function () {
@@ -10,6 +10,7 @@
   const SETTINGS = {
     GALLERY_A_VIEW_NAMES: ['Gallery A', 'Inside Slab Gallery'],
     TO_VIEW_NAME: 'Temporary Outside',
+    GALLERY_C_VIEW_NAME: 'Gallery C',
     INVENTORY_APP_ID: 6,
     RACK_APP_ID: 7,
     PAGE_SIZE: 500,
@@ -37,13 +38,34 @@
   const TO_UNMAPPED = TO_PAIRS.map(pair => `TO-${pair.number}`);
   const TO_QUERY_RACKS = [...TO_MAPPED, ...TO_UNMAPPED];
   const TO_FACES = TO_PAIRS.flatMap(pair => [{rack:pair.a}, {rack:pair.b}]);
+
+  // Gallery C (By Trucks): coordinates traced directly from Outside Slab Gallery C.pdf.
+  // Orientation: road at top, building at bottom, north points left.
+  // All 30 locations are usable. Six have *provisional* restrictions, not hard blocks.
+  const GALLERY_C_WIDTH = 759;
+  const GALLERY_C_HEIGHT = 903;
+  const GALLERY_C_FACES = [{"rack":"OS-13B","x":681.69,"y":-0.0,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-13A","x":681.7,"y":80.33,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-12B","x":560.98,"y":187.23,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-11B","x":681.71,"y":187.25,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-12A","x":561.0,"y":267.56,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-11A","x":681.72,"y":267.58,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-10B","x":429.75,"y":306.76,"w":67.48,"h":82.09,"limited":false},{"rack":"OS-10A","x":354.27,"y":306.77,"w":67.48,"h":82.09,"limited":true},{"rack":"OS-9B","x":560.97,"y":374.48,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-8B","x":681.73,"y":374.5,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-DAR","x":75.5,"y":396.29,"w":67.47,"h":82.09,"limited":true},{"rack":"OS-DBL","x":0.02,"y":396.31,"w":67.48,"h":82.09,"limited":true},{"rack":"OT103-R","x":252.1,"y":396.32,"w":67.48,"h":82.09,"limited":true},{"rack":"OT103-L","x":176.62,"y":396.34,"w":67.48,"h":82.09,"limited":true},{"rack":"OS-9A","x":560.99,"y":454.81,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-8A","x":681.75,"y":454.83,"w":75.99,"h":72.32,"limited":false},{"rack":"OS-7B","x":429.75,"y":499.39,"w":67.48,"h":82.09,"limited":false},{"rack":"OS-7A","x":354.27,"y":499.4,"w":67.48,"h":82.09,"limited":true},{"rack":"OS-6B","x":561.0,"y":561.72,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-5B","x":681.72,"y":561.73,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-6A","x":561.01,"y":642.05,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-5A","x":681.73,"y":642.06,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-1B","x":681.73,"y":748.95,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-4B","x":319.57,"y":748.96,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-3B","x":440.26,"y":748.96,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-2B","x":560.99,"y":748.96,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-1A","x":681.75,"y":829.28,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-4A","x":319.59,"y":829.29,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-3A","x":440.28,"y":829.29,"w":75.99,"h":72.33,"limited":false},{"rack":"OS-2A","x":561.0,"y":829.29,"w":75.99,"h":72.33,"limited":false}];
+  const GALLERY_C_SPINES = [{"x":681.75,"y":821.28,"w":75.99,"h":8},{"x":561.0,"y":821.29,"w":75.99,"h":8},{"x":440.28,"y":821.29,"w":75.99,"h":8},{"x":319.59,"y":821.29,"w":75.99,"h":8},{"x":681.73,"y":634.06,"w":75.99,"h":8},{"x":561.01,"y":634.05,"w":75.99,"h":8},{"x":421.75,"y":499.4,"w":8,"h":82.09},{"x":681.75,"y":446.83,"w":75.99,"h":8},{"x":560.99,"y":446.81,"w":75.99,"h":8},{"x":421.75,"y":306.77,"w":8,"h":82.09},{"x":681.72,"y":259.58,"w":75.99,"h":8},{"x":561.0,"y":259.56,"w":75.99,"h":8},{"x":681.7,"y":72.33,"w":75.99,"h":8},{"x":67.5,"y":396.31,"w":8,"h":82.09},{"x":244.1,"y":396.34,"w":8,"h":82.09}];
+  const GALLERY_C_MAPPED = GALLERY_C_FACES.map(face => face.rack);
+  const GALLERY_C_UNMAPPED = Array.from({length:13}, (_,i) => `OS-${i+1}`);
+  // Lookup aliases protect against occasional hyphen-free Kintone rack values
+  // (e.g. OS7A, OSDBL, OT103L) while always displaying PDF-defined labels.
+  const GALLERY_C_ALIASES = new Map([...GALLERY_C_MAPPED, ...GALLERY_C_UNMAPPED]
+    .map(rack => [rack.replace(/-/g, ''), rack]).filter(([alias,rack]) => alias !== rack));
+  const GALLERY_C_QUERY_RACKS = [...new Set([...GALLERY_C_MAPPED, ...GALLERY_C_UNMAPPED,
+    ...GALLERY_C_ALIASES.keys()])];
+  const GALLERY_C_LIMITED = new Set(['OS-DBL','OS-DAR','OT103-L','OT103-R','OS-7A','OS-10A']);
+  const isGalleryC = () => state.view === 'gallery-c';
+  const canonicalRack = rack => isGalleryC() ? (GALLERY_C_ALIASES.get(rack) || rack) : rack;
+
   const viewForName = name => SETTINGS.GALLERY_A_VIEW_NAMES.includes(name) ? 'gallery-a' :
-    name === SETTINGS.TO_VIEW_NAME ? 'temporary-outside' : null;
+    name === SETTINGS.TO_VIEW_NAME ? 'temporary-outside' :
+    name === SETTINGS.GALLERY_C_VIEW_NAME ? 'gallery-c' : null;
   const isTO = () => state.view === 'temporary-outside';
-  const mappedRacks = () => isTO() ? TO_MAPPED : MAPPED;
-  const unmappedRacks = () => isTO() ? TO_UNMAPPED : UNMAPPED;
-  const queryRacks = () => isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
-  const planFaces = () => isTO() ? TO_FACES : PLAN_FACES;
+  const mappedRacks = () => isGalleryC() ? GALLERY_C_MAPPED : isTO() ? TO_MAPPED : MAPPED;
+  const unmappedRacks = () => isGalleryC() ? GALLERY_C_UNMAPPED : isTO() ? TO_UNMAPPED : UNMAPPED;
+  const queryRacks = () => isGalleryC() ? GALLERY_C_QUERY_RACKS : isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
+  const planFaces = () => isGalleryC() ? GALLERY_C_FACES : isTO() ? TO_FACES : PLAN_FACES;
 
   // Original Google Drawing PDF coordinate space (points): 1203 by 1045.
   // Individual face locations are traced from the provided vector shapes.
@@ -190,7 +212,7 @@
   };
   const toText = value => str(value).trim();
   const getId = record => str(field(record, '$id') || field(record, 'Record_number'));
-  const getRack = record => normalizeRack(field(record, 'rack'));
+  const getRack = record => canonicalRack(normalizeRack(field(record, 'rack')));
   const getColor = record => toText(field(record, 'color_combined')) || [field(record, 'color'), field(record, 'zmv_num')].map(toText).filter(Boolean).join(' ');
   const getSale = record => toText(field(record, 'sale_status'));
   const isRemnant = record => /rem/i.test(str(field(record, 'type')));
@@ -378,12 +400,17 @@
       ${flagged ? `<span class="zmwm-layout-warning" aria-hidden="true">!</span>` : ''}</button>`;
   }
 
+  function mapTitle() { return isGalleryC() ? 'Gallery C' : isTO() ? 'Temporary Outside' : 'Gallery A'; }
+  function mapDescription() { return isGalleryC() ? 'Outside slab storage · By Trucks.' :
+    isTO() ? 'Temporary outdoor A-frame storage, from road to building.' :
+    'Explore material by its physical rack position.'; }
+
   function shellHtml() {
     return `<main class="zmwm-app">
       <header class="zmwm-head">
         <div class="zmwm-head-left"><div class="zmwm-mark">ZM<span> / </span>OPS</div>
-          <div><div class="zmwm-eyebrow">INVENTORY / LOCATION INTELLIGENCE</div><h1>${isTO() ? 'Temporary Outside' : 'Gallery A'}</h1>
-          <p>${isTO() ? 'Temporary outdoor A-frame storage, from road to building.' : 'Explore material by its physical rack position.'}</p></div>
+          <div><div class="zmwm-eyebrow">INVENTORY / LOCATION INTELLIGENCE</div><h1>${mapTitle()}</h1>
+          <p>${mapDescription()}</p></div>
         </div>
         <div class="zmwm-head-tools"><span class="zmwm-readonly">READ ONLY</span><button type="button" class="zmwm-button" data-action="refresh">↻ Refresh</button></div>
       </header>
@@ -399,13 +426,13 @@
       </section>
       <div class="zmwm-content">
         <section class="zmwm-map-wrap" aria-label="Warehouse schematic">
-          <div class="zmwm-content-heading"><div><h2>${isTO() ? 'Temporary Outside <span class="zmwm-subtle">/ TO racks</span>' : 'Gallery A <span class="zmwm-subtle">/ Main Showroom</span>'}</h2><p>${isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north">← NORTH</span></div>
+          <div class="zmwm-content-heading"><div><h2>${isGalleryC() ? 'Gallery C <span class="zmwm-subtle">/ By Trucks</span>' : isTO() ? 'Temporary Outside <span class="zmwm-subtle">/ TO racks</span>' : 'Gallery A <span class="zmwm-subtle">/ Main Showroom</span>'}</h2><p>${isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north">← NORTH</span></div>
           <div id="zmwm-plan" class="zmwm-plan"></div>
           <div id="zmwm-unmapped" class="zmwm-unmapped"></div>
         </section>
         <aside id="zmwm-inspector" class="zmwm-inspector" aria-label="Selected rack inventory"></aside>
       </div>
-      <footer class="zmwm-footer">${isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
+      <footer class="zmwm-footer">${isGalleryC() ? 'Gallery C positions trace the supplied Outside Slab Gallery C drawing; not surveyed or to scale. Six access restrictions are provisional. ' : isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
     </main>`;
   }
 
@@ -416,10 +443,10 @@
     const unmappedRecords = unmappedRacks().reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
     const matchingRecords = [...g.filtered.values()].reduce((sum, records) => sum + records.length, 0);
     root.innerHTML = [
-      { title: 'USABLE FACES', value: mappedRacks().length, meta: isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
+      { title: 'USABLE FACES', value: mappedRacks().length, meta: isGalleryC() ? '6 provisional access limits' : isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
       { title: 'PHYSICAL PIECES', value: mappedRecords, meta: 'In mapped rack faces' },
       { title: 'MATCHES', value: matchingRecords, meta: 'Current filters · includes unplaced' },
-      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
+      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isGalleryC() ? 'Unsided OS rack code' : isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
     ].map(item => `<article class="zmwm-stat"><span>${item.title}</span><strong>${item.value.toLocaleString()}</strong><small>${item.meta}</small></article>`).join('');
   }
 
@@ -506,7 +533,85 @@
     }
   }
 
+  // Gallery C shares all Kintone data/query controls with the other two maps.
+  // Only face geometry, access warnings, and presentation are specific to this view.
+  function galleryCFaceHtml(face, g) {
+    const rack = face.rack;
+    const all = g.all.get(rack) || [];
+    const filtered = g.filtered.get(rack) || [];
+    const activeFilter = Boolean(state.search || state.sale || state.kind);
+    const records = activeFilter ? filtered : all;
+    const selected = state.selected === rack;
+    const restricted = GALLERY_C_LIMITED.has(rack);
+    const previewTitle = rackPreviewTitle(records) || 'No pieces assigned';
+    const classes = ['zmwm-layout-face','zmwm-gallery-c-face','tone-green',
+      selected ? 'is-selected' : '', restricted ? 'is-limited' : '',
+      activeFilter && !filtered.length ? 'is-dim' : '',
+      all.length ? 'has-pieces' : 'is-empty'].filter(Boolean).join(' ');
+    const count = activeFilter ? `${filtered.length}/${all.length}` : String(all.length);
+    const details = restricted ? ' Limited access (provisional): not suitable for full slabs.' : '';
+    const style = 'left:' + pct(face.x, GALLERY_C_WIDTH) + ';top:' + pct(face.y, GALLERY_C_HEIGHT) +
+      ';width:' + pct(face.w, GALLERY_C_WIDTH) + ';height:' + pct(face.h, GALLERY_C_HEIGHT) + ';';
+    return `<button type="button" class="${classes}" style="${style}" data-rack="${esc(rack)}"
+      aria-label="${esc(rack)}: ${all.length} pieces.${details} Top colors: ${esc(previewTitle)}. Open rack details."
+      title="${esc(rack)} — ${all.length} pieces${restricted ? ' · LIMITED ACCESS / NO FULL SLABS (provisional)' : ''} · ${esc(previewTitle)}"
+      aria-pressed="${selected}"><span class="zmwm-layout-name">${esc(rack)}</span>
+      ${restricted ? '<span class="zmwm-gallery-c-warning" aria-hidden="true">!</span>' : ''}
+      ${rackPreviewMarkup(records)}<span class="zmwm-layout-qty">${count}</span></button>`;
+  }
+
+  function renderGalleryC(g) {
+    const root = document.getElementById('zmwm-plan');
+    if (!root) return;
+    const previous = root.querySelector('.zmwm-reference-scroll');
+    const left = previous ? previous.scrollLeft : 0;
+    const previousZoom = previous ? Number(previous.dataset.zoom || '1') : state.zoom;
+    const boardMinWidth = Math.round(1000 * state.zoom);
+    const spines = GALLERY_C_SPINES.map(box => `<span class="zmwm-layout-spine zmwm-gallery-c-spine"
+      style="left:${pct(box.x,GALLERY_C_WIDTH)};top:${pct(box.y,GALLERY_C_HEIGHT)};width:${pct(box.w,GALLERY_C_WIDTH)};height:${pct(box.h,GALLERY_C_HEIGHT)}" aria-hidden="true"></span>`).join('');
+    const faces = GALLERY_C_FACES.map(face => galleryCFaceHtml(face,g)).join('');
+    root.innerHTML = `<div class="zmwm-reference-controls">
+      <div class="zmwm-reference-context"><span class="zmwm-reference-tag">GALLERY C / BY TRUCKS</span>
+        <span>30 usable locations · 6 provisionally limited-access</span></div>
+      <div class="zmwm-reference-zoom" aria-label="Map zoom">
+        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out" ${state.zoom <= .76 ? 'disabled' : ''}>−</button>
+        <span>${Math.round(state.zoom*100)}%</span>
+        <button type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in" ${state.zoom >= 1.59 ? 'disabled' : ''}>+</button>
+      </div>
+    </div>
+    <div class="zmwm-reference-scroll zmwm-gallery-c-scroll" data-zoom="${state.zoom}" tabindex="0"
+      aria-label="Gallery C rack map. North points left; road is above and building below. Scroll horizontally if needed.">
+      <div class="zmwm-gallery-c-frame" style="min-width:${boardMinWidth}px">
+        <div class="zmwm-gallery-c-board" role="group" aria-label="Gallery C drawing: 30 rack faces, 6 provisional limited-access locations.">
+          ${spines}${faces}
+          <span class="zmwm-gallery-c-road">ROAD</span>
+          <div class="zmwm-gallery-c-caption"><span class="zmwm-gallery-c-north"><span aria-hidden="true">⬅</span> NORTH</span>
+            <strong>Gallery C</strong><small>By Trucks</small></div>
+          <span class="zmwm-gallery-c-building">BUILDING ↓</span>
+          <img class="zmwm-gallery-c-logo" alt="ZM logo" src="${GALLERY_LOGO}">
+        </div>
+      </div>
+    </div>
+    <div class="zmwm-reference-legend">
+      <span><i class="zmwm-swatch zmwm-swatch-green"></i>Usable rack face</span>
+      <span><i class="zmwm-to-legend-divider"></i>A/B divider</span>
+      <span><i class="zmwm-swatch zmwm-swatch-amber"></i>Limited access (provisional)</span>
+      <span><i class="zmwm-swatch sw-selected"></i>Selected</span>
+      <small>Limited-access racks are not recommended for full slabs; classification needs verification. Map is not to scale.</small>
+    </div>`;
+    const nextScroll = root.querySelector('.zmwm-reference-scroll');
+    if (nextScroll) nextScroll.scrollLeft = previousZoom === state.zoom ? left : left * state.zoom / previousZoom;
+    const issues = document.getElementById('zmwm-unmapped');
+    if (issues) {
+      const unplaced = GALLERY_C_UNMAPPED.filter(rack => (g.all.get(rack) || []).length);
+      issues.innerHTML = unplaced.length ? `<div class="zmwm-unmapped-head"><span>UNCONFIRMED OS ASSIGNMENTS</span>
+        <small>These records use an OS rack number without an A/B face.</small></div>
+        <div class="zmwm-unmapped-list">${unplaced.map(r => faceHtml(r,g)).join('')}</div>` : '';
+    }
+  }
+
   function renderPlan(g) {
+    if (isGalleryC()) { renderGalleryC(g); return; }
     if (isTO()) { renderToPlan(g); return; }
     const root = document.getElementById('zmwm-plan');
     if (!root) return;
@@ -618,10 +723,12 @@
     const loc = meta ? toText(field(meta, 'location')) : '';
     const rackType = meta ? toText(field(meta, 'rack_type')) : '';
     const isUnmapped = unmappedRacks().includes(rack);
-    const isReference = !isTO() && REFERENCE_ONLY.has(rack);
+    const isReference = !isTO() && !isGalleryC() && REFERENCE_ONLY.has(rack);
+    const isLimited = isGalleryC() && GALLERY_C_LIMITED.has(rack);
     root.innerHTML = `<div class="zmwm-inspector-head"><span class="zmwm-eyebrow">RACK DETAIL</span>
       <div class="zmwm-inspector-title"><h2>${esc(rack)}</h2><span>${visible.length}${visible.length !== all.length ? ' / ' + all.length : ''} pieces</span></div><button type="button" class="zmwm-back-to-map" data-action="back-to-map">↑ Back to rack map</button>
       <p>${isReference ? 'Reference face on drawing — not confirmed usable. Please verify any assignments here.' : isUnmapped ? 'Rack code needs side / location review' : 'Live inventory assigned to this rack face'}</p>
+      ${isLimited ? '<div class="zmwm-gallery-c-notice" role="note"><strong>⚠ LIMITED ACCESS · PROVISIONAL</strong><span>Not suitable for full slabs. This is a starting assumption; verify before placing material here.</span></div>' : ''}
       ${loc || rackType ? `<div class="zmwm-inspector-meta">${loc ? `<span>${esc(loc)}</span>` : ''}${rackType ? `<span>${esc(rackType)}</span>` : ''}</div>` : ''}
     </div>
     <div class="zmwm-piece-list">${visible.length ? visible.map(itemHTML).join('') : `<div class="zmwm-empty-inspector">${all.length ? 'No pieces match your current filters.' : 'No current pieces assigned to this rack.'}</div>`}</div>

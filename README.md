@@ -1,52 +1,62 @@
 # ZM Warehouse Maps — Kintone Custom Views
 
-This public GitHub Pages repository hosts **only the client-side JavaScript and CSS** for two read-only maps inside ZM's existing `ZM Warehouse Map - TEST` Kintone application. Inventory stays in the authenticated Kintone Inventory app (App 6); rack metadata is optionally read from Rack app (App 7). No private inventory snapshot, customer data, API token, or account credential is stored here.
+This repository hosts **public frontend JavaScript and CSS only** for three read-only warehouse map views inside ZM's `ZM Warehouse Map - TEST` Kintone app. Authenticated inventory records stay in Inventory App 6, with optional rack metadata from Rack App 7. Do not commit inventory exports, customer data, credentials, API tokens, or the offline demo.
 
-## Active Kintone customization URLs
-
-These original v0.5-named URLs are **stable links** already entered in Kintone; the files now support **both** maps. Keep these filenames in place for automatic updates.
+## Existing GitHub Pages URLs (do not change in Kintone)
 
 - JavaScript: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.js`
 - CSS: `https://petercampau-gif.github.io/zm-kintone-gallery/gallery-a-v0.5.css`
 
-GitHub Pages uses `main` / `(root)`. Deployments happen automatically after commits. Kintone usually needs only a browser refresh, sometimes a hard refresh or a short wait for cache expiration.
+The filenames still say `v0.5` to preserve the **already installed Kintone links**; their shared implementation supports all three views (Gallery C added in code v0.7). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
-## One-time Kintone setup (app administrator)
+## One-time setup for Gallery C
 
-In `ZM Warehouse Map - TEST`:
+In the existing **ZM Warehouse Map - TEST** app:
 
-1. Go to **App Settings → Views**.
-2. Edit the existing Custom View **Inside Slab Gallery**. Change **Name** to exactly `Gallery A`. **Leave its HTML unchanged**:
+1. Open **App Settings → Views → Add View (+)**.
+2. Name it **exactly** `Gallery C`.
+3. Select **Custom view** and **Both desktop and mobile-optimized views**.
+4. Paste the same HTML container as the other maps:
 
    ```html
    <div id="zm-warehouse-map-root"></div>
    ```
 
-3. Add a second **Custom view** named exactly `Temporary Outside`. Set **Use this view in: Both desktop and mobile-optimized views**, paste the **same HTML div** above, and leave **Enable pagination** OFF. Leave the view filter as **All records**.
-4. Click **Save** for each view and **Update App** in App Settings. No second Kintone app, JavaScript/CSS upload, or customization link is needed.
-5. Open each view via the Kintone view dropdown and verify counts and record links. The JavaScript also recognizes the old `Inside Slab Gallery` name as a temporary alias until its Kintone view has been renamed.
+5. Leave **Enable pagination** unchecked. Leave Kintone View filtering set to **All records**.
+6. Save, then click **Update App**. Choose `Gallery C` from the app view dropdown.
 
-**Important:** GitHub cannot rename or create native Kintone views. The above view-setting changes are the only steps that require an administrator in Kintone. All later JavaScript/CSS edits can be published to the existing links.
+**Do not add more JavaScript or CSS links.** The existing URLs automatically detect `Gallery C`, `Temporary Outside`, and `Gallery A` (plus legacy `Inside Slab Gallery`). GitHub cannot create or rename native Kintone views, so this is a one-time administrative step.
 
-## Map definitions
+## Maps and conventions
 
-| Custom View | Rack faces | Layout |
+| Kintone view | Locations | Orientation and notes |
 | --- | --- | --- |
-| `Gallery A` | Z-1A through Z-11, G-54/56/58/62/64, 27 confirmed usable sides, plus Z-11B reference face | Preserves the existing indoor gallery map, rack positions, gray dividers, filters and inspector |
-| `Temporary Outside` | `TO-1A/B` through `TO-6A/B` (12 usable faces) | Six A-frame pairs from TO-6 nearest ROAD to TO-1 nearest BUILDING; north points LEFT, A left, B right |
+| `Gallery A` | 27 usable faces in Z/G racks, plus Z-11B reference-only | Indoor Main Showroom, matches its PDF drawing; north points left |
+| `Temporary Outside` | `TO-1A/B` through `TO-6A/B` (12 usable faces) | **TO-1 nearest ROAD; TO-6 nearest BUILDING**; A north/left, B south/right |
+| `Gallery C` | 26 faces `OS-1A/B` through `OS-13A/B`, plus `OS-DBL`, `OS-DAR`, `OT103-L`, `OT103-R` — **30 usable faces** | Outside storage **By Trucks**. Layout traced from the supplied Gallery C PDF; road top, building bottom, north left. All 15 A/B separators are consistent gray bars |
 
-Unsided TO codes `TO-1` through `TO-6`, if any, appear under **Unconfirmed TO assignments** rather than being assigned arbitrarily to an A/B side. The TO codes are based on the owner's reported identifiers and should be validated against live inventory after creating the view.
+### Gallery C provisional restrictions
 
-Both views share the color_combined summaries, search, Avl/Hold/SOLD filters, slab/remnant filters, customer/job allocation details, photo preview, live rack counts, and record links into Inventory App 6. Both views remain **read-only**.
+Six rack faces are **usable but provisionally limited-access** and **not suitable for full slabs**:
 
-## Releasing code updates
+- `OS-DBL`, `OS-DAR`
+- `OT103-L`, `OT103-R`
+- `OS-7A`, `OS-10A`
 
-Commit edits to these same two files on `main` after testing; GitHub Pages automatically redeploys. This updates all Kintone views that reference the links. A currently open Kintone tab must be refreshed to load the new code. Keep this repository access restricted to trusted editors and protect it with MFA. Code executes in an authenticated Kintone session, so changes should be reviewed before publishing.
+These are an initial operational guess, **not verified restrictions or software-enforced blocks**. The map marks them with a subtle amber warning, explains the restriction in the rack-detail panel, and continues showing any inventory assigned to them. Confirm actual access and suitability before relying on the warnings for physical storage decisions.
 
-For rollback, revert the relevant GitHub commit to restore the previous source. The previous version is preserved in Git history.
+Gallery C accepts common hyphenless rack variants (for example `OSDBL`, `OSDAR`, `OT103L`, `OS7A`) as aliases of the corresponding labeled rack faces when reading existing Kintone records. Number-only `OS-1` through `OS-13` assignments appear under **Unconfirmed OS assignments**, not arbitrarily on the A or B face.
 
-## Tests and caveats
+## Features shared across all three maps
 
-The Gallery A and Temporary Outside UIs were browser-tested with simulated sample records (desktop/mobile, rack selection, filters, view switching, sold-to/job display, record links, zoom, rack ordering and divider widths). The user's earlier Gallery A live screenshot confirmed the shared source loads inventory in Kintone. The **new Temporary Outside view has not yet been tested against live TO inventory** until the one-time Kintone view is added.
+Live inventory counts; two most common distinct `color_combined` materials with counts and `+N more`; per-rack search and filters (availability, slab/remnant); read-only inspector with sold-to / job information, piece dimensions, image thumbnails where available and direct Kintone Inventory App 6 record links; map zoom and mobile scrolling. No Kintone data writes are performed.
 
-The public GitHub Pages landing page is **not** a public inventory catalog. Do not publish offline previews that embed real inventory/customer records, CSVs, Kintone tokens or other private material.
+## Updating safely
+
+Test updates against the offline fixture, commit to the existing JavaScript/CSS paths on `main`, and wait for GitHub Pages to deploy. Existing Kintone links pick up new files after refresh. **Changes to the shared files affect all three map views**, so run the regression tests and keep the app scoped to administrators while testing. To roll back, revert the GitHub commit. Keep write access restricted and use MFA; Kintone executes GitHub-hosted JavaScript within authenticated sessions.
+
+## Verification status
+
+Gallery C was browser-tested offline with **fictional sample inventory**, verifying all 30 selectable faces, 15 gray separators, six provisional warnings, Kintone code aliases, search and filters, sold-to / job information, record links, and mobile horizontal navigation; Gallery A and Temporary Outside regression checks passed. **Gallery C has not yet been tested with the company's live OS rack records inside Kintone.** Verify live counts, code spellings and links after creating the new view.
+
+Do not publish the preview HTML or the supplied drawing without review; the public repository contains the actual live **code**, not the private Kintone inventory or an offline customer-data snapshot.

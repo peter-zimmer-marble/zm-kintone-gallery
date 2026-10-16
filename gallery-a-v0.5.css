@@ -368,3 +368,47 @@
   #zm-warehouse-map-root .zmwm-to-face-name {font-size:13px;}
   #zm-warehouse-map-root .zmwm-to-face .zmwm-layout-summary-line {font-size:10px;padding:4px 5px;}
 }
+
+/* Gallery C / By Trucks. Only applies to the Gallery C Custom View. */
+#zm-warehouse-map-root .zmwm-gallery-c-scroll {background:#fff;overflow-x:auto;overflow-y:hidden;}
+#zm-warehouse-map-root .zmwm-gallery-c-frame {padding:20px 22px 16px;background:#fff;}
+#zm-warehouse-map-root .zmwm-gallery-c-board {width:100%;aspect-ratio:759/903;position:relative;
+  isolation:isolate;background:#fff;}
+#zm-warehouse-map-root .zmwm-gallery-c-spine {background:#6b7472;z-index:1;}
+#zm-warehouse-map-root .zmwm-layout-face.tone-green {background:#d9ead3;color:#23362a;}
+#zm-warehouse-map-root .zmwm-gallery-c-face {padding:5px 6px;gap:4px;border:1px solid #586e60;}
+#zm-warehouse-map-root .zmwm-gallery-c-face .zmwm-layout-name {font-size:11.5px;font-weight:800;line-height:1.14;max-width:100%;white-space:nowrap;letter-spacing:-.2px;}
+#zm-warehouse-map-root .zmwm-gallery-c-face .zmwm-layout-summary {gap:3px;}
+#zm-warehouse-map-root .zmwm-gallery-c-face .zmwm-layout-summary-line {font-size:8.9px;line-height:1.15; padding:2px 3px; background:rgba(255,255,255,.42);}
+#zm-warehouse-map-root .zmwm-gallery-c-face .zmwm-layout-summary-more {font-size:8.8px;line-height:1.12;}
+#zm-warehouse-map-root .zmwm-gallery-c-face .zmwm-layout-qty {font-size:10px;padding:2px 5px;min-width:25px;color:#334e3d;}
+#zm-warehouse-map-root .zmwm-gallery-c-face .zmwm-layout-empty-note {font-size:10px;}
+#zm-warehouse-map-root .zmwm-gallery-c-face.is-selected {background:#e1f1dc;border-color:#245e43;}
+#zm-warehouse-map-root .zmwm-gallery-c-face.is-limited {border-color:#b58f43;
+  background:linear-gradient(120deg,rgba(237,198,112,.25),transparent 63%),#d9ead3;}
+#zm-warehouse-map-root .zmwm-gallery-c-face.is-limited.is-selected {background:linear-gradient(120deg,rgba(237,198,112,.25),transparent 63%),#e1f1dc;}
+#zm-warehouse-map-root .zmwm-gallery-c-warning {position:absolute;top:4px;right:4px;
+  background:#f5d994;border:1px solid #b88b34;border-radius:2px;color:#66500f;z-index:1;
+  font-size:10px;line-height:13px;width:15px;height:15px;text-align:center;font-weight:850;}
+#zm-warehouse-map-root .zmwm-gallery-c-face.is-limited .zmwm-layout-name {max-width:calc(100% - 17px);}
+#zm-warehouse-map-root .zmwm-gallery-c-road {position:absolute;top:2.6%;left:56%;font-size:13px;
+  letter-spacing:2px;font-weight:850;color:#819087;white-space:nowrap;pointer-events:none;}
+#zm-warehouse-map-root .zmwm-gallery-c-building {position:absolute;top:94.1%;left:20%;font-size:13px;
+  font-weight:800;color:#819087;letter-spacing:1.4px;white-space:nowrap;pointer-events:none;}
+#zm-warehouse-map-root .zmwm-gallery-c-caption {position:absolute;left:5.1%;top:74%;
+  display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;color:#283b31;}
+#zm-warehouse-map-root .zmwm-gallery-c-north {font-size:12px;font-weight:850;letter-spacing:1px;
+  color:#56725e;white-space:nowrap;margin-bottom:8px;}
+#zm-warehouse-map-root .zmwm-gallery-c-north span {font-size:26px;vertical-align:middle;line-height:.8;}
+#zm-warehouse-map-root .zmwm-gallery-c-caption strong {font-size:28px;letter-spacing:-.8px;line-height:1.05;}
+#zm-warehouse-map-root .zmwm-gallery-c-caption small {font-size:14px;line-height:1.7;font-weight:700;}
+#zm-warehouse-map-root .zmwm-gallery-c-logo {position:absolute;bottom:0;left:0;width:9%;height:8%;object-fit:contain;pointer-events:none;}
+#zm-warehouse-map-root .zmwm-swatch-green {background:#d9ead3;border-color:#6d8a75;}
+#zm-warehouse-map-root .zmwm-swatch-amber {background:#f5e8c4;border:2px solid #b58f43;}
+#zm-warehouse-map-root .zmwm-gallery-c-notice {margin-top:12px;padding:10px 12px;background:#fff7e7;
+  border-left:3px solid #b88b34;color:#554522;display:flex;flex-direction:column;gap:4px;line-height:1.42;}
+#zm-warehouse-map-root .zmwm-gallery-c-notice strong {font-size:10px;letter-spacing:.6px;color:#7c5e26;}
+#zm-warehouse-map-root .zmwm-gallery-c-notice span {font-size:12px;}
+@media(max-width:900px){
+  #zm-warehouse-map-root .zmwm-gallery-c-frame {padding:13px 14px 10px;}
+}
