@@ -689,7 +689,6 @@
       <div class="zmwm-gallery-d-faces">
         ${pairedFaceHtml(pair.a, g)}<span class="zmwm-gallery-b-divider" aria-hidden="true"></span>${pairedFaceHtml(pair.b, g)}
       </div>
-      <strong class="zmwm-gallery-d-pair-label">Robot-${pair.number}A/B</strong>
     </div>`).join('');
     root.innerHTML = `${mapControls('2 A-frames · 4 fully usable faces')}
       <div class="zmwm-reference-scroll zmwm-gallery-d-scroll" data-zoom="${state.zoom}" tabindex="0"
