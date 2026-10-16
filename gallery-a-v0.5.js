@@ -1,7 +1,7 @@
 /*
- * ZM Warehouse Maps: Shared visual system for Gallery A, TO, Gallery C, Gallery B (v0.9)
+ * ZM Warehouse Maps: Shared visual system for Gallery A, TO, Gallery C, Gallery B, Gallery D (v1.0)
  * Copyright (c) 2026 ZM. Read-only: GET requests only, no data writes.
- * Install inside the Warehouse Map app; use the same view HTML in all four Custom Views.
+ * Install inside the Warehouse Map app; use the same view HTML in all five Custom Views.
  * Uses existing versioned GitHub Pages links; inventory stays in authenticated Kintone.
  */
 (function () {
@@ -12,6 +12,7 @@
     TO_VIEW_NAME: 'Temporary Outside',
     GALLERY_C_VIEW_NAME: 'Gallery C',
     GALLERY_B_VIEW_NAME: 'Gallery B',
+    GALLERY_D_VIEW_NAME: 'Gallery D',
     INVENTORY_APP_ID: 6,
     RACK_APP_ID: 7,
     PAGE_SIZE: 500,
@@ -63,6 +64,28 @@
   const GALLERY_B_AUDIT_RACK = 'LP-7A';
   const isGalleryB = () => state.view === 'gallery-b';
 
+
+  // Gallery D (Outside Robot Room): left-to-right Robot-3, then Robot-2.
+  // Each A-frame has two usable faces, A on the left and B on the right.
+  // The supplied sketch has the road above, building below and NORTH DOWN.
+  const GALLERY_D_PAIRS = [3, 2].map(number => ({
+    number, a: `Robot-${number}A`, b: `Robot-${number}B`
+  }));
+  const GALLERY_D_FACES = GALLERY_D_PAIRS.flatMap(pair => [{rack:pair.a}, {rack:pair.b}]);
+  const GALLERY_D_MAPPED = GALLERY_D_FACES.map(face => face.rack);
+  const GALLERY_D_UNMAPPED = GALLERY_D_PAIRS.map(pair => `Robot-${pair.number}`);
+  // Canonical casing matches the yard labels. Accept uppercase and hyphenless
+  // Kintone values without silently assigning an unsided code to A or B.
+  const GALLERY_D_CODES = [...GALLERY_D_MAPPED, ...GALLERY_D_UNMAPPED];
+  const GALLERY_D_ALIASES = new Map(GALLERY_D_CODES.flatMap(rack => [
+    [rack.toUpperCase(), rack], [rack.replace(/-/g, '').toUpperCase(), rack]
+  ]));
+  const GALLERY_D_QUERY_RACKS = [...new Set(GALLERY_D_CODES.flatMap(rack => [
+    rack, rack.toUpperCase(), rack.replace(/-/g, ''),
+    rack.replace(/-/g, '').toUpperCase()
+  ]))];
+  const isGalleryD = () => state.view === 'gallery-d';
+
   // Gallery C (By Trucks): coordinates traced directly from Outside Slab Gallery C.pdf.
   // Orientation: road at top, building at bottom, north points left.
   // All 30 locations are usable. Six have *provisional* restrictions, not hard blocks.
@@ -80,18 +103,20 @@
     ...GALLERY_C_ALIASES.keys()])];
   const GALLERY_C_LIMITED = new Set(['OS-DBL','OS-DAR','OT103-L','OT103-R','OS-7A','OS-10A']);
   const isGalleryC = () => state.view === 'gallery-c';
-  const canonicalRack = rack => isGalleryC() ? (GALLERY_C_ALIASES.get(rack) || rack) :
+  const canonicalRack = rack => isGalleryD() ? (GALLERY_D_ALIASES.get(rack) || rack) :
+    isGalleryC() ? (GALLERY_C_ALIASES.get(rack) || rack) :
     isGalleryB() ? (GALLERY_B_ALIASES.get(rack) || rack) : rack;
 
   const viewForName = name => SETTINGS.GALLERY_A_VIEW_NAMES.includes(name) ? 'gallery-a' :
     name === SETTINGS.TO_VIEW_NAME ? 'temporary-outside' :
     name === SETTINGS.GALLERY_C_VIEW_NAME ? 'gallery-c' :
-    name === SETTINGS.GALLERY_B_VIEW_NAME ? 'gallery-b' : null;
+    name === SETTINGS.GALLERY_B_VIEW_NAME ? 'gallery-b' :
+    name === SETTINGS.GALLERY_D_VIEW_NAME ? 'gallery-d' : null;
   const isTO = () => state.view === 'temporary-outside';
-  const mappedRacks = () => isGalleryB() ? GALLERY_B_MAPPED : isGalleryC() ? GALLERY_C_MAPPED : isTO() ? TO_MAPPED : MAPPED;
-  const unmappedRacks = () => isGalleryB() ? GALLERY_B_UNMAPPED : isGalleryC() ? GALLERY_C_UNMAPPED : isTO() ? TO_UNMAPPED : UNMAPPED;
-  const queryRacks = () => isGalleryB() ? GALLERY_B_QUERY_RACKS : isGalleryC() ? GALLERY_C_QUERY_RACKS : isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
-  const planFaces = () => isGalleryB() ? GALLERY_B_FACES : isGalleryC() ? GALLERY_C_FACES : isTO() ? TO_FACES : PLAN_FACES;
+  const mappedRacks = () => isGalleryD() ? GALLERY_D_MAPPED : isGalleryB() ? GALLERY_B_MAPPED : isGalleryC() ? GALLERY_C_MAPPED : isTO() ? TO_MAPPED : MAPPED;
+  const unmappedRacks = () => isGalleryD() ? GALLERY_D_UNMAPPED : isGalleryB() ? GALLERY_B_UNMAPPED : isGalleryC() ? GALLERY_C_UNMAPPED : isTO() ? TO_UNMAPPED : UNMAPPED;
+  const queryRacks = () => isGalleryD() ? GALLERY_D_QUERY_RACKS : isGalleryB() ? GALLERY_B_QUERY_RACKS : isGalleryC() ? GALLERY_C_QUERY_RACKS : isTO() ? TO_QUERY_RACKS : QUERY_RACKS;
+  const planFaces = () => isGalleryD() ? GALLERY_D_FACES : isGalleryB() ? GALLERY_B_FACES : isGalleryC() ? GALLERY_C_FACES : isTO() ? TO_FACES : PLAN_FACES;
 
   // Original Google Drawing PDF coordinate space (points): 1203 by 1045.
   // Individual face locations are traced from the provided vector shapes.
@@ -426,15 +451,16 @@
       ${flagged ? `<span class="zmwm-layout-warning" aria-hidden="true">!</span>` : ''}</button>`;
   }
 
-  function mapTitle() { return isGalleryB() ? 'Gallery B' : isGalleryC() ? 'Gallery C' : isTO() ? 'Temporary Outside' : 'Gallery A'; }
-  function mapDescription() { return isGalleryB() ? 'Outside slab storage · Light Pole.' :
+  function mapTitle() { return isGalleryD() ? 'Gallery D' : isGalleryB() ? 'Gallery B' : isGalleryC() ? 'Gallery C' : isTO() ? 'Temporary Outside' : 'Gallery A'; }
+  function mapDescription() { return isGalleryD() ? 'Outside slab storage · Outside Robot Room.' :
+    isGalleryB() ? 'Outside slab storage · Light Pole.' :
     isGalleryC() ? 'Outside slab storage · By Trucks.' :
     isTO() ? 'Temporary outdoor A-frame storage, from road to building.' :
     'Explore material by its physical rack position.'; }
 
   // Shared map chrome. New galleries reuse these elements so all locations
   // keep identical placement, typography and spacing automatically.
-  function mapLocation() { return isGalleryB() ? 'Light Pole' : isGalleryC() ? 'By Trucks' :
+  function mapLocation() { return isGalleryD() ? 'Outside Robot Room' : isGalleryB() ? 'Light Pole' : isGalleryC() ? 'By Trucks' :
     isTO() ? 'TO Racks' : 'Main Showroom'; }
   function mapControls(note) {
     return `<div class="zmwm-reference-controls">
@@ -489,13 +515,13 @@
       </section>
       <div class="zmwm-content">
         <section class="zmwm-map-wrap" aria-label="Warehouse schematic">
-          <div class="zmwm-content-heading"><div><h2>${esc(mapTitle())} <span class="zmwm-subtle">/ ${esc(mapLocation())}</span></h2><p>${isGalleryB() ? 'Eight A-frames. Temporary rack-tag mismatches on LP-5 and LP-7; LP-7A awaiting inventory audit.' : isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north" aria-label="North points left"><span class="zmwm-north-arrow" aria-hidden="true">←</span><span>NORTH</span></span></div>
+          <div class="zmwm-content-heading"><div><h2>${esc(mapTitle())} <span class="zmwm-subtle">/ ${esc(mapLocation())}</span></h2><p>${isGalleryD() ? 'Two double-sided racks outside the robot room. All four faces are usable.' : isGalleryB() ? 'Eight A-frames. Temporary rack-tag mismatches on LP-5 and LP-7; LP-7A awaiting inventory audit.' : isGalleryC() ? 'Outdoor inventory from your Gallery C drawing. Six racks have provisional access limits.' : isTO() ? 'Six double-sided racks, road to building. Select a face for live inventory.' : 'Floor arrangement traced from your Google Drawing. Click a rack face for live inventory.'}</p></div><span class="zmwm-north" aria-label="North points ${isGalleryD() ? 'down' : 'left'}"><span class="zmwm-north-arrow" aria-hidden="true">${isGalleryD() ? '↓' : '←'}</span><span>NORTH</span></span></div>
           <div id="zmwm-plan" class="zmwm-plan"></div>
           <div id="zmwm-unmapped" class="zmwm-unmapped"></div>
         </section>
         <aside id="zmwm-inspector" class="zmwm-inspector" aria-label="Selected rack inventory"></aside>
       </div>
-      <footer class="zmwm-footer">${isGalleryB() ? 'Gallery B positions follow the Light Pole drawing with LP-9 removed, and corrected location names LP-5/LP-7. Physical tags and the LP-7A record location require an audit. Not surveyed or to scale. ' : isGalleryC() ? 'Gallery C positions trace the supplied Outside Slab Gallery C drawing; not surveyed or to scale. Six access restrictions are provisional. ' : isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
+      <footer class="zmwm-footer">${isGalleryD() ? 'Gallery D follows the Outside Robot Room sketch: Robot-3 left, Robot-2 right, all four faces usable, north down. Not surveyed or to scale. ' : isGalleryB() ? 'Gallery B positions follow the Light Pole drawing with LP-9 removed, and corrected location names LP-5/LP-7. Physical tags and the LP-7A record location require an audit. Not surveyed or to scale. ' : isGalleryC() ? 'Gallery C positions trace the supplied Outside Slab Gallery C drawing; not surveyed or to scale. Six access restrictions are provisional. ' : isTO() ? 'TO rack arrangement follows the supplied sketch; not surveyed or to scale. North is to the left. ' : 'Rack arrangement follows the supplied Gallery A reference drawing. Not surveyed or to scale. Face colors follow the drawing, not inventory status. '}No data is written to Kintone.</footer>
     </main>`;
   }
 
@@ -506,10 +532,10 @@
     const unmappedRecords = unmappedRacks().reduce((count, rack) => count + (g.all.get(rack) || []).length, 0);
     const matchingRecords = [...g.filtered.values()].reduce((sum, records) => sum + records.length, 0);
     root.innerHTML = [
-      { title: 'USABLE FACES', value: mappedRacks().length, meta: isGalleryB() ? '8 double-sided LP racks' : isGalleryC() ? '6 provisional access limits' : isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
+      { title: 'USABLE FACES', value: mappedRacks().length, meta: isGalleryD() ? '2 double-sided Robot racks' : isGalleryB() ? '8 double-sided LP racks' : isGalleryC() ? '6 provisional access limits' : isTO() ? '6 double-sided TO racks' : 'Plus Z-11B reference face' },
       { title: 'PHYSICAL PIECES', value: mappedRecords, meta: 'In mapped rack faces' },
       { title: 'MATCHES', value: matchingRecords, meta: 'Current filters · includes unplaced' },
-      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isGalleryB() ? 'Unsided or former LP-9 locations' : isGalleryC() ? 'Unsided OS rack code' : isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
+      { title: 'NEEDS MAPPING', value: unmappedRecords, meta: isGalleryD() ? 'Unsided Robot rack codes' : isGalleryB() ? 'Unsided or former LP-9 locations' : isGalleryC() ? 'Unsided OS rack code' : isTO() ? 'Unsided TO rack code' : 'Unsided or unconfirmed face' }
     ].map(item => `<article class="zmwm-stat"><span>${item.title}</span><strong>${item.value.toLocaleString()}</strong><small>${item.meta}</small></article>`).join('');
   }
 
@@ -583,9 +609,10 @@
     }
   }
 
-  // Gallery C shares all Kintone data/query controls with the other two maps.
+  // Paired A/B rack face card shared by Gallery B and Gallery D.
+  // Gallery C shares the same Kintone data/query controls.
   // Only face geometry, access warnings, and presentation are specific to this view.
-  function galleryBFaceHtml(rack, g) {
+  function pairedFaceHtml(rack, g) {
     const all = g.all.get(rack) || [];
     const filtered = g.filtered.get(rack) || [];
     const activeFilter = Boolean(state.search || state.sale || state.kind);
@@ -622,7 +649,7 @@
     const rows = GALLERY_B_ROWS.map((numbers, rowIndex) =>
       `<div class="zmwm-gallery-b-row" role="group" aria-label="${rowIndex === 0 ? 'Road-side' : 'Building-side'} rack row">
         ${numbers.map(n => `<div class="zmwm-gallery-b-pair" role="group" aria-label="LP-${n} double-sided rack">
-          ${galleryBFaceHtml(`LP-${n}A`, g)}<span class="zmwm-gallery-b-divider" aria-hidden="true"></span>${galleryBFaceHtml(`LP-${n}B`, g)}
+          ${pairedFaceHtml(`LP-${n}A`, g)}<span class="zmwm-gallery-b-divider" aria-hidden="true"></span>${pairedFaceHtml(`LP-${n}B`, g)}
         </div>`).join('')}
       </div>`).join('');
     root.innerHTML = `${mapControls('8 A-frames · 16 faces · LP-9 removed')}
@@ -646,6 +673,44 @@
       issues.innerHTML = unplaced.length ? `<div class="zmwm-unmapped-head"><span>UNCONFIRMED LP ASSIGNMENTS</span>
           <small>Former LP-9 and unsided LP codes have no confirmed mapped face. Review before pulling inventory.</small></div>
           <div class="zmwm-unmapped-list">${unplaced.map(r => faceHtml(r,g)).join('')}</div>` : '';
+    }
+  }
+
+
+  function renderGalleryD(g) {
+    const root = document.getElementById('zmwm-plan');
+    if (!root) return;
+    const previous = root.querySelector('.zmwm-reference-scroll');
+    const previousLeft = previous ? previous.scrollLeft : 0;
+    const previousZoom = previous ? Number(previous.dataset.zoom || '1') : state.zoom;
+    const boardWidth = Math.round(840 * state.zoom);
+    const pairs = GALLERY_D_PAIRS.map(pair => `<div class="zmwm-gallery-d-pair" role="group"
+      aria-label="Robot-${pair.number} double-sided rack, both faces usable">
+      <div class="zmwm-gallery-d-faces">
+        ${pairedFaceHtml(pair.a, g)}<span class="zmwm-gallery-b-divider" aria-hidden="true"></span>${pairedFaceHtml(pair.b, g)}
+      </div>
+      <strong class="zmwm-gallery-d-pair-label">Robot-${pair.number}A/B</strong>
+    </div>`).join('');
+    root.innerHTML = `${mapControls('2 A-frames · 4 fully usable faces')}
+      <div class="zmwm-reference-scroll zmwm-gallery-d-scroll" data-zoom="${state.zoom}" tabindex="0"
+        aria-label="Gallery D outside the robot room. North points down; road above, building below. Swipe horizontally if needed.">
+        <div class="zmwm-gallery-d-board" style="width:${boardWidth}px" role="group"
+          aria-label="Two double-sided racks: Robot-3 on the left and Robot-2 on the right. All four faces accessible.">
+          ${mapBoundary('top','ROAD')}
+          <div class="zmwm-gallery-d-racks">${pairs}</div>
+          ${mapBoundary('bottom','BUILDING')}
+        </div>
+      </div>
+      ${mapLegend([], 'Robot-3 on the left, Robot-2 on the right. All A/B faces usable. Not to scale.')}
+      ${mapSignature()}`;
+    const next = root.querySelector('.zmwm-reference-scroll');
+    if (next) next.scrollLeft = previousZoom === state.zoom ? previousLeft : previousLeft * state.zoom / previousZoom;
+    const issues = document.getElementById('zmwm-unmapped');
+    if (issues) {
+      const unplaced = GALLERY_D_UNMAPPED.filter(rack => (g.all.get(rack) || []).length);
+      issues.innerHTML = unplaced.length ? `<div class="zmwm-unmapped-head"><span>UNCONFIRMED ROBOT ASSIGNMENTS</span>
+        <small>These records have a Robot rack number without an A/B face. Confirm the side before pulling inventory.</small></div>
+        <div class="zmwm-unmapped-list">${unplaced.map(rack => faceHtml(rack,g)).join('')}</div>` : '';
     }
   }
 
@@ -710,6 +775,7 @@
   }
 
   function renderPlan(g) {
+    if (isGalleryD()) { renderGalleryD(g); return; }
     if (isGalleryB()) { renderGalleryB(g); return; }
     if (isGalleryC()) { renderGalleryC(g); return; }
     if (isTO()) { renderToPlan(g); return; }
@@ -811,7 +877,7 @@
     const loc = meta ? toText(field(meta, 'location')) : '';
     const rackType = meta ? toText(field(meta, 'rack_type')) : '';
     const isUnmapped = unmappedRacks().includes(rack);
-    const isReference = !isTO() && !isGalleryC() && !isGalleryB() && REFERENCE_ONLY.has(rack);
+    const isReference = !isTO() && !isGalleryC() && !isGalleryB() && !isGalleryD() && REFERENCE_ONLY.has(rack);
     const isLimited = isGalleryC() && GALLERY_C_LIMITED.has(rack);
     const physicalTag = isGalleryB() ? GALLERY_B_PHYSICAL_TAGS[rack] : '';
     const needsLocationAudit = isGalleryB() && rack === GALLERY_B_AUDIT_RACK;
