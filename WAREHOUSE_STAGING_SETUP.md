@@ -7,6 +7,7 @@ This custom view provides a phone-friendly alternative to printing the existing 
 - Inventory App 6 staging records matching the exact current Staging Sheet **filter** (existing list view ID **7535223**).
 - Both \`RTS\` and \`View Staging\` statuses, grouped by staging status and job.
 - Color Combined, shape/size, rack, sale status, type, photos, and a link to the exact Master record.
+- **In/Out Notes** (`in_out_note`) from the **Master Inventory (App 6)** record, displayed in full on each piece with a note. This is distinct from `notes` (Sale Notes) and from any older notes on Entry Sheet App 15. Notes remain read-only and are not copied into App 15 by this pilot.
 - Search by job, color, rack, shape, piece type, Master number, or staging status; filter RTS/View Staging.
 - A fullscreen image viewer with all attached Exact Picture and Example Picture images.
 - Controls to refresh the list and display additional pieces.
@@ -42,6 +43,7 @@ This custom view provides a phone-friendly alternative to printing the existing 
 
 - Confirm the count matches the native Staging Sheet with no additional native filter applied.
 - Confirm RTS and View Staging both appear; open one of each.
+- Confirm existing **In/Out Notes** appear in full, including long notes on narrow phone screens; pieces without a note should not show an empty note panel.
 - Search job, rack, color, and Master ID. Confirm searching handles multiple terms.
 - Test Exact Picture, fallback to Example Picture, photo navigation, and mobile links.
 - Confirm a piece with a blank job and an L shape renders sensibly.
@@ -52,7 +54,7 @@ This custom view provides a phone-friendly alternative to printing the existing 
 
 - **Read-only pilot:** It does not capture picks/photos or create App 15 movements yet.
 - Physically pulled material may still show up while an OUT entry is pending. Verify material physically before picking; do not use this pilot as an authoritative picked/unpicked checklist.
-- If a real user's field permissions reject the optional \`length_2\` or \`width_2\` fields, the view falls back to a baseline request; some L dimensions may not display.
+- If a warehouse user's permissions reject optional `length_2` or `width_2` fields, the view retries while retaining In/Out Notes. If Kintone also blocks `in_out_note`, it displays an explicit permission warning while preserving the staging list. Check actual staff permissions before relying on notes for pulling instructions.
 - Photos are only loaded from Kintone for the signed-in user using their Kintone session; no photo content is hosted in GitHub.
 - The next phase will add explicit **Confirm OUT** and camera upload to a new App 15 entry with \`master_record_id\`, plus a pending-pull indication; approval will update App 6 later. Do not add writes or privileged credentials to public GitHub code.
 

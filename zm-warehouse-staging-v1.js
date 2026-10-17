@@ -28,11 +28,13 @@
     'length', 'width', 'rack', 'job', 'sale_status', 'staging_status',
     'exact_picture', 'example_picture'
   ]);
+  // Existing Master Inventory instruction field. Display only; never overwrite it.
+  const NOTE_FIELD = 'in_out_note';
   const EXTRA_FIELDS = Object.freeze(['length_2', 'width_2']);
   const state = {
     active: false, root: null, mobile: false, token: 0, session: 0,
     records: [], search: '', status: '', shown: 48, busy: false,
-    error: '', loadedAt: null, extraDimensions: true,
+    error: '', loadedAt: null, extraDimensions: true, notesAvailable: true,
     blobUrls: new Map(), photoRequests: new Map(), photoQueue: [],
     activePhotoXhrs: new Set(), observer: null,
     preview: null, previewEpoch: 0, previousFocus: null
@@ -132,12 +134,23 @@
     try {
       let result;
       try {
-        result = await fetchRecords([...FIELDS, ...EXTRA_FIELDS]);
+        result = await fetchRecords([...FIELDS, NOTE_FIELD, ...EXTRA_FIELDS]);
         state.extraDimensions = true;
+        state.notesAvailable = true;
       } catch (extraError) {
-        // Permission-restricted optional L-dimensions are not required to view staging.
-        result = await fetchRecords(FIELDS);
-        state.extraDimensions = false;
+        // L-dimensions may not be visible to some warehouse roles; notes matter
+        // more than optional measurements, so retry with the notes field.
+        try {
+          result = await fetchRecords([...FIELDS, NOTE_FIELD]);
+          state.extraDimensions = false;
+          state.notesAvailable = true;
+        } catch (noteError) {
+          // Keep staging usable if In/Out Notes are restricted by Kintone.
+          // Do not silently imply that blank notes mean no instructions.
+          result = await fetchRecords(FIELDS);
+          state.extraDimensions = false;
+          state.notesAvailable = false;
+        }
       }
       if (!state.active || token !== state.token) return;
       state.records = result.sort(sortRecords);
@@ -312,6 +325,12 @@
     const status = txt(value(record, 'sale_status'));
     const shape = txt(value(record, 'shape'));
     const type = txt(value(record, 'type'));
+    const inOutNotes = txt(value(record, NOTE_FIELD));
+    // Show the complete existing note on every piece that has one, including
+    // line breaks; escape before inserting so staff-entered text is never HTML.
+    const noteMarkup = inOutNotes ?
+      '<div class="zmws-in-out-notes"><span>IN / OUT NOTES</span><p>' +
+      esc(inOutNotes) + '</p></div>' : '';
     return '<article class="zmws-card">' + photoMarkup +
       '<div class="zmws-card-body">' +
         '<div class="zmws-card-head"><h3>' + esc(color(record)) + '</h3>' +
@@ -321,6 +340,7 @@
         (shape && shape !== 'Rectangle' && !/Hand L/.test(shape) ? ' · ' + esc(shape) : '') +
         (status ? ' · ' + esc(status) : '') + '</div>' +
         '<div class="zmws-location"><span>RACK</span><strong>' + esc(rack(record)) + '</strong></div>' +
+        noteMarkup +
         '<div class="zmws-card-bottom"><span>Master #' + esc(recordId) + '</span>' +
         '<a href="' + recordUrl(record) +
         '" target="_blank" rel="noopener noreferrer">Open record →</a></div>' +
@@ -385,6 +405,12 @@
     if (visible.length < matches.length) {
       html += '<div class="zmws-more"><button type="button" data-action="more">Show more (' +
         (matches.length - visible.length) + ' remaining)</button></div>';
+    }
+    if (!state.notesAvailable) {
+      html = '<div class="zmws-notes-warning" role="alert">' +
+        'In/Out Notes could not be loaded for this account. ' +
+        'Check Kintone field permissions before using these cards to pull material.' +
+        '</div>' + html;
     }
     output.innerHTML = html;
     loadVisiblePhotos();
@@ -498,6 +524,7 @@
     state.search = '';
     state.status = '';
     state.extraDimensions = true;
+    state.notesAvailable = true;
     root.innerHTML = shell();
     if (root.dataset.zmwsBound !== '1') {
       root.addEventListener('click', handleClick, true);
