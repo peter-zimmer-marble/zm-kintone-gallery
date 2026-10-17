@@ -1,0 +1,21 @@
+name: Warehouse Staging v1 smoke tests
+
+on:
+  pull_request:
+    paths:
+      - 'zm-warehouse-staging-v1.js'
+      - 'tests/warehouse-staging-v1.test.js'
+      - '.github/workflows/warehouse-staging-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  staging-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check staging JavaScript syntax
+        run: node --check zm-warehouse-staging-v1.js
+      - name: Run read-only Kintone mock tests
+        run: node tests/warehouse-staging-v1.test.js
