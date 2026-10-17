@@ -116,7 +116,7 @@
     const cmp = (x, y) => str(x).localeCompare(str(y), undefined, { sensitivity: 'base' });
     const aW = Number(value(a, 'width')), bW = Number(value(b, 'width'));
     return cmp(stage(a), stage(b)) ||
-      cmp(job(a), job(b)) ||
+      cmp(value(a, 'job'), value(b, 'job')) ||
       -cmp(value(a, 'color'), value(b, 'color')) ||
       -cmp(value(a, 'type'), value(b, 'type')) ||
       (Number.isFinite(aW) && Number.isFinite(bW) ? aW - bW : 0) ||
