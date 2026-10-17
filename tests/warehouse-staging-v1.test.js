@@ -15,6 +15,9 @@ const slots = {
 };
 const downloadedImages = [];
 const downloadRequests = [];
+const moreThumbs = [];
+let activeDownloads = 0;
+let highestSimultaneousDownloads = 0;
 const thumb = {
   dataset: { id: '1240', primary: 'missing-file', fallback: 'good-file' },
   textContent: 'Loading photo…',
@@ -30,11 +33,24 @@ const root = {
     return match ? slots[match[1]] : null;
   },
   querySelectorAll(selector) {
-    if (selector === '.zmws-photo[data-primary]' &&
-        slots.results.innerHTML.includes('data-primary="missing-file"')) return [thumb];
-    return [];
+    if (selector !== '.zmws-photo[data-primary]') return [];
+    moreThumbs.length = 0;
+    const matches = [...slots.results.innerHTML.matchAll(
+      /data-id="(\d+)" data-primary="([^"]+)"/g
+    )];
+    return matches.map(match => {
+      if (match[1] === '1240') return thumb;
+      const button = {
+        dataset: { id: match[1], primary: match[2], fallback: '' },
+        textContent: 'Loading photo…',
+        classList: { add(value) { assert.equal(value, 'zmws-photo-ready'); } },
+        appendChild(child) { downloadedImages.push(child); }
+      };
+      moreThumbs.push(button);
+      return button;
+    });
   },
-  contains(item) { return item === thumb; }
+  contains(item) { return item === thumb || moreThumbs.includes(item); }
 };
 const registrations = [];
 const requests = [];
@@ -89,15 +105,22 @@ class FakeXMLHttpRequest {
   setRequestHeader(name, value) { this.headers[name] = value; }
   send() {
     downloadRequests.push(this);
-    // Exercise the fallback: first Exact photo fails, then Example photo succeeds.
+    activeDownloads++;
+    highestSimultaneousDownloads = Math.max(
+      highestSimultaneousDownloads, activeDownloads
+    );
+    // Exercise fallback on the first Exact photo and normal downloads elsewhere.
     Promise.resolve().then(() => {
+      activeDownloads--;
       this.status = this.url.includes('missing-file') ? 403 : 200;
       this.response = this.status === 200 ? { type: 'image/png' } :
         { type: 'application/json' };
       this.onload();
     });
   }
-  abort() { if (this.onabort) this.onabort(); }
+  abort() {
+    if (this.onabort) this.onabort();
+  }
 }
 const env = {
   console,
@@ -222,6 +245,30 @@ assert.equal(requests.length, 0);
   assert.match(slots.results.innerHTML, /Test Staging Piece 501<\/h3>/);
   assert.equal((slots.results.innerHTML.match(/class="zmws-card"/g) || []).length, 501);
   assert.ok(!slots.results.innerHTML.includes('Show more'));
+
+
+
+  // Fifteen staged pieces with photos should immediately queue all fifteen
+  // images, while never exceeding four simultaneous network downloads.
+  mockRecords = stagedRecords(15).map((record, i) => ({
+    ...record,
+    exact_picture: {
+      value: [{ fileKey: 'photo-' + (i + 1),
+        contentType: 'image/png', name: 'staged-photo.png' }]
+    }
+  }));
+  const beforePhotos = downloadRequests.length;
+  const beforeImages = downloadedImages.length;
+  handler(event);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(slots.count.textContent, 'All 15 staged pieces displayed');
+  assert.equal((slots.results.innerHTML.match(/class="zmws-card"/g) || []).length, 15);
+  assert.equal(downloadRequests.length - beforePhotos, 15,
+    'All 15 photo requests should be queued immediately, even below the fold');
+  assert.equal(downloadedImages.length - beforeImages, 15,
+    'All 15 card photos should be populated');
+  assert.ok(highestSimultaneousDownloads <= 4,
+    'Four refers only to concurrent photo downloads, not number of pieces');
 
   console.log('Warehouse Staging v1: all 55/501 records visible without Show More, ' +
     'complete Kintone pagination, photo XHR, notes display/escaping, ' +
