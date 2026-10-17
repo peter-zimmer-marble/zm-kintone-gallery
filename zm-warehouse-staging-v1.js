@@ -33,7 +33,8 @@
     active: false, root: null, mobile: false, token: 0, session: 0,
     records: [], search: '', status: '', shown: 48, busy: false,
     error: '', loadedAt: null, extraDimensions: true,
-    blobUrls: new Map(), photoRequests: new Map(), observer: null,
+    blobUrls: new Map(), photoRequests: new Map(), photoQueue: [],
+    activePhotoXhrs: new Set(), observer: null,
     preview: null, previewEpoch: 0, previousFocus: null
   };
 
@@ -157,10 +158,17 @@
 
   function cleanPhotos() {
     if (state.observer) { state.observer.disconnect(); state.observer = null; }
+    ++state.session;
+    // Cancel both queued and active requests on view change/refresh. A stale
+    // response must never insert a photo into the next view session.
+    for (const task of state.photoQueue.splice(0)) {
+      task.reject(new Error('Photo request cancelled after view change.'));
+    }
+    for (const xhr of [...state.activePhotoXhrs]) xhr.abort();
+    state.activePhotoXhrs.clear();
     for (const url of state.blobUrls.values()) URL.revokeObjectURL(url);
     state.blobUrls.clear();
     state.photoRequests.clear();
-    ++state.session;
   }
   function closePreview() {
     state.preview = null;
@@ -179,28 +187,79 @@
     state.root = null;
     state.records = [];
   }
+  // Use the same authenticated Kintone file-download path as the working
+  // Visual Search v2: kintone.api.url + XMLHttpRequest + X-Requested-With.
+  // Generic fetch() can be rejected by Kintone's file endpoint.
+  // Limit parallel downloads to 4 so a large RTS list cannot flood the API.
+  function drainPhotoQueue() {
+    while (state.active && state.activePhotoXhrs.size < 4 && state.photoQueue.length) {
+      const task = state.photoQueue.shift();
+      if (task.session !== state.session) {
+        task.reject(new Error('Photo request expired.'));
+        continue;
+      }
+      const xhr = new XMLHttpRequest();
+      state.activePhotoXhrs.add(xhr);
+      let finished = false;
+      const done = (error, url) => {
+        if (finished) return;
+        finished = true;
+        state.activePhotoXhrs.delete(xhr);
+        if (error) task.reject(error);
+        else task.resolve(url);
+        drainPhotoQueue();
+      };
+      xhr.onload = () => {
+        if (!state.active || task.session !== state.session) {
+          done(new Error('View changed during photo request.'));
+          return;
+        }
+        if (xhr.status !== 200) {
+          done(new Error('Kintone file request returned HTTP ' + xhr.status));
+          return;
+        }
+        if (!xhr.response || !/^image\//i.test(str(xhr.response.type))) {
+          done(new Error('Kintone returned no usable image.'));
+          return;
+        }
+        try {
+          const url = URL.createObjectURL(xhr.response);
+          state.blobUrls.set(task.key, url);
+          done(null, url);
+        } catch (error) { done(error); }
+      };
+      xhr.onerror = () => done(new Error('Kintone photo request failed.'));
+      xhr.onabort = () => done(new Error('Photo request cancelled.'));
+      try {
+        xhr.open('GET', kintone.api.url('/k/v1/file.json', true) +
+          '?fileKey=' + encodeURIComponent(task.key), true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.responseType = 'blob';
+        xhr.send();
+      } catch (error) { done(error); }
+    }
+  }
   async function photoUrl(key) {
     if (state.blobUrls.has(key)) return state.blobUrls.get(key);
     if (state.photoRequests.has(key)) return state.photoRequests.get(key);
-    const session = state.session;
-    const promise = (async () => {
-      const response = await fetch('/k/v1/file.json?fileKey=' + encodeURIComponent(key),
-        { credentials: 'same-origin' });
-      if (!response.ok) throw new Error('Photo could not be loaded (' + response.status + ').');
-      const blob = await response.blob();
-      if (session !== state.session || !state.active) throw new Error('View changed.');
-      const url = URL.createObjectURL(blob);
-      state.blobUrls.set(key, url);
-      return url;
-    })();
+    const promise = new Promise((resolve, reject) => {
+      state.photoQueue.push({ key, session: state.session, resolve, reject });
+      drainPhotoQueue();
+    });
     state.photoRequests.set(key, promise);
     try { return await promise; }
-    finally { if (state.photoRequests.get(key) === promise) state.photoRequests.delete(key); }
+    finally {
+      if (state.photoRequests.get(key) === promise) state.photoRequests.delete(key);
+    }
   }
   async function populateThumb(button) {
-    const primary = button.dataset.primary;
-    const fallback = button.dataset.fallback;
-    for (const key of [primary, fallback].filter(Boolean)) {
+    // If one attachment cannot be downloaded, try every other attached image,
+    // not just the first two. Keep Exact Pictures ahead of Example Pictures.
+    const record = state.records.find(item => id(item) === button.dataset.id);
+    const keys = record ? images(record).map(image => image.key) :
+      [button.dataset.primary, button.dataset.fallback].filter(Boolean);
+    let lastError = null;
+    for (const key of keys) {
       try {
         const url = await photoUrl(key);
         if (!state.active || !state.root || !state.root.contains(button)) return;
@@ -212,9 +271,15 @@
         button.appendChild(img);
         button.classList.add('zmws-photo-ready');
         return;
-      } catch (error) { /* Retry the next attachment if one fails. */ }
+      } catch (error) { lastError = error; /* Try the next attached image. */ }
     }
-    if (state.root && state.root.contains(button)) button.textContent = 'Photo unavailable';
+    if (state.active && state.root && state.root.contains(button)) {
+      button.textContent = 'Photo unavailable';
+      button.title = 'Open the Master record to inspect its attachments.';
+      if (lastError && !/cancel|expired|view changed/i.test(str(lastError.message))) {
+        console.warn('ZM Warehouse Staging photo download failed:', lastError.message);
+      }
+    }
   }
   function loadVisiblePhotos() {
     if (state.observer) state.observer.disconnect();
