@@ -13,8 +13,7 @@
     app: 6,
     name: 'Warehouse Staging',
     rootId: 'zm-warehouse-staging-root',
-    fetchLimit: 500,
-    displayStep: 48
+    fetchLimit: 500
   });
   // Matches the existing Staging Sheet filter exactly (View ID 7535223).
   const STAGING_FILTER = 'inventory_status in ("", "In")' +
@@ -33,10 +32,10 @@
   const EXTRA_FIELDS = Object.freeze(['length_2', 'width_2']);
   const state = {
     active: false, root: null, mobile: false, token: 0, session: 0,
-    records: [], search: '', status: '', shown: 48, busy: false,
+    records: [], search: '', status: '', busy: false,
     error: '', loadedAt: null, extraDimensions: true, notesAvailable: true,
     blobUrls: new Map(), photoRequests: new Map(), photoQueue: [],
-    activePhotoXhrs: new Set(), observer: null,
+    activePhotoXhrs: new Set(),
     preview: null, previewEpoch: 0, previousFocus: null
   };
 
@@ -170,7 +169,6 @@
   }
 
   function cleanPhotos() {
-    if (state.observer) { state.observer.disconnect(); state.observer = null; }
     ++state.session;
     // Cancel both queued and active requests on view change/refresh. A stale
     // response must never insert a photo into the next view session.
@@ -279,7 +277,7 @@
         button.textContent = '';
         const img = document.createElement('img');
         img.alt = '';
-        img.loading = 'lazy';
+        img.loading = 'eager';
         img.src = url;
         button.appendChild(img);
         button.classList.add('zmws-photo-ready');
@@ -295,21 +293,12 @@
     }
   }
   function loadVisiblePhotos() {
-    if (state.observer) state.observer.disconnect();
+    // Every staged piece is visible immediately. Start every thumbnail request
+    // as soon as the list renders, even for cards below the fold. The photo
+    // downloader still limits network concurrency to 4, not the number of
+    // images or pieces; remaining requests are queued automatically.
     const tiles = Array.from(state.root.querySelectorAll('.zmws-photo[data-primary]'));
-    if (typeof IntersectionObserver !== 'function') {
-      tiles.forEach(populateThumb);
-      return;
-    }
-    const observer = new IntersectionObserver(entries => {
-      for (const item of entries) {
-        if (!item.isIntersecting) continue;
-        observer.unobserve(item.target);
-        populateThumb(item.target);
-      }
-    }, { rootMargin: '240px 0px' });
-    state.observer = observer;
-    tiles.forEach(tile => observer.observe(tile));
+    tiles.forEach(populateThumb);
   }
   function card(record) {
     const recordId = id(record), photos = images(record);
@@ -364,7 +353,6 @@
     const count = state.root.querySelector('[data-slot="count"]');
     const summary = state.root.querySelector('[data-slot="summary"]');
     if (!output || !count || !summary) return;
-    if (state.observer) { state.observer.disconnect(); state.observer = null; }
     for (const button of state.root.querySelectorAll('[data-action="filter"]')) {
       button.setAttribute('aria-pressed', str(state.status === button.dataset.status));
     }
@@ -382,14 +370,20 @@
       return;
     }
     const matches = filteredRecords();
-    const visible = matches.slice(0, state.shown);
-    count.textContent = matches.length + ' matching ' + (matches.length === 1 ? 'piece' : 'pieces');
+    const total = state.records.length;
+    // Never hide pieces behind a client-side item cap: warehouse workers must
+    // see every staged piece that matches the active search/status filters.
+    count.textContent = matches.length === total
+      ? 'All ' + total + ' staged ' + (total === 1 ? 'piece' : 'pieces') + ' displayed'
+      : 'Showing all ' + matches.length + ' matching ' +
+        (matches.length === 1 ? 'piece' : 'pieces') + ' · ' + total +
+        ' total staged (search/filter active)';
     if (!matches.length) {
       output.innerHTML = '<div class="zmws-feedback">No matching pieces. Clear the search or check the original Staging Sheet.</div>';
       return;
     }
     const groups = new Map();
-    for (const record of visible) {
+    for (const record of matches) {
       const key = stage(record) + '\u0000' + job(record);
       if (!groups.has(key)) groups.set(key, { status: stage(record), job: job(record), items: [] });
       groups.get(key).items.push(record);
@@ -401,10 +395,6 @@
         '<span>' + esc(group.status) + ' · ' + group.items.length + ' ' +
         (group.items.length === 1 ? 'piece' : 'pieces') + '</span></div>' +
         '<div class="zmws-cards">' + group.items.map(card).join('') + '</div></section>';
-    }
-    if (visible.length < matches.length) {
-      html += '<div class="zmws-more"><button type="button" data-action="more">Show more (' +
-        (matches.length - visible.length) + ' remaining)</button></div>';
     }
     if (!state.notesAvailable) {
       html = '<div class="zmws-notes-warning" role="alert">' +
@@ -483,16 +473,11 @@
     event.preventDefault();
     event.stopPropagation();
     if (action === 'refresh') {
-      state.shown = CFG.displayStep;
       closePreview();
       cleanPhotos();
       load();
     } else if (action === 'filter') {
       state.status = button.dataset.status;
-      state.shown = CFG.displayStep;
-      render();
-    } else if (action === 'more') {
-      state.shown += CFG.displayStep;
       render();
     } else if (action === 'view-photo') {
       const record = state.records.find(r => id(r) === button.dataset.id);
@@ -520,7 +505,6 @@
     state.active = true;
     state.root = root;
     state.mobile = event.type === 'mobile.app.record.index.show';
-    state.shown = CFG.displayStep;
     state.search = '';
     state.status = '';
     state.extraDimensions = true;
@@ -531,7 +515,6 @@
       root.addEventListener('input', e => {
         if (!e.target.matches('[data-action="search"]')) return;
         state.search = e.target.value;
-        state.shown = CFG.displayStep;
         render();
       });
       root.dataset.zmwsBound = '1';
