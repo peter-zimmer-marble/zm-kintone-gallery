@@ -47,12 +47,12 @@ All twelve required fields must be written or validated, never silently populate
 | `thickness` | radio | Master `thickness`, 2cm or 3cm |
 | `inventory_status` | radio | Out |
 | `finish` | dropdown | Master `finish`, valid App 15 option |
-| `new_job` | text | **Need owner to confirm semantics** of new vs old job on OUT |
+| `new_job` | text | **Confirmed:** job the piece is being moved/pulled **for**; prefill from Master `job` when available, but make editable and require a meaningful destination job before OUT |
 | `peter_notification` | user select | **Need validated user code/default**; cannot guess |
 | `rack` | lookup text (App 7) | Master `rack`, valid lookup key |
 | `shape` | dropdown | Master `shape` |
 | `length` | number | Master `length` |
-| `old_job` | text | **Need owner to confirm semantics** of new vs old job on OUT |
+| `old_job` | text | **Confirmed:** previous job assignment, not the job being pulled for. Crew UI: Previous Job (optional), with explicit **No Previous Job** vs **Previous Job Unknown** selections. Save `N/A` for confirmed none to preserve historical convention; do **not** silently mark unknown as none. For unknown, owner approval must resolve or establish an intentional separate value. |
 | `material` | dropdown | Master `material`, valid App 15 option |
 | `width` | number | Master `width` |
 
@@ -71,7 +71,7 @@ Optional, approved-safe fields may include `master_record_id`, `inventory_verifi
 
 ## Open owner decisions (don't guess)
 
-- In App 15, how should **Old Job** and **New Job** be filled for the ordinary staged OUT? Does New Job mean job the material is being pulled *for*, with Old Job being its previous assignment?
+- **Confirmed job semantics:** Old Job = former assignment; New Job = job material is going to. Existing practice uses `N/A` if no previous job. Crew-facing UI should offer **No Previous Job** explicitly and serialize that as `N/A` for backward compatibility; a genuinely **Unknown** prior job is distinct and should require owner decision/approved sentinel before deployment.
 - How is **Peter Notification** currently populated on manual App 15 submissions (specific user code/default/automation)? This USER_SELECT field is required.
 - What review-state convention should indicate true pending/approved/rejected transactions (currently `inventory_verified` and `move_complete` exist, but no dedicated review-status field in provided schema)?
 - Confirm crew create/read permissions in App 15, and create/validate temporary App 7 Rack entries **Remnant Cart** and **Pending Putaway** before the IN phase.
