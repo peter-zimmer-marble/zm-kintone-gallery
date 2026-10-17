@@ -10,8 +10,9 @@ This custom view provides a phone-friendly alternative to printing the existing 
 - **In/Out Notes** (`in_out_note`) from the **Master Inventory (App 6)** record, displayed in full on each piece with a note. This is distinct from `notes` (Sale Notes) and from any older notes on Entry Sheet App 15. Notes remain read-only and are not copied into App 15 by this pilot.
 - Search by job, color, rack, shape, piece type, Master number, or staging status; filter RTS/View Staging.
 - A fullscreen image viewer with all attached Exact Picture and Example Picture images.
-- Controls to refresh the list and display additional pieces.
-- The full list is fetched via read-only paginated authenticated GETs using an explicit non-financial field allowlist. Nothing is stored in GitHub or GitHub Pages.
+- **All eligible staging pieces display automatically when the view opens**: no 48-piece cutoff, Show More button, or client-side pagination. Refresh reloads the entire staging list.
+- The full list is fetched via read-only paginated authenticated GETs (500 records per Kintone API batch) using an explicit non-financial field allowlist. **500 is an API batch size, not a total display limit.** The entire list is displayed after all batches complete; if a batch fails, an error is shown rather than silently displaying a partial list. Nothing is stored in GitHub or GitHub Pages.
+- All thumbnail downloads are queued on opening the view, including cards below the fold. **Four simultaneous downloads is a concurrency limit for photos only; it does not limit the number of cards or images.** The full cards are visible while photos finish downloading.
 
 ## Install in ZM Inventory, App 6
 
@@ -21,7 +22,7 @@ This custom view provides a phone-friendly alternative to printing the existing 
 
     <div id="zm-warehouse-staging-root"></div>
 
-4. **Disable Kintone pagination** (the view fetches records independently and has its own Show more button). The Custom View filter can remain All Records; the JavaScript itself applies the exact Staging Sheet query. Save this new view without changing the existing Staging Sheet or Visual Search view.
+4. **Disable Kintone pagination** (the view loads all eligible records and displays them in one list). The Custom View filter can remain All Records; the JavaScript itself applies the exact Staging Sheet query. Save this new view without changing the existing Staging Sheet or Visual Search view.
 5. Under **App Settings → JavaScript and CSS customization**, **add** the following (do not replace existing Visual Search v2 or other scripts):
 
    **Desktop JavaScript**
@@ -41,7 +42,7 @@ This custom view provides a phone-friendly alternative to printing the existing 
 
 ## Pilot checks
 
-- Confirm the count matches the native Staging Sheet with no additional native filter applied.
+- Confirm the count matches the native Staging Sheet with no additional native filter applied. When All is selected and search is blank, the view must say **All N staged pieces displayed**; no staged pieces should be behind pagination.
 - Confirm RTS and View Staging both appear; open one of each.
 - Confirm existing **In/Out Notes** appear in full, including long notes on narrow phone screens; pieces without a note should not show an empty note panel.
 - Search job, rack, color, and Master ID. Confirm searching handles multiple terms.
