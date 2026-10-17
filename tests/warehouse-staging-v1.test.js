@@ -39,6 +39,7 @@ const root = {
 const registrations = [];
 const requests = [];
 let notesRestricted = false;
+let mockRecords = [];
 const inputRecord = {
   $id: { value: '1240' },
   color: { value: 'Blue Dunes' },
@@ -60,6 +61,7 @@ const inputRecord = {
     value: [{ fileKey: 'good-file', contentType: 'image/png', name: 'sample.png' }]
   }
 };
+mockRecords = [inputRecord];
 async function get(url, method, data) {
   assert.equal(method, 'GET', 'Warehouse staging must not write to Kintone');
   assert.equal(data.app, 6);
@@ -67,7 +69,14 @@ async function get(url, method, data) {
   if (notesRestricted && data.fields.includes('in_out_note')) {
     throw new Error('In/Out Notes field is restricted');
   }
-  return { records: [inputRecord] };
+  const after = data.query.match(/\$id > (\d+)/);
+  const limit = data.query.match(/limit (\d+)/);
+  assert.ok(limit, 'Staging API requests must include Kintone batch limit');
+  const records = mockRecords.filter(record =>
+    !after || Number(record.$id.value) > Number(after[1]))
+    .sort((a, b) => Number(a.$id.value) - Number(b.$id.value))
+    .slice(0, Number(limit[1]));
+  return { records };
 }
 get.url = path => path;
 class FakeXMLHttpRequest {
@@ -153,7 +162,7 @@ assert.equal(requests.length, 0);
   assert.ok(!slots.results.innerHTML.includes('<carefully>'),
     'Staff-entered notes must be safely escaped');
   assert.match(slots.results.innerHTML, /\/k\/6\/show#record=1240/);
-  assert.equal(slots.count.textContent, '1 matching piece');
+  assert.equal(slots.count.textContent, 'All 1 staged piece displayed');
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(downloadRequests.length, 2,
     'A failed Exact photo should fall back to the next attached Example image');
@@ -176,6 +185,45 @@ assert.equal(requests.length, 0);
     'Preserve read-only staging when field permissions hide In/Out Notes');
   assert.match(slots.results.innerHTML, /In\/Out Notes could not be loaded/);
   assert.match(slots.results.innerHTML, /Blue Dunes V1/);
-  console.log('Warehouse Staging v1: photo XHR, notes display/escaping, ' +
+
+  // More than the old 48-item display cutoff: every piece must appear without
+  // a Show More control. These synthetic cards have no photos.
+  notesRestricted = false;
+  function stagedRecords(quantity) {
+    return Array.from({ length: quantity }, (_, i) => ({
+      ...inputRecord,
+      $id: { value: String(i + 1) },
+      color_combined: { value: 'Test Staging Piece ' + (i + 1) },
+      exact_picture: { value: [] },
+      example_picture: { value: [] }
+    }));
+  }
+  mockRecords = stagedRecords(55);
+  const before55 = requests.length;
+  handler(event);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requests.length - before55, 1);
+  assert.equal(slots.count.textContent, 'All 55 staged pieces displayed');
+  assert.match(slots.results.innerHTML, /Test Staging Piece 1<\/h3>/);
+  assert.match(slots.results.innerHTML, /Test Staging Piece 55<\/h3>/);
+  assert.equal((slots.results.innerHTML.match(/class="zmws-card"/g) || []).length, 55);
+  assert.ok(!slots.results.innerHTML.includes('Show more'),
+    'Warehouse staging must not hide pieces behind pagination');
+
+  // More than Kintone's 500-record GET batch size: pagination must collect
+  // every page before rendering, and render all 501 cards.
+  mockRecords = stagedRecords(501);
+  const before501 = requests.length;
+  handler(event);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requests.length - before501, 2,
+    '501 pieces should require two Kintone GET requests of 500 + 1');
+  assert.equal(slots.count.textContent, 'All 501 staged pieces displayed');
+  assert.match(slots.results.innerHTML, /Test Staging Piece 501<\/h3>/);
+  assert.equal((slots.results.innerHTML.match(/class="zmws-card"/g) || []).length, 501);
+  assert.ok(!slots.results.innerHTML.includes('Show more'));
+
+  console.log('Warehouse Staging v1: all 55/501 records visible without Show More, ' +
+    'complete Kintone pagination, photo XHR, notes display/escaping, ' +
     'permissions fallback, safe GET, view isolation and rendering passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
