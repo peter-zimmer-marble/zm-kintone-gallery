@@ -38,6 +38,7 @@ const root = {
 };
 const registrations = [];
 const requests = [];
+let notesRestricted = false;
 const inputRecord = {
   $id: { value: '1240' },
   color: { value: 'Blue Dunes' },
@@ -51,6 +52,7 @@ const inputRecord = {
   job: { value: 'Johnson Kitchen' },
   sale_status: { value: 'SOLD' },
   staging_status: { value: 'RTS' },
+  in_out_note: { value: 'Do not stack & keep upright.\nHandle <carefully>.' },
   exact_picture: {
     value: [{ fileKey: 'missing-file', contentType: 'image/jpeg', name: 'missing.jpg' }]
   },
@@ -62,6 +64,9 @@ async function get(url, method, data) {
   assert.equal(method, 'GET', 'Warehouse staging must not write to Kintone');
   assert.equal(data.app, 6);
   requests.push(data);
+  if (notesRestricted && data.fields.includes('in_out_note')) {
+    throw new Error('In/Out Notes field is restricted');
+  }
   return { records: [inputRecord] };
 }
 get.url = path => path;
@@ -131,6 +136,8 @@ assert.equal(requests.length, 0);
   assert.match(query, /order by \$id asc limit 500/);
   assert.ok(requests[0].fields.includes('job'));
   assert.ok(requests[0].fields.includes('exact_picture'));
+  assert.ok(requests[0].fields.includes('in_out_note'),
+    'Read existing Master In/Out Notes alongside staged piece information');
   for (const restricted of [
     'purchase_price', 'cost', 'vendor', 'rough_base_price',
     'sale_base_price', 'purchase_notes', 'po_num'
@@ -140,6 +147,11 @@ assert.equal(requests.length, 0);
   assert.match(slots.results.innerHTML, /Blue Dunes V1/);
   assert.match(slots.results.innerHTML, /Johnson Kitchen/);
   assert.match(slots.results.innerHTML, /Z-5A/);
+  assert.match(slots.results.innerHTML, /IN \/ OUT NOTES/);
+  assert.match(slots.results.innerHTML,
+    /Do not stack &amp; keep upright\.\s*Handle &lt;carefully&gt;\./);
+  assert.ok(!slots.results.innerHTML.includes('<carefully>'),
+    'Staff-entered notes must be safely escaped');
   assert.match(slots.results.innerHTML, /\/k\/6\/show#record=1240/);
   assert.equal(slots.count.textContent, '1 matching piece');
   await new Promise(resolve => setImmediate(resolve));
@@ -156,6 +168,14 @@ assert.equal(requests.length, 0);
   assert.equal(downloadedImages.length, 1);
   assert.equal(downloadedImages[0].tagName, 'img');
   assert.equal(downloadedImages[0].src, 'blob:verified-kintone-photo');
-  console.log('Warehouse Staging v1: syntax, view isolation, authenticated photo XHR, ' +
-    'image fallback, safe GET, filters, and rendering passed.');
+  notesRestricted = true;
+  handler(event);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(requests.length >= 4, 'Retry after a note-field permission error');
+  assert.ok(!requests[requests.length - 1].fields.includes('in_out_note'),
+    'Preserve read-only staging when field permissions hide In/Out Notes');
+  assert.match(slots.results.innerHTML, /In\/Out Notes could not be loaded/);
+  assert.match(slots.results.innerHTML, /Blue Dunes V1/);
+  console.log('Warehouse Staging v1: photo XHR, notes display/escaping, ' +
+    'permissions fallback, safe GET, view isolation and rendering passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
