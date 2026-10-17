@@ -14,8 +14,7 @@
     name: 'Warehouse Staging',
     rootId: 'zm-warehouse-staging-root',
     fetchLimit: 500,
-    displayStep: 48,
-    filter: 'inventory_status in ("", "In") and length >= "0" and width >= "0")'
+    displayStep: 48
   });
   // Matches the existing Staging Sheet filter exactly (View ID 7535223).
   const STAGING_FILTER = 'inventory_status in ("", "In")' +
@@ -224,14 +223,15 @@
       tiles.forEach(populateThumb);
       return;
     }
-    state.observer = new IntersectionObserver(entries => {
+    const observer = new IntersectionObserver(entries => {
       for (const item of entries) {
         if (!item.isIntersecting) continue;
-        state.observer.unobserve(item.target);
+        observer.unobserve(item.target);
         populateThumb(item.target);
       }
     }, { rootMargin: '240px 0px' });
-    tiles.forEach(tile => state.observer.observe(tile));
+    state.observer = observer;
+    tiles.forEach(tile => observer.observe(tile));
   }
   function card(record) {
     const recordId = id(record), photos = images(record);
@@ -393,6 +393,7 @@
     event.stopPropagation();
     if (action === 'refresh') {
       state.shown = CFG.displayStep;
+      closePreview();
       cleanPhotos();
       load();
     } else if (action === 'filter') {
