@@ -321,14 +321,6 @@
   margin-top: 14px;
 }
 #zm-warehouse-staging-root .zmws-error { color: #a13c35; }
-#zm-warehouse-staging-root .zmws-more { display: flex; justify-content: center; margin: 26px 0; }
-#zm-warehouse-staging-root .zmws-more button {
-  border: 1px solid #98b09d;
-  background: #fff;
-  color: #285b40;
-  font-weight: 800;
-  padding: 12px 20px;
-}
 #zm-warehouse-staging-root .zmws-footer {
   margin-top: 27px;
   color: #829186;
