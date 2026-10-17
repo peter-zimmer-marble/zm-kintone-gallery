@@ -48,7 +48,7 @@ All twelve required fields must be written or validated, never silently populate
 | `inventory_status` | radio | Out |
 | `finish` | dropdown | Master `finish`, valid App 15 option |
 | `new_job` | text | **Confirmed:** job the piece is being moved/pulled **for**; prefill from Master `job` when available, but make editable and require a meaningful destination job before OUT |
-| `peter_notification` | user select | **Need validated user code/default**; cannot guess |
+| `peter_notification` | required USER_SELECT | **Confirmed behavior:** owner receives a Kintone notification for each newly created App 15 record in the current manual workflow. Preserve this on custom submissions. Check actual selected user/default (and app notification configuration) before API POST; do not invent a user code, assume defaults apply to API inserts, or send a second duplicate notification. |
 | `rack` | lookup text (App 7) | Master `rack`, valid lookup key |
 | `shape` | dropdown | Master `shape` |
 | `length` | number | Master `length` |
@@ -72,7 +72,7 @@ Optional, approved-safe fields may include `master_record_id`, `inventory_verifi
 ## Open owner decisions (don't guess)
 
 - **Confirmed job semantics:** Old Job = former assignment; New Job = job material is going to. Existing practice uses `N/A` if no previous job. Crew-facing UI should offer **No Previous Job** explicitly and serialize that as `N/A` for backward compatibility; a genuinely **Unknown** prior job is distinct and should require owner decision/approved sentinel before deployment.
-- How is **Peter Notification** currently populated on manual App 15 submissions (specific user code/default/automation)? This USER_SELECT field is required.
+- **Confirmed notification outcome:** owner receives a notification whenever crew creates a new App 15 record. **Implementation verification still needed:** inspect the required `peter_notification` USER_SELECT field's default/selected user and Kintone app notification rule, then submit a test via Kintone REST API as a crew account and confirm it triggers exactly one owner notification.
 - What review-state convention should indicate true pending/approved/rejected transactions (currently `inventory_verified` and `move_complete` exist, but no dedicated review-status field in provided schema)?
 - Confirm crew create/read permissions in App 15, and create/validate temporary App 7 Rack entries **Remnant Cart** and **Pending Putaway** before the IN phase.
 
