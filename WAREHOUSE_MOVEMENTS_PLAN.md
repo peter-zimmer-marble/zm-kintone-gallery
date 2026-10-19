@@ -1,6 +1,6 @@
 # ZM Warehouse Movements: safe build plan (October 2026)
 
-**State:** design agreed; coding in an isolated branch. **No live warehouse writes enabled.** Do not activate a crew-facing Confirm OUT button until the App 15 write mapping, permissions, and review-state semantics have been validated with the owner.
+**State:** Confirm OUT v1 opt-in draft implemented and mock-tested in PR #15, alongside these workflow decisions. **No live warehouse writes enabled** and no current Warehouse Staging or Visual Search code modified. See WAREHOUSE_OUT_SETUP.md for required new App 15 fields, field permissions, owner notification, and supervised rollout tests. Do not enable crew-facing Confirm OUT until those Kintone prerequisites and owner-only Void are validated.
 
 ## Non-negotiable invariants
 
@@ -71,6 +71,12 @@ All twelve required fields must be written or validated, never silently populate
 **Schema mismatch to resolve before production:** Master `material` includes **Dolomite** but App 15 `material` does not; App 15 instead has **NOT SURE**. Master `finish` includes **Satin, Velvet, Concrete, Matte** that are absent from App 15. We should ideally align App 15 dropdown options before automation, never substitute a different material or finish silently.
 
 Optional, approved-safe fields may include `master_record_id`, `inventory_verified`, `in_out_note`, `move_notes`, `color_combined`, `zmv_num`, `length_2`, `width_2`, and `exact_picture`. **Do not change, infer meaning from, or repurpose `move_complete`:** owner created it for an unrelated purpose and no longer recalls the original use. Some App 15 note fields are single-line: plan around actual configured limits or add a dedicated long-text field later.
+
+### Current code deliverables (isolated draft only)
+
+- Standalone opt-in module: zm-warehouse-out-v1.js and zm-warehouse-out-v1.css. **Disabled unless explicitly configured**; inserted into existing Warehouse Staging cards by observer without editing existing production staging files.
+- Mock validation suite: tests/warehouse-out-v1.test.js, included in staging GitHub CI. Covers App 15 form schema, source field mapping, required two photos, Missing Label exception, Out pending/void status, idempotency key, request ambiguity, and stale Master checks.
+- Owner setup/acceptance plan: WAREHOUSE_OUT_SETUP.md. Current remaining blockers are new Kintone App 15 fields, confirmed owner User Select default/user code, crew app/field permissions, dropdown alignment, owner-only Void procedure, and an actual phone transaction test. No real Kintone record has been written.
 
 ## Implementation & safety gates
 
