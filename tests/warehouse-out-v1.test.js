@@ -30,14 +30,18 @@ function createProperties() {
   base.inventory_status = { type: 'RADIO_BUTTON', options: {
     in: { label: 'In' }, out: { label: 'Out' }
   } };
-  base.peter_notification = { type: 'USER_SELECT',
+  base.peter_notification = { type: 'USER_SELECT', required: false,
     defaultValue: [{ code: 'peter-validated', type: 'USER' }] };
+  base.inventory_verified = { type: 'DROP_DOWN', required: false,
+    defaultValue: 'No', options: {
+      no: { label: 'No' }, yes: { label: 'Yes' }
+    } };
   base.master_record_id = { type: 'NUMBER' };
   base.warehouse_request_id = {
     type: 'SINGLE_LINE_TEXT', unique: true
   };
   base.warehouse_disposition = {
-    type: 'DROP_DOWN', options: {
+    type: 'DROP_DOWN', required: false, defaultValue: 'Active', options: {
       active: { label: 'Active' }, voided: { label: 'Voided' }
     }
   };
@@ -75,7 +79,6 @@ let entryRecords = [];
 let nextId = 5001;
 let uploadCount = 0;
 let apiReadEnabled = true;
-let activeCode = 'peter-validated';
 let currentMaster = makeMaster();
 const previousCalls = () => calls.length;
 const eventHandlers = [];
@@ -115,15 +118,25 @@ async function api(url, method, data) {
     assert.ok(!data.record.vendor);
     assert.equal(data.record.master_record_id.value, '123');
     assert.equal(data.record.inventory_status.value, 'Out');
-    assert.equal(data.record.inventory_verified.value, 'No');
-    assert.equal(data.record.peter_notification.value[0].code, activeCode);
+    // Real crew user has no Edit permission to these protected fields.
+    // Any attempt to include even the expected defaults must fail.
+    for (const restricted of ['inventory_verified',
+      'warehouse_disposition', 'peter_notification']) {
+      assert.ok(!(restricted in data.record),
+        'Crew API POST must omit owner-only field: ' + restricted);
+    }
     if (apiPostMode === 'reject') throw new Error('Server timeout');
     const id = String(nextId++);
+    const recipient = properties.peter_notification.defaultValue[0].code;
     entryRecords.push({
       ...data.record,
+      inventory_verified: { value: properties.inventory_verified.defaultValue },
+      warehouse_disposition: { value: properties.warehouse_disposition.defaultValue },
+      peter_notification: { value: [{ code: recipient }] },
       $id: { value: id }
     });
-    notifications.push(id); // a single App 15 creation notification
+    // Simulate Kintone notification to the configured default recipient.
+    notifications.push({ id, recipient });
     if (apiPostMode === 'ambiguous') throw new Error('Lost confirmation');
     return { id };
   }
@@ -179,29 +192,52 @@ const mod = env.window.ZM_WAREHOUSE_OUT_DRAFT;
 assert.ok(mod, 'Draft test API should be exposed in enabled mode');
 
 (async () => {
-  let data = mod.validateSchema(properties);
-  assert.equal(data.peterUserCode, 'peter-validated');
-  activeCode = 'peter-owner-confirmed';
-  config.peterUserCode = activeCode;
-  data = mod.validateSchema(properties);
-  assert.equal(data.peterUserCode, activeCode);
-  delete config.peterUserCode;
-  activeCode = 'peter-validated';
+  const data = mod.validateSchema(properties);
+  assert.equal(data.properties, properties);
+  assert.equal(data.peterUserCode, undefined,
+    'Do not give crew submissions access to the owner user code.');
 
   const noUnique = { ...properties, warehouse_request_id: {
     type: 'SINGLE_LINE_TEXT', unique: false
   }};
   assert.throws(() => mod.validateSchema(noUnique), /prohibit duplicate values/);
   const noVoid = { ...properties, warehouse_disposition: {
-    type: 'DROP_DOWN', options: { active: { label: 'Active' } }
+    type: 'DROP_DOWN', required:false, defaultValue:'Active',
+    options: { active: { label: 'Active' } }
   }};
   assert.throws(() => mod.validateSchema(noVoid), /Voided/);
   const noLabel = { ...properties, warehouse_label_note: undefined };
   assert.throws(() => mod.validateSchema(noLabel), /warehouse_label_note/);
   const defaultsNotPeter = { ...properties, peter_notification: {
-    type: 'USER_SELECT', defaultValue: [{type:'FUNCTION',code:'LOGINUSER()'}]
+    type: 'USER_SELECT', required:false,
+    defaultValue: [{type:'FUNCTION',code:'LOGINUSER()'}]
   }};
-  assert.throws(() => mod.validateSchema(defaultsNotPeter), /Confirm the Peter Notification/);
+  assert.throws(() => mod.validateSchema(defaultsNotPeter),
+    /Peter Notification must default to one specific USER/);
+  assert.throws(() => mod.validateSchema({
+    ...properties, peter_notification: {
+      ...properties.peter_notification, required:true }
+  }), /Uncheck Required on Peter Notification/);
+  assert.throws(() => mod.validateSchema({
+    ...properties, peter_notification: {
+      ...properties.peter_notification, defaultValue: [] }
+  }), /Peter Notification must default/);
+  assert.throws(() => mod.validateSchema({
+    ...properties, inventory_verified: {
+      ...properties.inventory_verified, defaultValue: 'Yes' }
+  }), /Inventory Verified to optional with default No/);
+  assert.throws(() => mod.validateSchema({
+    ...properties, inventory_verified: {
+      ...properties.inventory_verified, required:true }
+  }), /Inventory Verified to optional with default No/);
+  assert.throws(() => mod.validateSchema({
+    ...properties, warehouse_disposition: {
+      ...properties.warehouse_disposition, defaultValue: 'Voided' }
+  }), /Warehouse Disposition to optional with default Active/);
+  assert.throws(() => mod.validateSchema({
+    ...properties, warehouse_disposition: {
+      ...properties.warehouse_disposition, required:true }
+  }), /Warehouse Disposition to optional with default Active/);
 
   const full = { name: 'full.jpg', size: 1000,
     lastModified: 1, type: 'image/jpeg' };
@@ -223,9 +259,12 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(entry.old_job.value, 'N/A');
   assert.equal(entry.new_job.value, 'Johnson Kitchen');
   assert.equal(entry.inventory_status.value, 'Out');
-  assert.equal(entry.inventory_verified.value, 'No');
   assert.equal(entry.master_record_id.value, '123');
-  assert.equal(entry.warehouse_disposition.value, 'Active');
+  for (const protectedField of ['inventory_verified',
+    'warehouse_disposition', 'peter_notification']) {
+    assert.ok(!(protectedField in entry),
+      'Do not submit owner-only field: ' + protectedField);
+  }
   assert.equal(entry.warehouse_label_status.value, 'Present');
   assert.equal(entry.exact_picture.value.length, 2);
   assert.equal(entry.in_out_note.value, 'Take carefully');
@@ -290,7 +329,12 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(done.existing, false);
   assert.equal(uploadCount, 3);
   assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].recipient, 'peter-validated');
   assert.equal(entryRecords.length, 1);
+  assert.equal(entryRecords[0].inventory_verified.value, 'No');
+  assert.equal(entryRecords[0].warehouse_disposition.value, 'Active');
+  assert.equal(entryRecords[0].peter_notification.value[0].code,
+    'peter-validated');
   const posts = calls.slice(before).filter(x => x.method==='POST');
   assert.equal(posts.length, 1, 'Exactly one API record POST allowed');
   assert.equal(posts[0].data.app, 15);
@@ -371,8 +415,8 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(disabledRegistrations.length, 0);
   assert.equal(inert.window.ZM_WAREHOUSE_OUT_DRAFT, undefined);
 
-  console.log('Warehouse OUT draft: opt-in guard, schema preflight, safe ' +
-    'field mapping, 2 required photos, Missing Label, unique request IDs, ' +
+  console.log('Warehouse OUT draft: opt-in guard, protected-default schema preflight, ' +
+    'no crew POST of owner-only fields, 2 required photos, Missing Label, unique request IDs, ' +
     'pending/void exclusion, retry safety, notification user and App 15 only: PASSED');
 })().catch(error => {
   console.error(error);
