@@ -1,6 +1,6 @@
 # Confirm OUT v1 — disabled draft
 
-**User confirmation (2026-10-19):** All four core tracking fields were added to **Entry Sheet App 15** and the same accidental additions were removed from **Master App 6**. The changes have been published. The owner also confirmed that App 15's existing **Peter Notification** user-select field has him as its default. These are user-reported settings; verify their exact field codes/types/default through the live Kintone form schema as part of acceptance testing.
+**User confirmation (2026-10-19):** All four core tracking fields were added to **Entry Sheet App 15** and the same accidental additions were removed from **Master App 6**. The changes have been published. The owner also confirmed that App 15's existing **Peter Notification** user-select field has him as its default, and on 2026-10-19 he **unchecked Required**, retained that default and the owner-only permissions, and published App 15. These are user-reported settings; verify their exact field codes/types/default through the live Kintone form schema as part of acceptance testing.
 
 **Do not deploy yet.** This branch has an additional JavaScript module and
 stylesheet. Both are absent from the installed live Kintone customization.
@@ -46,9 +46,9 @@ The following four NEW field codes have been added/published by the owner, subje
 
 The already-added master_record_id Number field must remain on App 15.
 The native Master Movement History related-records field must remain linked.
-All twelve existing required Entry fields remain required: color, thickness,
-inventory_status, finish, new_job, peter_notification, rack, shape, length,
-old_job, material, width. The draft reads App 15's live form schema and
+Eleven existing Entry fields remain required after the owner removed **Required** from Peter Notification: color, thickness,
+inventory_status, finish, new_job, rack, shape, length,
+old_job, material, width. The `peter_notification` USER_SELECT field remains present but optional and access-restricted. The draft reads App 15's live form schema and
 refuses to submit if any expected new fields or dropdown choices are missing.
 
 **Resolve known dropdown mismatches before activation:** Master material
@@ -56,7 +56,7 @@ includes Dolomite but App 15 currently does not. Master finish includes
 Satin, Velvet, Concrete and Matte, which App 15 currently lacks.
 Do not guess or substitute values.
 
-**Peter Notification:** Owner confirms App 15 already has **his Kintone user as the default** in the required USER_SELECT field. The module can read that configured single USER default from the App 15 form schema and explicitly set the same user in the API-created entry; do not guess the login code or assume the default is automatically inserted for a required API field. Confirm schema default type/code and test that a crew-created custom submission sends exactly one owner notification.
+**Peter Notification:** Owner confirms App 15 USER_SELECT has **his account as its default**, **Required unchecked**, and remains **owner-only** for view/edit; the change was published. Official Add Record API docs say omitted optional fields receive defaults. The draft module still explicitly writes this restricted field, so **must be adapted to OMIT `peter_notification` from crew API POST** before activation. Confirm actual field default and resulting recipient through a supervised crew-account create/read/notification test; do not invent a login code.
 
 **Permissions:** Warehouse users need safe Master read access and App 15
 read/create access, but must not gain access to confidential Master fields
@@ -179,19 +179,18 @@ Documentation:
 - https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
 - https://us.kintone.help/k/en/app/form/form_parts/user_selection
 
-**Next proposed configuration (requires owner's confirmation):**
-The existing `peter_notification` USER_SELECT field is currently Required,
-defaults to the owner, and is fully hidden from the crew by field ACLs.
-The documented Add Record REST API requires required fields to be included,
-but also requires permission to edit included fields. To preserve the
-current security without a privileged proxy, propose making
-`peter_notification` **not required**, retaining **the owner as the static
-default**, and retaining **owner-only View+Edit**. Kintone's Add Record API
+**Peter Notification prerequisite complete (owner report; API verification outstanding):**
+The existing `peter_notification` USER_SELECT field is now **optional**,
+still defaults to the owner, and remains fully hidden from the crew by field ACLs.
+The documented Add Record REST API requires Required fields to be included,
+and requires Edit permission for included fields. Our new crew API POST must
+**omit** `peter_notification` so its protected default can be applied.
+The owner has already made and published that change. Kintone's Add Record API
 documents that omitted fields receive their defaults; the custom submission
 must omit `peter_notification` entirely rather than trying to write it.
 End-to-end test that the owner gets the expected notification on an App 15
-entry created as a restricted warehouse user. This change must not be
-misrepresented as already deployed or verified. Related future steps:
+entry created as a restricted warehouse user. **The configuration is published,
+but API behavior is still unverified.** Related next steps:
 configure Inventory Verified default `No` and Warehouse Disposition
 default `Active`, omitting both restricted fields from crew API POSTs.
 Do not change existing permissions to make the draft work.
