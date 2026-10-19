@@ -213,14 +213,12 @@
       exact_picture: { value: keys.map(fileKey => ({ fileKey })) }
     };
     if (note) record.in_out_note = { value: note };
-    // Parent Slab ID in App 15 is owner-only editable: do NOT send it.
-    // Keep the authoritative Master record link via master_record_id; any
-    // parent lineage can be reviewed on the original Master record.
-    for (const code of ['color_combined', 'zmv_num', 'length_2', 'width_2']) {
-      if (readValue(master, code) && schema.properties[code]) {
-        record[code] = { value: readValue(master, code) };
-      }
-    }
+    // Do not copy optional Master lookup-mapped or computed fields into
+    // the new Entry Sheet record. Kintone's Add Record API rejects lookup
+    // field-mapping targets and the crew may have read-only ACLs on them.
+    // The stable master_record_id preserves lineage to all such metadata
+    // (including parent slab and secondary dimensions) without guessing
+    // whether each App 15 field is safe to write.
     // Leave protected owner-controlled fields out of the crew API request:
     // Kintone must populate verified=No, disposition=Active and the owner
     // notification recipient from the defaults validated above.
