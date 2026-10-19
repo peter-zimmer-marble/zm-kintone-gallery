@@ -395,6 +395,32 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(uploadCount, uploadsBeforeStale);
   currentMaster = makeMaster();
 
+  // Defaults may change after the view loaded. The final preflight must
+  // fetch the current schema and stop before photo upload or record POST.
+  const uploadsBeforeDefaultDrift = uploadCount;
+  const postsBeforeDefaultDrift = calls.filter(x => x.method==='POST').length;
+  properties.inventory_verified.defaultValue = 'Yes';
+  await assert.rejects(mod.submit(makeMaster(),
+    {...base,requestId:'request-bad-verification-default'}, {full,label}),
+    /Inventory Verified to optional with default No/);
+  properties.inventory_verified.defaultValue = 'No';
+  properties.warehouse_disposition.defaultValue = 'Voided';
+  await assert.rejects(mod.submit(makeMaster(),
+    {...base,requestId:'request-bad-disposition-default'}, {full,label}),
+    /Warehouse Disposition to optional with default Active/);
+  properties.warehouse_disposition.defaultValue = 'Active';
+  properties.peter_notification.defaultValue = [];
+  await assert.rejects(mod.submit(makeMaster(),
+    {...base,requestId:'request-no-owner-default'}, {full,label}),
+    /Peter Notification must default to one specific USER/);
+  properties.peter_notification.defaultValue = [
+    {code:'peter-validated',type:'USER'}
+  ];
+  assert.equal(uploadCount, uploadsBeforeDefaultDrift,
+    'Unsafe default change must not trigger any photos being uploaded');
+  assert.equal(calls.filter(x => x.method==='POST').length, postsBeforeDefaultDrift,
+    'Unsafe default change must not create an OUT record');
+
   // If unable to check pending state, no uploads or submissions happen.
   apiReadEnabled = false;
   const uploadsBefore = uploadCount;
