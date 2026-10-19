@@ -251,9 +251,9 @@
       const group = list.slice(i, i + 70);
       const records = await queryEntries(
         'master_record_id in (' + group.join(',') + ')' +
-        ' and inventory_status = "Out"' +
-        ' and inventory_verified = "No"' +
-        ' and warehouse_disposition = "Active"',
+        ' and inventory_status in ("Out")' +
+        ' and inventory_verified in ("No")' +
+        ' and warehouse_disposition in ("Active")',
         ['$id', 'master_record_id', 'inventory_status',
           'inventory_verified', 'warehouse_disposition']
       );
