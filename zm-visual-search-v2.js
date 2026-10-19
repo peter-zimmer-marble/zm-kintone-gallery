@@ -25,6 +25,31 @@
   const getMaterial = r => toText(field(r,'material'));
   const getPieceType = r => toText(field(r,'type'));
   const getNotes = r => toText(field(r,'in_out_note'));
+  // Kintone Type is a specific inventory classification, not only Slab/Rem.
+  // Keep a stable, named palette and preserve the type label as visible text.
+  function visualPieceTypeClass(value) {
+    const normalized = toText(value).toLowerCase().replace(/[^a-z0-9]/g,'');
+    const classes = {
+      stockslab:'type-stock-slab',
+      soslab:'type-so-slab',
+      cosignedslab:'type-consigned-slab',
+      consignedslab:'type-consigned-slab',
+      stockrem:'type-stock-rem',
+      stanrem:'type-standard-rem'
+    };
+    return classes[normalized] ||
+      (/rem/.test(normalized) ? 'type-remnant' :
+        /slab/.test(normalized) ? 'type-slab' : 'type-other');
+  }
+  function visualStatusLabel(sale) {
+    return sale === 'Avl' ? 'Available' :
+      sale === 'SOLD' ? 'SOLD' : sale === 'Hold' ? 'ON HOLD' : '';
+  }
+  function visualStatusMarkup(sale) {
+    const label = visualStatusLabel(sale);
+    return label ? '<span class="zmwm-visual-status ' + statusClass(sale) +
+      '">' + esc(label) + '</span>' : '';
+  }
   const normalizeColorCombined = v => str(v).replace(/\s+/g,' ').trim();
   const getColorCombined = r => normalizeColorCombined(field(r,'color_combined')) ||
     normalizeColorCombined(getColor(r)) || '(Color not specified)';
@@ -156,52 +181,26 @@
       getColorCombined(a).localeCompare(getColorCombined(b),undefined,{sensitivity:'base'}) ||
       num(getId(a)) - num(getId(b)));
   }
-  function visualCard(record) {
+  // The same markup is used in cards and in the enlarged-photo detail pane,
+  // ensuring the piece-type colors, material, rack, dimensions, job and notes
+  // are never missing or visually downgraded in the viewer.
+  function visualDetailMarkup(record) {
     const id = getId(record);
-    const name = getColorCombined(record);
-    const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
-    const images = visualImages(record);
-    const primary = images[0] ? images[0].key : '';
-    const fallback = images[1] ? images[1].key : '';
     const geometry = visualGeometry(record);
-    const rack = toText(field(record,'rack')) || 'Location not set';
     const type = getPieceType(record) || 'Type not set';
     const material = visualState.materialAvailable ? getMaterial(record) : '';
+    const rack = toText(field(record,'rack')) || 'Location not set';
     const sale = getSale(record);
     const job = toText(field(record,'job'));
     const note = visualState.notesAvailable ? getNotes(record) : '';
-    const statusLabel = sale === 'SOLD' ? 'SOLD' :
-      sale === 'Hold' ? 'ON HOLD' : sale === 'Avl' ? 'Available' : '';
     const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
-    const statusBadge = statusLabel ? '<span class="zmwm-visual-status ' + statusClass(sale) +
-      '">' + esc(statusLabel) + '</span>' : '';
-    const countBadge = '<span class="zmwm-visual-photo-count">' +
-      (images.length > 1 ? images.length + ' photos · Enlarge' : 'Enlarge photo') +
-      '</span>';
-    const photo = primary ?
-      '<button type="button" class="zmwm-visual-photo zmwm-visual-photo-action"' +
-        ' data-visual-action="open-photo" data-visual-id="' + esc(id) + '"' +
-        ' data-visual-photo="' + esc(primary) + '"' +
-        (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') +
-        ' aria-label="Enlarge ' + images.length + ' photo' + (images.length === 1 ? '' : 's') +
-        ' of ' + esc(name) + '">' +
-        '<span class="zmwm-visual-photo-pending">Photo loading…</span>' +
-        statusBadge + countBadge + '</button>' :
-      '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
-        statusBadge + '</div>';
     const allocationLabel = sale === 'SOLD' ? 'SOLD TO / JOB' :
       sale === 'Hold' ? 'ON HOLD FOR / JOB' : 'JOB';
-    return '<article class="zmwm-visual-card' + cardStatus + '">' + photo +
-      '<a class="zmwm-visual-link" href="' + url +
-      '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) +
-      ', ' + esc(type) + ', ' + esc(geometry.display) +
-      (statusLabel ? ', ' + esc(statusLabel) : '') +
-      '. Open Kintone record ' + esc(id) + '">' +
-      '<div class="zmwm-visual-card-details">' +
-      '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
-      '<div class="zmwm-visual-classifications">' +
-        '<span class="zmwm-visual-piece-type">' + esc(type) + '</span>' +
+    return '<div class="zmwm-visual-classifications">' +
+        '<span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
+          '">' + esc(type) + '</span>' +
         (material ? '<span class="zmwm-visual-material">' + esc(material) + '</span>' : '') +
+        '<span class="zmwm-visual-rack">Rack: ' + esc(rack) + '</span>' +
       '</div>' +
       '<div class="zmwm-visual-size' + (geometry.lCode ? ' zmwm-visual-size-l' : '') +
         '"' + (geometry.lCode ? ' title="' + esc(geometry.display) + '"' : '') +
@@ -216,8 +215,43 @@
       (note ? '<div class="zmwm-visual-note">' +
         '<span class="zmwm-visual-note-label">IN / OUT NOTES</span>' +
         '<p>' + esc(note) + '</p></div>' : '') +
-      '<div class="zmwm-visual-card-meta"><span>' + esc(rack) +
-      ' · #' + esc(id) + '</span></div>' +
+      '<div class="zmwm-visual-card-meta"><span>Record #' + esc(id) + '</span></div>';
+  }
+  function visualCard(record) {
+    const id = getId(record);
+    const name = getColorCombined(record);
+    const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
+    const images = visualImages(record);
+    const primary = images[0] ? images[0].key : '';
+    const fallback = images[1] ? images[1].key : '';
+    const geometry = visualGeometry(record);
+    const type = getPieceType(record) || 'Type not set';
+    const sale = getSale(record);
+    const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
+    const statusBadge = visualStatusMarkup(sale);
+    const countBadge = '<span class="zmwm-visual-photo-count">' +
+      (images.length > 1 ? images.length + ' photos · Enlarge' : 'Enlarge photo') +
+      '</span>';
+    const photo = primary ?
+      '<button type="button" class="zmwm-visual-photo zmwm-visual-photo-action"' +
+        ' data-visual-action="open-photo" data-visual-id="' + esc(id) + '"' +
+        ' data-visual-photo="' + esc(primary) + '"' +
+        (fallback ? ' data-visual-fallback="' + esc(fallback) + '"' : '') +
+        ' aria-label="Enlarge ' + images.length + ' photo' + (images.length === 1 ? '' : 's') +
+        ' of ' + esc(name) + '">' +
+        '<span class="zmwm-visual-photo-pending">Photo loading…</span>' +
+        statusBadge + countBadge + '</button>' :
+      '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
+        statusBadge + '</div>';
+    return '<article class="zmwm-visual-card' + cardStatus + '">' + photo +
+      '<a class="zmwm-visual-link" href="' + url +
+      '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) +
+      ', ' + esc(type) + ', ' + esc(geometry.display) +
+      (visualStatusLabel(sale) ? ', ' + esc(visualStatusLabel(sale)) : '') +
+      '. Open Kintone record ' + esc(id) + '">' +
+      '<div class="zmwm-visual-card-details">' +
+        '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
+        visualDetailMarkup(record) +
       '</div></a></article>';
   }
   function visualShell() {
@@ -260,31 +294,43 @@
         '<div class="zmwm-visual-lightbox-backdrop" data-visual-action="close-photo"></div>' +
         '<section class="zmwm-visual-lightbox-panel">' +
           '<header class="zmwm-visual-lightbox-header">' +
-            '<div><div class="zmwm-visual-lightbox-eyebrow">INVENTORY PHOTOS</div>' +
-              '<a class="zmwm-visual-lightbox-record-link" id="zmwm-visual-lightbox-record-link"' +
-                ' target="_blank" rel="noopener noreferrer" href="#">' +
-                '<h2 id="zmwm-visual-lightbox-title"></h2>' +
-                '<p id="zmwm-visual-lightbox-meta"></p>' +
-                '<span class="zmwm-visual-lightbox-record-hint">Open inventory record ↗</span>' +
-              '</a></div>' +
+            '<div class="zmwm-visual-lightbox-heading">' +
+              '<div class="zmwm-visual-lightbox-eyebrow">INVENTORY PHOTOS</div>' +
+              '<div class="zmwm-visual-lightbox-title-row">' +
+                '<a class="zmwm-visual-lightbox-record-link" id="zmwm-visual-lightbox-record-link"' +
+                  ' target="_blank" rel="noopener noreferrer" href="#">' +
+                  '<h2 id="zmwm-visual-lightbox-title"></h2>' +
+                  '<span class="zmwm-visual-lightbox-record-hint">Open inventory record ↗</span>' +
+                '</a>' +
+                '<span class="zmwm-visual-lightbox-status" id="zmwm-visual-lightbox-status"></span>' +
+              '</div>' +
+              '<p id="zmwm-visual-lightbox-meta"></p>' +
+            '</div>' +
             '<button type="button" class="zmwm-visual-lightbox-close"' +
               ' data-visual-action="close-photo" aria-label="Close photo viewer">×</button>' +
           '</header>' +
-          '<div class="zmwm-visual-lightbox-stage">' +
-            '<button type="button" class="zmwm-visual-lightbox-arrow" data-visual-action="previous-photo"' +
-              ' aria-label="Previous photo">‹</button>' +
-            '<div class="zmwm-visual-lightbox-image" id="zmwm-visual-lightbox-image"' +
-              ' aria-live="polite"></div>' +
-            '<button type="button" class="zmwm-visual-lightbox-arrow" data-visual-action="next-photo"' +
-              ' aria-label="Next photo">›</button>' +
+          '<div class="zmwm-visual-lightbox-content">' +
+            '<div class="zmwm-visual-lightbox-gallery">' +
+              '<div class="zmwm-visual-lightbox-stage">' +
+                '<button type="button" class="zmwm-visual-lightbox-arrow" data-visual-action="previous-photo"' +
+                  ' aria-label="Previous photo">‹</button>' +
+                '<div class="zmwm-visual-lightbox-image" id="zmwm-visual-lightbox-image"' +
+                  ' aria-live="polite"></div>' +
+                '<button type="button" class="zmwm-visual-lightbox-arrow" data-visual-action="next-photo"' +
+                  ' aria-label="Next photo">›</button>' +
+              '</div>' +
+              '<div class="zmwm-visual-lightbox-footer">' +
+                '<span id="zmwm-visual-lightbox-caption"></span>' +
+                '<button type="button" class="zmwm-visual-lightbox-download"' +
+                  ' data-visual-action="download-photo" disabled>↓ Download photo</button>' +
+              '</div>' +
+              '<div class="zmwm-visual-lightbox-thumbnails" id="zmwm-visual-lightbox-thumbnails"' +
+                ' aria-label="Select a photo"></div>' +
+            '</div>' +
+            '<aside class="zmwm-visual-lightbox-info" aria-label="Inventory piece details">' +
+              '<div id="zmwm-visual-lightbox-details"></div>' +
+            '</aside>' +
           '</div>' +
-          '<div class="zmwm-visual-lightbox-footer">' +
-            '<span id="zmwm-visual-lightbox-caption"></span>' +
-            '<button type="button" class="zmwm-visual-lightbox-download"' +
-              ' data-visual-action="download-photo" disabled>↓ Download photo</button>' +
-          '</div>' +
-          '<div class="zmwm-visual-lightbox-thumbnails" id="zmwm-visual-lightbox-thumbnails"' +
-            ' aria-label="Select a photo"></div>' +
         '</section></div>' +
       '<footer class="zmwm-visual-footer">Inventory currently marked In in Kintone. ' +
       'Photos and dimensions are sourced from the existing records; nothing is edited here.</footer>' +
@@ -520,22 +566,27 @@
     const title = root.querySelector('#zmwm-visual-lightbox-title');
     const meta = root.querySelector('#zmwm-visual-lightbox-meta');
     const recordLink = root.querySelector('#zmwm-visual-lightbox-record-link');
+    const details = root.querySelector('#zmwm-visual-lightbox-details');
+    const status = root.querySelector('#zmwm-visual-lightbox-status');
     const stage = root.querySelector('#zmwm-visual-lightbox-image');
     const caption = root.querySelector('#zmwm-visual-lightbox-caption');
     const download = root.querySelector('[data-visual-action="download-photo"]');
     const previous = root.querySelector('[data-visual-action="previous-photo"]');
     const next = root.querySelector('[data-visual-action="next-photo"]');
     const thumbnails = root.querySelector('#zmwm-visual-lightbox-thumbnails');
-    if (!title || !meta || !stage || !caption || !download || !thumbnails) return;
+    if (!title || !meta || !details || !status || !stage || !caption || !download || !thumbnails) return;
     const name = getColorCombined(current.record);
-    const geometry = visualGeometry(current.record);
     title.textContent = name;
-    meta.textContent = (geometry.lCode ? geometry.display :
-      geometry.basic + (geometry.nonRect ? ' · ' + geometry.shape +
-        (geometry.extras ? ' · ' + geometry.extras : '') : '')) +
-      ' · Record #' + getId(current.record) +
-      (getSale(current.record) === 'SOLD' ? ' · SOLD' :
-        getSale(current.record) === 'Hold' ? ' · ON HOLD' : '');
+    meta.textContent = 'Record #' + getId(current.record);
+    // Match the card's colored piece-type, material, rack, measurements,
+    // job allocation and staff notes while retaining the large photo.
+    details.innerHTML = visualDetailMarkup(current.record);
+    status.innerHTML = visualStatusMarkup(getSale(current.record));
+    const panel = root.querySelector('.zmwm-visual-lightbox-panel');
+    if (panel) {
+      panel.classList.toggle('is-sold',getSale(current.record) === 'SOLD');
+      panel.classList.toggle('is-hold',getSale(current.record) === 'Hold');
+    }
     if (recordLink) recordLink.href = '/k/' + SETTINGS.INVENTORY_APP_ID +
       '/show#record=' + encodeURIComponent(getId(current.record));
     const number = current.index + 1;
