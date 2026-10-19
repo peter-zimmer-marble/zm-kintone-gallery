@@ -197,6 +197,22 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
 (async () => {
   const data = mod.validateSchema(properties);
   assert.equal(data.properties, properties);
+  const beforeWrongPilot = previousCalls();
+  const beforeWrongUploads = uploadCount;
+  const wrongMaster = makeMaster({ '$id': '999' });
+  await assert.rejects(mod.submit(wrongMaster, {
+    requestId:'wrong-master', previousMode:'none', newJob:'Another Job',
+    missingLabel:false, notes:''
+  }, {full:{name:'full.jpg',size:1,lastModified:1,type:'image/jpeg'},
+      label:{name:'label.jpg',size:1,lastModified:2,type:'image/jpeg'}}),
+    /only for Master #123/);
+  assert.equal(previousCalls(), beforeWrongPilot,
+    'Pilot record guard must reject before any network call');
+  assert.equal(uploadCount, beforeWrongUploads,
+    'Pilot record guard must reject before any photo upload');
+  assert.throws(() => mod.buildEntry(wrongMaster, {
+    previousMode:'none', newJob:'Another Job'
+  }, ['a','b'], {properties}, 'wrong-master'), /only for Master #123/);
   assert.equal(data.peterUserCode, undefined,
     'Do not give crew submissions access to the owner user code.');
 
