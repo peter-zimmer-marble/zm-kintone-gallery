@@ -1,15 +1,20 @@
-name: Visual Search v3 smoke tests
+name: Visual Search regression tests
 
 on:
   pull_request:
     paths:
       - 'zm-visual-search-v3.js'
       - 'zm-visual-search-v3.css'
+      - 'zm-visual-search-v2.js'
+      - 'zm-visual-search-v2.css'
+      - 'gallery-a-v0.5.js'
+      - 'gallery-a-v0.5.css'
       - 'tests/visual-search-v3.test.js'
+      - 'tests/visual-search-shared.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
-      - visual-search-v3-filters-notes-status
+      - visual-search-update-existing-urls
 
 permissions:
   contents: read
@@ -20,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check zm-visual-search-v3.js
-      - name: Run read-only Kintone and filter tests
+        run: |
+          node --check zm-visual-search-v3.js
+          node --check zm-visual-search-v2.js
+          node --check gallery-a-v0.5.js
+      - name: Test standalone Visual Search v3
         run: node tests/visual-search-v3.test.js
+      - name: Test existing v2 Kintone asset URL
+        run: VISUAL_SEARCH_ASSET=zm-visual-search-v2.js node tests/visual-search-v3.test.js
+      - name: Test shared Warehouse Map Visual Search
+        run: node tests/visual-search-shared.test.js
