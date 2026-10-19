@@ -148,16 +148,14 @@ entries whose **Inventory Verified=Yes** was already approved by the
 owner; crew cannot change Inventory Verified or Warehouse Disposition.
 
 **Owner confirmed (2026-10-19):** Nobody other than the owner needs to edit
-an Entry Sheet record after Inventory Verified=Yes. **Permission change
-approved in principle, not yet applied:** Add a new record permission set
-targeting **Inventory Verified = Yes** with owner View+Edit+Delete and
-Everyone **View only** (Edit and Delete unchecked). Move this **new
-conditional rule above** the existing All records rule. Preserve the
-existing All records rule below, unchanged, so records with No or blank
-verification status remain editable for the crew. Owner must appear
-**above Everyone** within the new rule. Save, Update App, and test a
-verified and an unverified record under a warehouse login. Do not change
-App-wide Edit permission or field permission rules.
+an Entry Sheet record after Inventory Verified=Yes. **Owner reports the
+record-permission change was saved and App 15 updated:** a higher-priority
+**Inventory Verified = Yes** rule grants owner View+Edit+Delete and
+Everyone **View only** (no Edit/Delete). Existing lower-priority All records
+rule remains unchanged for No/blank verification entries. This is the
+owner's report, not a live Kintone API verification. Test a verified and
+an unverified record under a warehouse login before production rollout.
+App-level Everyone Edit and existing field permissions were left in place.
 
 **Potential simpler Peter Notification solution — still requires owner
 approval and a safe test:** Keep owner default and field-level
@@ -180,6 +178,24 @@ Documentation:
 - https://us.kintone.help/k/en/trouble_shooting/app_qa/permission_example1
 - https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
 - https://us.kintone.help/k/en/app/form/form_parts/user_selection
+
+**Next proposed configuration (requires owner's confirmation):**
+The existing `peter_notification` USER_SELECT field is currently Required,
+defaults to the owner, and is fully hidden from the crew by field ACLs.
+The documented Add Record REST API requires required fields to be included,
+but also requires permission to edit included fields. To preserve the
+current security without a privileged proxy, propose making
+`peter_notification` **not required**, retaining **the owner as the static
+default**, and retaining **owner-only View+Edit**. Kintone's Add Record API
+documents that omitted fields receive their defaults; the custom submission
+must omit `peter_notification` entirely rather than trying to write it.
+End-to-end test that the owner gets the expected notification on an App 15
+entry created as a restricted warehouse user. This change must not be
+misrepresented as already deployed or verified. Related future steps:
+configure Inventory Verified default `No` and Warehouse Disposition
+default `Active`, omitting both restricted fields from crew API POSTs.
+Do not change existing permissions to make the draft work.
+Official docs: https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
 
 ## Configuration — DO NOT INSTALL UNTIL TESTED
 
