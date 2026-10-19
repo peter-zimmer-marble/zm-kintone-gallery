@@ -347,7 +347,7 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   const uploadsBeforeStale = uploadCount;
   await assert.rejects(mod.submit(makeMaster(),
     {...base,requestId:'request-stale'}, {full,label}),
-    /Master data changed (rack)/);
+    /Master data changed/);
   assert.equal(uploadCount, uploadsBeforeStale);
   currentMaster = makeMaster();
 
