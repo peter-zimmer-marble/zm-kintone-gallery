@@ -145,6 +145,72 @@ with two photographs, then independently verify defaults, owner
 notification, Master movement-history link, and that Master App 6
 remained unchanged. Do not create a dummy OUT solely to test code.
 
+## Pilot: Master App 6 record #8160 / ZMP employee account
+
+**Pilot piece selected by owner:** [Master record #8160](https://zimmermarble.kintone.com/k/6/show#record=8160).
+This is the sole eligible Master record for the first supervised OUT. No
+movement has been recorded. **User code is still unverified:** the
+employee's Kintone display name appears to be **ZMP**, but the actual
+`kintone.getLoginUser().code` must be read before configuration.
+
+**Pilot-specific addon configuration (not installed yet):**
+
+```js
+window.ZM_WAREHOUSE_OUT_CONFIG = {
+  enabled: true,
+  ownerValidatedPermissions: true,
+  pilotMasterRecordId: '8160',
+  pilotUserCode: 'REPLACE_WITH_VERIFIED_ZMP_LOGIN_CODE',
+  pilotSubmitEnabled: false
+};
+```
+
+This must be loaded **before** the standalone OUT addon script, following
+the existing Warehouse Staging JS. The draft addon is inert for any
+other Kintone user; it adds a button **only** to staged record #8160.
+The selected ID is also enforced in the submission method before any
+network request/photo upload. This browser-side gating is NOT a security
+boundary; Kintone App 15 permissions remain authoritative.
+
+**Dry-run stage (no writes):** First inspect Master #8160 and pending OUT
+as ZMP using **GET-only** calls. Confirm it is genuinely still staged,
+In, has meaningful values, is scheduled for a real physical pull, and
+is not already pending. After the separate rollout approval, load only
+the draft addon + preview configuration above to display the Confirm OUT
+form with a **disabled Submit** button; inspect mobile layout,
+autofilled job/rack/color/dimensions and source record selection. No
+photo upload, file-key creation or App 15 record POST occurs during
+preview.
+
+**Supervised live stage (only after separate owner approval):** Change
+`pilotSubmitEnabled` to `true` in the pilot's configuration, verify
+signed-in employee code and record #8160 again, ensure the
+actual piece is physically pulled, take **two distinct photos** (whole
+piece and identifying label; missing label requires alternate image
+and explanation) and submit **exactly once**. Confirm the resulting
+App 15 Entry ID, `master_record_id=8160`, `inventory_status=Out`,
+`inventory_verified=No`, `warehouse_disposition=Active`,
+two photos, owner recipient/default and exactly one notification.
+Also check the Master `movement_history` relation, **no automatic
+changes to Master record #8160**, and a Pending OUT indicator in
+staging. Verify another staged record has **no Confirm OUT button**.
+Owner later reconciles to Master and sets Inventory Verified = Yes.
+
+**Failure/rollback:** If a submit attempt has an ambiguous result,
+**do not retry blindly**: locate the movement by unique
+`warehouse_request_id` as the owner first. To immediately disable the
+pilot, remove the optional OUT addon/configuration (or set
+`pilotSubmitEnabled=false`) and refresh Kintone. Do **not** remove
+or alter the working Staging or Visual Search scripts. Existing App 15
+entries and their photo history must not be deleted as part of code
+rollback. Before any live submission, agree on an owner-only Void
+with written reason or other auditable correction path for a
+transaction that was recorded incorrectly.
+
+**No live installation and no Kintone data writes have been made by
+GitHub changes.** Draft PR #15 must not be merged/deployed or enabled
+without owner review.
+
 ## Remaining blockers before installing or merging
 
 1. **Restricted-login GET checks PASSED:** Confirmed App 15 protected defaults/uniqueness and material/finish choices, and App 6 Master + App 15 pending read access; Color/Rack lookup source unique keys passed. **Still required:** verify the *actual* mobile Add Record API write and resulting data/notifications under ZMP, plus test that restricted accounts cannot edit owner-only fields or verified records.
