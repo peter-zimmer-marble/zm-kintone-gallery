@@ -13,14 +13,14 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 
 The search/filter/card improvements are deployed **in place**, without requiring administrators to replace a Kintone customization URL:
 
-- **Warehouse Map - TEST Visual Search:** the existing \`gallery-a-v0.5.js\` and \`gallery-a-v0.5.css\` paths.
-- **Standalone Visual Search in ZM Inventory App 6 (when installed):** the existing \`zm-visual-search-v2.js\` and \`zm-visual-search-v2.css\` paths.
+- **Warehouse Map - TEST Visual Search:** the existing `gallery-a-v0.5.js` and `gallery-a-v0.5.css` paths.
+- **Standalone Visual Search in ZM Inventory App 6 (when installed):** the existing `zm-visual-search-v2.js` and `zm-visual-search-v2.css` paths.
 
 Both now allow searching by **Job**, showing **In/Out Notes**, selecting multiple exact **Material** and **Type** values, clearer piece-type chips and stronger **SOLD** / **ON HOLD** card cues. The legacy Warehouse Map implementation and the standalone view remain independent; the map layouts and Warehouse Staging script are unchanged.
 
-**No Kintone customization settings or custom-view HTML changes are required** when Kintone already loads one of these existing asset paths. After GitHub Pages publishes a new commit, refresh (or hard refresh) the Kintone view. Browser/CDN caching can temporarily show the prior code. The separate \`zm-visual-search-v3.*\` files remain available but are **not** required for this update.
+**No Kintone customization settings or custom-view HTML changes are required** when Kintone already loads one of these existing asset paths. After GitHub Pages publishes a new commit, refresh (or hard refresh) the Kintone view. Browser/CDN caching can temporarily show the prior code. The separate `zm-visual-search-v3.*` files remain available but are **not** required for this update.
 
-The code repository does not expose live Kintone customization settings, so it cannot prove which URLs are installed in an account. The older \`petercampau-gif.github.io\` hostname, if still configured after the username change, requires the one-time hostname correction described above.
+The code repository does not expose live Kintone customization settings, so it cannot prove which URLs are installed in an account. The older `petercampau-gif.github.io` hostname, if still configured after the username change, requires the one-time hostname correction described above.
 
 The optional Material and In/Out Notes fields follow the signed-in Kintone user's permissions. If an optional field is denied, the view keeps loading inventory, reports the missing field and disables only the affected feature. No pricing or supplier fields are fetched. Verify with a typical restricted-role user before relying on notes.
 
@@ -90,13 +90,13 @@ rollback option; **use only one version at a time in Kintone**.
 
 ## Visual Search privacy / data-minimization audit
 
-The standalone script at the compatibility URL \`zm-visual-search-v2.js\` now contains the v3 user-interface implementation. Its **13-field baseline** Kintone response allowlist remains:
-\`$id\`, \`color\`, \`color_combined\`, \`zmv_num\`, \`type\`, \`length\`, \`width\`,
-\`shape\`, \`rack\`, \`sale_status\`, \`exact_picture\`, \`example_picture\`, \`job\`.
+The standalone script at the compatibility URL `zm-visual-search-v2.js` now contains the v3 user-interface implementation. Its **13-field baseline** Kintone response allowlist remains:
+`$id`, `color`, `color_combined`, `zmv_num`, `type`, `length`, `width`,
+`shape`, `rack`, `sale_status`, `exact_picture`, `example_picture`, `job`.
 
 It requests only four additional, explicitly validated operational fields:
-\`material\`, \`in_out_note\`, \`length_2\` and \`width_2\` (17 total when permitted).
-\`inventory_status\` is used server-side to select "In" inventory and is not
+`material`, `in_out_note`, `length_2` and `width_2` (17 total when permitted).
+`inventory_status` is used server-side to select "In" inventory and is not
 requested in the standalone response. Job names are now searchable; In/Out
 Notes are displayed when nonempty, safely escaped as text. Pricing, costs,
 margins, suppliers, purchase notes and unrelated fields remain excluded. If
