@@ -10,13 +10,15 @@
  *   enabled: true,
  *   ownerValidatedPermissions: true,
  *   pilotMasterRecordId: '8160',
- *   pilotUserCode: 'CONFIRMED_EMPLOYEE_LOGIN_CODE'
+ *   pilotUserCode: 'CONFIRMED_EMPLOYEE_LOGIN_CODE',
+ *   pilotSubmitEnabled: false  // preview-only until owner approves a real OUT
  * };
  *
  * Pilot is inert without the exact eligible Kintone user and Master ID.
  * Only the chosen Master card receives Confirm OUT, and submissions for
  * any other Master ID are rejected before uploads or record writes.
  * This is a UI rollout safeguard, not an API security boundary.
+ * Unless pilotSubmitEnabled is TRUE, the preview cannot upload or write.
  *
  * The required protected defaults must already be configured on App 15:
  *   Inventory Verified = No; Warehouse Disposition = Active;
@@ -366,6 +368,8 @@
   async function submit(master, input, photos, statusUpdate) {
     // Hard stop before ANY network reads, file uploads or writes.
     assertPilot(readValue(master, '$id'));
+    assert(config.pilotSubmitEnabled === true,
+      'Preview only. Owner has not enabled pilot OUT submissions.');
     const requestId = txt(input.requestId);
     assert(requestId, 'Movement request ID is missing.');
     assert(distinctFiles(photos.full, photos.label),
@@ -579,7 +583,10 @@
       '<label>OUT notes (optional, max 255 characters)' +
       '<textarea name="notes" maxlength="255" rows="2"></textarea></label>' +
       '<div class="zmout-actions"><button type="button" data-zmout-close>Cancel</button>' +
-      '<button type="submit" data-zmout-submit>Submit OUT</button></div>' +
+      '<button type="submit" data-zmout-submit' +
+      (config.pilotSubmitEnabled === true ? '' : ' disabled') + '>' +
+      (config.pilotSubmitEnabled === true ? 'Submit OUT' :
+        'Preview only · Submission locked') + '</button></div>' +
       '</form>';
     const form = target.querySelector('form');
     const previous = form.elements.previousMode;
@@ -677,7 +684,9 @@
         'This piece already has an unverified OUT.');
       const master = await fetchMaster(masterId);
       verifyAllowedMasterValues(master, (await schema()).properties);
-      showMessage('Two photos are required. Master Inventory will not change.');
+      showMessage(config.pilotSubmitEnabled === true ?
+        'Two photos are required. Master Inventory will not change.' :
+        'Preview only: OUT submission and photo uploads are disabled.');
       renderForm(master, requestId);
     } catch (error) {
       showError(txt(error.message));
