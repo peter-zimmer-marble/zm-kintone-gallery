@@ -68,7 +68,7 @@ One IN process covers remnant off saw, unused staged slab returned, new supplier
 | `material` | dropdown | Master `material`, valid App 15 option |
 | `width` | number | Master `width` |
 
-**Schema mismatch to resolve before production:** Master `material` includes **Dolomite** but App 15 `material` does not; App 15 instead has **NOT SURE**. Master `finish` includes **Satin, Velvet, Concrete, Matte** that are absent from App 15. We should ideally align App 15 dropdown options before automation, never substitute a different material or finish silently.
+**Dropdown alignment status (owner-reported, October 19, 2026):** Owner added **Dolomite** to App 15's `material` dropdown and published, preserving existing options including **NOT SURE**. Remaining task: add Master `finish` choices **Satin, Velvet, Concrete, Matte** to App 15's `finish` dropdown, retaining all existing options. Draft validation must continue to reject unrecognized material or finish rather than silently substitute values.
 
 Other approved-safe fields may include `master_record_id`, `in_out_note`, `move_notes`, `color_combined`, `zmv_num`, `length_2`, `width_2`, and `exact_picture`. **Inventory Verified (`No` default) and Warehouse Disposition (`Active` default) are deliberately OMITTED from crew POST due to owner-only field edit permissions.** **Do not change, infer meaning from, or repurpose `move_complete`:** owner created it for an unrelated purpose and no longer recalls the original use. Some App 15 note fields are single-line: plan around actual configured limits or add a dedicated long-text field later.
 
