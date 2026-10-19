@@ -9,6 +9,21 @@ This repository hosts **public frontend JavaScript and CSS only** for five read-
 
 **One-time migration after the GitHub username change (2026-10-16):** The old `petercampau-gif.github.io` hostname must be replaced with `peter-zimmer-marble.github.io` in Kintone's JavaScript/CSS customization settings for the Warehouse Map test app. Update the existing JavaScript and CSS links (do not add duplicates), click **Save**, then **Update App**, and confirm Gallery A, Temporary Outside, Gallery C, Gallery B, Gallery D, and Visual Search all render. Repository URL redirects do not guarantee GitHub Pages host redirects. After the migration, normal future file updates need only a page refresh.\n\nThe filenames still say `v0.5` to preserve the Kintone file path settings; their shared implementation supports all five views (all five views updated to the shared map design in code v1.0). GitHub Pages deploys the `main` branch automatically. Refresh an open Kintone browser tab after each update; browser and CDN caching may require a hard refresh or a short wait.
 
+## Visual Search enhancements — existing asset URLs (2026-10-19)
+
+The search/filter/card improvements are deployed **in place**, without requiring administrators to replace a Kintone customization URL:
+
+- **Warehouse Map - TEST Visual Search:** the existing \`gallery-a-v0.5.js\` and \`gallery-a-v0.5.css\` paths.
+- **Standalone Visual Search in ZM Inventory App 6 (when installed):** the existing \`zm-visual-search-v2.js\` and \`zm-visual-search-v2.css\` paths.
+
+Both now allow searching by **Job**, showing **In/Out Notes**, selecting multiple exact **Material** and **Type** values, clearer piece-type chips and stronger **SOLD** / **ON HOLD** card cues. The legacy Warehouse Map implementation and the standalone view remain independent; the map layouts and Warehouse Staging script are unchanged.
+
+**No Kintone customization settings or custom-view HTML changes are required** when Kintone already loads one of these existing asset paths. After GitHub Pages publishes a new commit, refresh (or hard refresh) the Kintone view. Browser/CDN caching can temporarily show the prior code. The separate \`zm-visual-search-v3.*\` files remain available but are **not** required for this update.
+
+The code repository does not expose live Kintone customization settings, so it cannot prove which URLs are installed in an account. The older \`petercampau-gif.github.io\` hostname, if still configured after the username change, requires the one-time hostname correction described above.
+
+The optional Material and In/Out Notes fields follow the signed-in Kintone user's permissions. If an optional field is denied, the view keeps loading inventory, reports the missing field and disables only the affected feature. No pricing or supplier fields are fetched. Verify with a typical restricted-role user before relying on notes.
+
 ## Move Visual Search to ZM Inventory (App 6)
 
 **Updated:** Visual Search v2 supersedes the original v1 assets below. For an already-installed app use the v2 replacement steps in the next section; do not install both versions.
@@ -75,25 +90,18 @@ rollback option; **use only one version at a time in Kintone**.
 
 ## Visual Search privacy / data-minimization audit
 
-The production Inventory App 6 standalone script (`zm-visual-search-v2.js`) uses a
-**13-field baseline response allowlist** in its Kintone Get Records request:
+The standalone script at the compatibility URL \`zm-visual-search-v2.js\` now contains the v3 user-interface implementation. Its **13-field baseline** Kintone response allowlist remains:
+\`$id\`, \`color\`, \`color_combined\`, \`zmv_num\`, \`type\`, \`length\`, \`width\`,
+\`shape\`, \`rack\`, \`sale_status\`, \`exact_picture\`, \`example_picture\`, \`job\`.
 
-`$id`, `color`, `color_combined`, `zmv_num`, `type`, `length`, `width`,
-`shape`, `rack`, `sale_status`, `exact_picture`, `example_picture`, `job`.
-
-The `inventory_status` field is referenced **only in the server-side Kintone
-query** to select inventory marked `In`; its values are not requested in the
-response. **Job** is intentionally requested and displayed only for records
-with a nonblank Job value, but is not included in the text-search terms.
-Pricing, material costs, margins, suppliers, notes, and unrelated fields are
-**not requested** or searchable. ZM Inventory's field settings confirm the
-extra measurements as **Length 2 (for L shapes)** / `length_2` and
-**Width 2 (for L shapes)** / `width_2`. The view explicitly requests
-only those two additional fields (15 fields total) alongside the 13-field
-baseline; it no longer guesses field names from the form schema. If Kintone
-rejects those optional fields due to access restrictions, the view retries
-using only the baseline 13 fields, preserving the rest of Visual Search.
-The view clears cached inventory when leaving.
+It requests only four additional, explicitly validated operational fields:
+\`material\`, \`in_out_note\`, \`length_2\` and \`width_2\` (17 total when permitted).
+\`inventory_status\` is used server-side to select "In" inventory and is not
+requested in the standalone response. Job names are now searchable; In/Out
+Notes are displayed when nonempty, safely escaped as text. Pricing, costs,
+margins, suppliers, purchase notes and unrelated fields remain excluded. If
+an optional field is not accessible to the current signed-in user, the view
+falls back to accessible fields and gives a field-specific notice.
 
 **This is data minimization, not an independent access-control boundary.**
 The card details and popup heading link to the full Inventory App 6 record, and Kintone field,
@@ -108,9 +116,10 @@ contain confidential information and need a content review. Test with a
 realistic restricted-role Kintone user, not only an administrator.
 
 The original Visual Search in the Warehouse Map - TEST bundle is still a
-separate legacy implementation; remove the old test view after confirming the
-main Inventory app's standalone version is working. Warehouse map inspectors
-remain unchanged and have their own field allowances.
+separate implementation and now includes the six search/filter/card enhancements
+using the shared `gallery-a-v0.5.*` paths. The five physical warehouse maps
+remain unchanged. The eventual migration of Visual Search into ZM Inventory
+requires separate live Kintone confirmation before removal of the test view.
 
 ## Legacy warehouse-map setup (Galleries C, B, D; test Visual Search during cutover)
 
@@ -190,11 +199,11 @@ The **Visual Search** Custom View browses authenticated inventory. The version i
 - **Click the card's photograph** to open a full-size photo viewer. **Click the card's material details** or **the material name/dimensions at the top of the popup** to open the associated Kintone Inventory App **6** record in a new tab. Photo click remains a separate button and never navigates to the record.
 - The photo viewer browses **all image attachments** in `exact_picture` first, then `example_picture`, keeping their original order and removing duplicate file keys. Use previous/next arrows, selectable thumbnails, left/right keyboard arrows, or swipe on touchscreens. Escape, the close button, or the backdrop closes the viewer. Exact photos and example photos are distinctly labeled; the card preview tries other images if its primary image cannot load. Missing photos display a placeholder (no fabricated imagery).
 - **Download photo** saves the selected full-resolution, authenticated Kintone image to the user's device with a sanitized filename in the form `Color Combined - Length x Width in - Record 123.jpg`. **Never append a photo number**, even when a record has multiple pictures. Note that a browser may add its own `(1)` suffix to avoid replacing a previously downloaded file. The image format determines the extension (JPG/PNG/WebP/etc.). Shape, extra dimensions, Job/customer details, pricing, and other confidential fields are **not included in the filename**. Downloads reuse an already authenticated in-browser image blob and do not expose public file URLs.
-- Filters include color/name/record/rack text search, slab versus remnant, availability (available/hold/sold), minimum dimensions and **Photos only**. Reset clears all filters.
+- Filters include color/name/job/record/rack text search, multi-select Kintone **Material** categories, multi-select exact **Type** values, availability (available/hold/sold), minimum dimensions and **Photos only**. Reset clears all filters. Piece type and material are prominent on cards, and In/Out Notes are visible when available.
 - Only records with `inventory_status = "In"` are loaded; this **can include Sold and Hold records** that remain physically on site. This is an inventory tool, not a customer-facing catalog.
 - First **32** matching pieces are shown, with **Show more pieces** for additional cards. Photo requests are lazy and limited to four concurrent downloads. Pictures are fetched using the signed-in Kintone session; no inventory or image copies are committed to public GitHub.
 - Page-by-record-ID API reads allow more than 10,000 inventory records without the query offset limitation. **No Kintone record writes** are performed.
-- Material *category* (Granite/Quartz/Marble/etc.) was not added, because no confirmed material-category field exists in the current map's Inventory App 6 field list. Piece type (Slab/Remnant) is available now.
+- Kintone Inventory App 6's confirmed `material` field provides category filtering (Quartz/Granite/Marble/etc.), while `type` preserves Stock Slab, SO-Slab, STOCK Rem, Stan-Rem and Consigned Slab distinctions. Both filters support multiple selections.
 
 **Nonrectangle dimension fields:** Kintone screenshots confirm the actual codes `length_2` and `width_2` (labeled "Length 2 (for L shapes)" and "Width 2 (for L shapes)"). Visual Search fetches just these two optional fields. For Left Hand L (`LHL`) and Right Hand L (`RHL`) pieces, dimensions are condensed into one line: `length × width × length_2 × width_2 in · LHL/RHL` with abbreviated shape at the end. When only one extra field is present, the unavailable position is marked with an em dash. If neither is available, the card shows primary dimensions and the LHL/RHL suffix. Non-L shapes retain their existing labeling; download filenames never include the additional dimensions. Rectangle cards do not display these fields. The values are deliberately labeled with their Kintone field names; no unverified assumption is made that one corresponds to geometric C or D. Confirm against an actual L-shaped record after deployment. Field access remains governed by Kintone's field permissions.
 
