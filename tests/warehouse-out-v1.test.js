@@ -166,7 +166,8 @@ async function fakeFetch(url, options) {
   return { ok: true, status: 200, async json() { return { fileKey }; } };
 }
 const config = {
-  enabled: true, ownerValidatedPermissions: true
+  enabled: true, ownerValidatedPermissions: true,
+  pilotMasterRecordId: '123', pilotUserCode: 'crew-test-user'
 };
 const env = {
   window: {
@@ -176,6 +177,7 @@ const env = {
   kintone: {
     events: { on(names, callback) { eventHandlers.push([names, callback]); } },
     api,
+    getLoginUser() { return {code:'crew-test-user'}; },
     getRequestToken() { return 'test-csrf-token'; }
   },
   document: { getElementById() { return null; } },
