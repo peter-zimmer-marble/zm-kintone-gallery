@@ -5,10 +5,18 @@
  * is inert until an administrator explicitly provides the configuration below.
  * It never modifies App 6 and never stores credentials/API tokens.
  *
+ * PILOT CONFIGURATION ONLY (never put passwords or API tokens in here):
  * window.ZM_WAREHOUSE_OUT_CONFIG = {
  *   enabled: true,
- *   ownerValidatedPermissions: true
+ *   ownerValidatedPermissions: true,
+ *   pilotMasterRecordId: '8160',
+ *   pilotUserCode: 'CONFIRMED_EMPLOYEE_LOGIN_CODE'
  * };
+ *
+ * Pilot is inert without the exact eligible Kintone user and Master ID.
+ * Only the chosen Master card receives Confirm OUT, and submissions for
+ * any other Master ID are rejected before uploads or record writes.
+ * This is a UI rollout safeguard, not an API security boundary.
  *
  * The required protected defaults must already be configured on App 15:
  *   Inventory Verified = No; Warehouse Disposition = Active;
@@ -26,6 +34,23 @@
 
   const config = window.ZM_WAREHOUSE_OUT_CONFIG || {};
   if (config.enabled !== true || config.ownerValidatedPermissions !== true) return;
+  // Explicit, single-record + single-employee rollout; don't assume that
+  // the account's DISPLAY name is its Kintone login user code.
+  const pilotRecordId = String(config.pilotMasterRecordId || '').trim();
+  const pilotUserCode = String(config.pilotUserCode || '').trim();
+  if (!/^[1-9]\\d*$/.test(pilotRecordId) || !pilotUserCode ||
+      pilotUserCode === 'CONFIRMED_EMPLOYEE_LOGIN_CODE' ||
+      typeof kintone.getLoginUser !== 'function' ||
+      !kintone.getLoginUser() ||
+      kintone.getLoginUser().code !== pilotUserCode) return;
+
+  function assertPilot(masterId) {
+    assert(String(masterId) === pilotRecordId,
+      'This Confirm OUT pilot is available only for Master #' + pilotRecordId + '.');
+    assert(typeof kintone.getLoginUser === 'function' &&
+      kintone.getLoginUser() && kintone.getLoginUser().code === pilotUserCode,
+      'This Confirm OUT pilot is unavailable to the current Kintone user.');
+  }
 
   const MASTER_APP = 6;
   const ENTRY_APP = 15;
@@ -182,6 +207,7 @@
     return { oldJob, currentJob };
   }
   function buildEntry(master, input, keys, schema, requestId) {
+    assertPilot(readValue(master, '$id'));
     verifyAllowedMasterValues(master, schema.properties);
     const jobs = getJobInput(input);
     assert(Array.isArray(keys) && keys.length >= 2,
@@ -338,6 +364,8 @@
   }
 
   async function submit(master, input, photos, statusUpdate) {
+    // Hard stop before ANY network reads, file uploads or writes.
+    assertPilot(readValue(master, '$id'));
     const requestId = txt(input.requestId);
     assert(requestId, 'Movement request ID is missing.');
     assert(distinctFiles(photos.full, photos.label),
@@ -443,7 +471,7 @@
   }
   async function checkVisibleCards() {
     const version = ++pendingRequestVersion;
-    const ids = cards().map(cardId).filter(Boolean);
+    const ids = cards().map(cardId).filter(id => id === pilotRecordId);
     isChecking = true;
     pendingError = '';
     setButtonStates();
@@ -469,7 +497,8 @@
     const first = visible[0] || null;
     for (const card of visible) {
       const id = cardId(card);
-      if (!id || card.querySelector('[data-zmout-master]')) continue;
+      if (id !== pilotRecordId ||
+          card.querySelector('[data-zmout-master]')) continue;
       const foot = card.querySelector('.zmws-card-bottom');
       if (!foot) continue;
       const button = document.createElement('button');
@@ -637,6 +666,7 @@
     });
   }
   async function openOut(masterId) {
+    assertPilot(masterId);
     if (busy || modal) return;
     modal = modalShell(masterId);
     const requestId = makeRequestId();
