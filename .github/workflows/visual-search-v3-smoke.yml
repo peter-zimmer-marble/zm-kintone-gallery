@@ -1,0 +1,25 @@
+name: Visual Search v3 smoke tests
+
+on:
+  pull_request:
+    paths:
+      - 'zm-visual-search-v3.js'
+      - 'zm-visual-search-v3.css'
+      - 'tests/visual-search-v3.test.js'
+      - '.github/workflows/visual-search-v3-smoke.yml'
+  push:
+    branches:
+      - visual-search-v3-filters-notes-status
+
+permissions:
+  contents: read
+
+jobs:
+  visual-search-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: node --check zm-visual-search-v3.js
+      - name: Run read-only Kintone and filter tests
+        run: node tests/visual-search-v3.test.js
