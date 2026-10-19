@@ -48,6 +48,20 @@ Docs:
 - Refreshes safe Master fields before file uploads; rejects stale job, rack, dimensions, material or movement status. The browser never automatically retries an ambiguous record POST and uses the unique request ID to look up prior successes.
 - Leaves existing RTS, the original Staging Sheet, Visual Search v2, and the native Create Child Record action untouched.
 
+## Employee-account native Add form check — screenshot (October 19, 2026)
+
+Owner logged in as **ZMP** employee account and opened **App 15 → Add record** without saving. Screenshot confirms:
+
+- Inventory Verified shows **No** in a gray, read-only dropdown.
+- Warehouse Disposition shows **Active** in a gray, read-only dropdown.
+- Peter Notification is **not visible** to the employee (consistent with owner-only View/Edit ACL).
+- Warehouse Request ID is blank and editable; Label Status and Label Note are editable.
+- No access or form-rendering errors, employee can open the native Add screen.
+- Screenshot also shows **Move Complete = Yes** by its preexisting default. This field has unrelated semantics; **do not edit it or use it** in new OUT flow.
+- The screenshot establishes native **form rendering**, **not** the REST form schema read, API-side default application, field-level edit enforcement, automatic owner notification, or success of the custom OUT POST.
+
+**Next:** safely request **GET /k/v1/app/form/fields.json?app=15** using this restricted session and inspect only safe schema checks: `inventory_verified` default No / optional, `warehouse_disposition` default Active / optional, protected `peter_notification` default single USER / optional (if available), `warehouse_request_id` unique, presence of Dolomite / Satin / Velvet / Concrete / Matte. This GET changes nothing. Do not submit a real entry until permitted.
+
 ## Remaining blockers before installing or merging
 
 1. **Live Kintone schema and restricted-login check:** Confirm that App 15's actual field codes/types/required/defaults exactly match the table above, including the unique request ID. Crew must read permitted status fields while NOT receiving edit access to Inventory Verified, Warehouse Disposition, or Peter Notification.
