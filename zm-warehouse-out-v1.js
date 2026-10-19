@@ -38,7 +38,7 @@
   // the account's DISPLAY name is its Kintone login user code.
   const pilotRecordId = String(config.pilotMasterRecordId || '').trim();
   const pilotUserCode = String(config.pilotUserCode || '').trim();
-  if (!/^[1-9]\\d*$/.test(pilotRecordId) || !pilotUserCode ||
+  if (!/^[1-9]\d*$/.test(pilotRecordId) || !pilotUserCode ||
       pilotUserCode === 'CONFIRMED_EMPLOYEE_LOGIN_CODE' ||
       typeof kintone.getLoginUser !== 'function' ||
       !kintone.getLoginUser() ||
