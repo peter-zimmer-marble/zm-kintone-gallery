@@ -4,7 +4,7 @@
 
 ## Kintone setup already completed by the owner (October 19, 2026)
 
-The owner has reported making/publishing the following changes. **These have not yet been verified through a live Kintone API response or a warehouse-login test.**
+The owner has reported making/publishing the following changes. **Several settings have now been verified with GET-only API calls as the ZMP employee**, as detailed below. No production record has been created by the custom workflow; remaining write behavior must still be tested.
 
 | App | Field / rule | Current owner-reported setting |
 | --- | --- | --- |
@@ -119,9 +119,35 @@ The critical Color and Rack lookup source keys must still be validated
 when testing a real Add Record. Reference:
 https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
 
+## Employee-account Color and Rack lookup-key checks — PASSED (October 19, 2026)
+
+Using the **ZMP** session, the owner ran read-only Kintone form-field
+metadata checks. Screenshot showed:
+
+| App 15 lookup | Source app | Source key field | Result |
+| --- | --- | --- | --- |
+| Color | **5** | `color_name` | **PASS** (Record number or unique key) |
+| Rack | **7** | `rack` | **PASS** (Record number or unique key) |
+
+This clears Kintone's requirement that Lookup data-source key fields
+must be a unique-value field or Record number for REST Add Record.
+The result checks **lookup schema compatibility, not that a particular
+Master piece's Color/Rack will successfully resolve or grant the
+user access at submission time**. No records were changed.
+
+**Next step:** identify one **real, imminent warehouse OUT** of a specific
+staged piece. Owner must approve that piece and the exact test window.
+Before enabling a crew-facing button, keep the addon draft isolated,
+prepare a controlled rollout/rollback, check the current PR CI, ensure
+the correct phone account is used and a **Void/correction protocol**
+is ready for a failed test. Run exactly one supervised physical OUT
+with two photographs, then independently verify defaults, owner
+notification, Master movement-history link, and that Master App 6
+remained unchanged. Do not create a dummy OUT solely to test code.
+
 ## Remaining blockers before installing or merging
 
-1. **Live Kintone schema and restricted-login check:** Confirm that App 15's actual field codes/types/required/defaults exactly match the table above, including the unique request ID. Crew must read permitted status fields while NOT receiving edit access to Inventory Verified, Warehouse Disposition, or Peter Notification.
+1. **Restricted-login GET checks PASSED:** Confirmed App 15 protected defaults/uniqueness and material/finish choices, and App 6 Master + App 15 pending read access; Color/Rack lookup source unique keys passed. **Still required:** verify the *actual* mobile Add Record API write and resulting data/notifications under ZMP, plus test that restricted accounts cannot edit owner-only fields or verified records.
 2. **Dropdown alignment owner-reported complete:** **Dolomite** added to App 15 Material and **Satin, Velvet, Concrete, Matte** added to Finish; all preexisting choices retained and changes published October 19, 2026. Confirm via live Kintone schema during read-only preflight. The draft still rejects unsupported options rather than substituting.
 3. **Confirm protected defaults through a supervised OUT test** on a safe known Master piece: both photos attached to App 15, fields filled as expected, Master Movement History displays the entry, `inventory_verified=No`, `warehouse_disposition=Active`, owner recipient preserved, **one notification**, Master unchanged.
 4. **Test record ACLs:** A warehouse login can still create/edit unverified entries but cannot modify verified entries, verify an Entry, void an Entry, or change Peter Notification. Existing manual Entry Sheet work must remain functional.
