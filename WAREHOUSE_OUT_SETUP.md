@@ -73,7 +73,7 @@ On **App 15 → Permissions for app**, screenshot shows:
 - **Everyone:** **View, Add, Edit** enabled; **Delete, Manage App, Import, Export** disabled.
 - No warehouse-specific permission row is visible. This **does not prove** Everyone can edit approval/void fields: record-level and field-level permissions must also be checked.
 
-**Do not remove Everyone's existing Edit permission yet.** Existing manual Entry Sheet operations may rely on it. Next gather **App 15 → Permissions → Fields**, then record-level permissions and understand which users currently edit historical entries.
+**Do not remove Everyone's existing App-level Edit permission yet.** Existing manual Entry Sheet operations may rely on it. App 15 field and record-level permissions were subsequently inspected as documented below.
 
 **Important Kintone API constraint:** Add Record requires field-level **Edit** permission for **every field provided in the request body**, even when the caller has App Add permission. If we make `inventory_verified` or `warehouse_disposition` owner-only at the field level while the new browser addon still submits `No` or `Active` explicitly, **the crew's API POST will fail**. The future secure arrangement may involve Kintone new-record field defaults (`No` and `Active`) with those restricted fields **omitted** from crew POSTs, after testing default application with a real restricted warehouse login. App-level Add remains enabled; Edit can eventually be owner-only if the crew does not need to correct existing entries directly.
 
@@ -136,6 +136,49 @@ whether additional record-level controls are needed.
 
 Official Kintone API limitation:
 https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
+
+## App 15 RECORD permissions confirmed by screenshot (2026-10-19)
+
+The **Permissions for records** screenshot shows a single rule:
+**Target: All records**. Owner: View+Edit+Delete. Everyone:
+View+Edit, **no Delete**. There are no other record-level
+conditions shown. Combined with field-level ACLs, the crew can
+currently edit ordinary fields (dimensions, jobs, racks) even in
+entries whose **Inventory Verified=Yes** was already approved by the
+owner; crew cannot change Inventory Verified or Warehouse Disposition.
+
+**Proposed optional safety improvement, not yet published:** Add a
+higher-priority record permission set for **Inventory Verified includes
+Yes**, granting owner View+Edit+Delete and Everyone **View only**.
+Leave the existing lower-priority **All records** rule unchanged.
+Kintone documents that higher rules win, so this would lock
+owner-verified entries from crew edits while retaining their ability
+to correct unverified entries. **Confirm with owner whether anyone
+still legitimately edits an already-verified Entry before changing.**
+Also verify this condition can be built using the existing dropdown
+and tested with a restricted crew account.
+
+**Potential simpler Peter Notification solution — still requires owner
+approval and a safe test:** Keep owner default and field-level
+**owner-only** visibility/editing, but unset **Required** on
+`peter_notification`. Kintone's Add Record API applies defaults to
+fields omitted from requests, yet it requires explicitly including
+fields marked Required. If the user field becomes optional and stays
+protected, the crew API payload could OMIT it, avoiding a forbidden
+edit. Similarly, set safe defaults **Inventory Verified=No** and
+**Warehouse Disposition=Active**, then omit both protected fields in
+the crew request. This is a **proposed configuration**, not yet made
+or verified. It avoids elevated API tokens and preserves the owner
+notification default, assuming actual default application and the
+existing Kintone notification rule are verified end-to-end. The
+**current draft JS still explicitly includes these protected fields
+and MUST be changed before any crew activation**.
+
+Documentation:
+- https://us.kintone.help/k/en/app/rights/record_rights
+- https://us.kintone.help/k/en/trouble_shooting/app_qa/permission_example1
+- https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
+- https://us.kintone.help/k/en/app/form/form_parts/user_selection
 
 ## Configuration — DO NOT INSTALL UNTIL TESTED
 
