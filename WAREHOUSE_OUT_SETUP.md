@@ -84,6 +84,56 @@ Kintone docs:
 - https://us.kintone.help/k/en/app/rights/field_rights (field-level ACL behavior)
 - https://us.kintone.help/k/en/app/rights/record_rights (record-level ACL behavior)
 
+## App 15 FIELD permissions confirmed by screenshot (2026-10-19)
+
+The owner supplied **Permissions for fields** screenshot. The following
+existing field permission sets are visible:
+
+| Field | Owner | Everyone |
+| --- | --- | --- |
+| `ZMID` | View + Edit | View; no Edit |
+| `Peter Notification` (`peter_notification`) | View + Edit | **No View and no Edit** |
+| `Parent Slab ID` (`parent_slab_id`) | View + Edit | View; no Edit |
+| `Current Placement` (`current_placement`) | View + Edit | View; no Edit |
+| `Inventory Verified` (`inventory_verified`) | View + Edit | **View; no Edit** |
+
+**Keep these existing permissions unchanged.** In particular, the crew
+cannot manually verify inventory and cannot alter the required
+`peter_notification` recipient. These field-level restrictions override
+the broad "Everyone: Edit records" at the App level.
+
+**Critical issue with the current draft browser API implementation:**
+It explicitly includes `inventory_verified=No` and the
+`peter_notification` selected user in the Add Record request. Kintone's
+official Add Record documentation states (1) every included field requires
+**Edit** permission, and (2) **required fields must be included in the API
+request**. Therefore, the current draft direct App 15 REST POST is **not
+ready to work from crew accounts**. Field defaults on native record forms do
+not establish an exemption from those API rules. Do not remove the existing
+field restrictions to make an experimental POST pass.
+
+**Implementation redesign / prerequisite:** Preserve native field ACLs. For
+the optional `inventory_verified` and `warehouse_disposition` fields,
+test use of server-populated defaults while omitting protected fields from
+the crew API payload. But for the required, protected Peter Notification,
+research/test either a suitable **native Kintone create-record flow** that
+preserves its protected default, or a **properly authenticated secure
+server-side write broker** with no credentials or elevated Kintone tokens in
+public JavaScript. The actual crew transaction, correct owner notification,
+all required fields, and no Master modifications must be verified before
+activation. **Do not claim that omitting the required user field is proven
+to work.**
+
+**Next safe permission change proposed (not yet done):** Add a
+`Warehouse Disposition` field-level permission set with owner View+Edit
+and Everyone View only; leave `Warehouse Label Status`,
+`Warehouse Label Note`, and `Warehouse Request ID` editable by crew so
+submission data can be recorded. Do not change the App-level Everyone Edit
+checkbox yet because existing manual workflows may rely on it.
+
+Official Kintone API limitation:
+https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
+
 ## Configuration — DO NOT INSTALL UNTIL TESTED
 
 Add a Kintone-only configuration script before the addon, and place its
