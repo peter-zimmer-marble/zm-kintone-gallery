@@ -62,6 +62,35 @@ Owner logged in as **ZMP** employee account and opened **App 15 → Add record**
 
 **Next:** safely request **GET /k/v1/app/form/fields.json?app=15** using this restricted session and inspect only safe schema checks: `inventory_verified` default No / optional, `warehouse_disposition` default Active / optional, protected `peter_notification` default single USER / optional (if available), `warehouse_request_id` unique, presence of Dolomite / Satin / Velvet / Concrete / Matte. This GET changes nothing. Do not submit a real entry until permitted.
 
+## Employee-account read-only Form Fields REST API check — PASSED (October 19, 2026)
+
+Using the **ZMP employee account** in the browser console, the owner ran
+`GET /k/v1/app/form/fields.json` for App 15 and provided a screenshot
+showing:
+
+| Property | Employee-visible API result |
+| --- | --- |
+| Inventory Verified | Found; default `No`; required `false` |
+| Warehouse Disposition | Found; default `Active`; required `false` |
+| Peter Notification | Found; a **single configured USER** default; required `false` |
+| Warehouse Request ID | Found; unique `true` |
+| Dolomite material option | Present |
+| Satin, Velvet, Concrete, Matte finish choices | All present |
+
+This confirms **schema metadata GET succeeds using a restricted employee
+login** and that protected-default preflight can see the necessary settings.
+It does **not** disclose/prove the exact user identity in Peter Notification
+(the console reported only the shape of its default), nor verify defaults on
+a newly created record, actual add-record API permission, or receipt of
+a notification. No record was created or updated.
+
+**Next read-only check:** under the same ZMP login, verify safe GET from
+Master App 6 using the addon `MASTER_FIELDS` allowlist, and the
+App 15 Pending OUT lookup using `master_record_id`,
+`inventory_status=Out`, `inventory_verified=No`, and
+`warehouse_disposition=Active`. Avoid displaying sensitive record
+values. Continue to keep all live writes disabled.
+
 ## Remaining blockers before installing or merging
 
 1. **Live Kintone schema and restricted-login check:** Confirm that App 15's actual field codes/types/required/defaults exactly match the table above, including the unique request ID. Crew must read permitted status fields while NOT receiving edit access to Inventory Verified, Warehouse Disposition, or Peter Notification.
