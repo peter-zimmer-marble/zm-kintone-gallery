@@ -31,7 +31,7 @@ Kintone's documented Add Record API applies defaults to omitted fields and requi
 
 **Safety guard:** The addon reads App 15's `GET /k/v1/app/form/fields.json` schema and checks the three exact defaults, optional status, valid choices, and protected user default before enabling submission. Immediately before uploading the first photo it **fetches the form schema again** and aborts on any mismatches. It refuses to POST protected fields.
 
-**Unverified in real Kintone:** We have not tested whether a restricted warehouse login can read the necessary default metadata, whether omitted protected fields actually receive those expected values under that login, or whether Kintone sends the owner exactly one notification. **Do not enable the draft addon until all three are confirmed.** Mock tests do not establish live behavior.
+**Validated so far in real Kintone:** A restricted warehouse login (ZMP) can read the necessary default metadata, Master Inventory records, and the App 15 pending-OUT query. **Still unverified:** whether omitted protected fields are populated as intended on an actual REST-created record, and whether the owner receives exactly one notification. **Do not activate the draft addon until a supervised real OUT proves these behaviors.** Mock tests do not establish live write behavior.
 
 Docs:
 - [Add Record API](https://kintone.dev/en/docs/kintone/rest-api/records/add-record/)
@@ -44,7 +44,7 @@ Docs:
 - Before enabling an OUT button, queries new App 15 entries with matching `master_record_id`, `inventory_status=Out`, `inventory_verified=No` and `warehouse_disposition=Active`. Marks matches **Pending OUT**. Unverified historical blanks, verified entries and voided entries do not count. If Entry API permissions prevent the pending check, **disable submissions but still show all staging pieces**.
 - Requires two distinct phone photos: **whole piece + identifying label**; if missing label, **alternative identifying photo + required explanation**. Additional photos optional. Photo filenames distinguish purpose; all go on new App 15 movement, not Master.
 - Prefills safe material, rack, dimensions, color and job from the selected Master record. Crew enters/edit New Job (destination) and Previous Job (a name, No Previous Job => N/A, or Unknown => UNKNOWN - REVIEW). Existing In/Out Notes remain read-only; the movement may also carry a short new note.
-- Submits one App 15 OUT movement with `master_record_id`, `inventory_status=Out`, `warehouse_request_id` (unique), source info and new photos. Crew cannot write any financial fields or protected approval/notification fields. **Also omits App 15 Parent Slab ID**, which is owner-only editable; the Master record ID preserves a read-only route to the source record and its lineage. **Never writes App 6**.
+- Submits one App 15 OUT movement with `master_record_id`, `inventory_status=Out`, `warehouse_request_id` (unique), source info and new photos. Crew cannot write financial fields or protected approval/notification fields. **Omits App 15 Parent Slab ID and other optional lookup-derived fields**, which may be owner-only, mapped or calculated and therefore not safe API write targets; the Master record ID preserves read-only access to source lineage and additional dimensions. **Never writes App 6**.
 - Refreshes safe Master fields before file uploads; rejects stale job, rack, dimensions, material or movement status. The browser never automatically retries an ambiguous record POST and uses the unique request ID to look up prior successes.
 - Leaves existing RTS, the original Staging Sheet, Visual Search v2, and the native Create Child Record action untouched.
 
@@ -60,7 +60,7 @@ Owner logged in as **ZMP** employee account and opened **App 15 → Add record**
 - Screenshot also shows **Move Complete = Yes** by its preexisting default. This field has unrelated semantics; **do not edit it or use it** in new OUT flow.
 - The screenshot establishes native **form rendering**, **not** the REST form schema read, API-side default application, field-level edit enforcement, automatic owner notification, or success of the custom OUT POST.
 
-**Next:** safely request **GET /k/v1/app/form/fields.json?app=15** using this restricted session and inspect only safe schema checks: `inventory_verified` default No / optional, `warehouse_disposition` default Active / optional, protected `peter_notification` default single USER / optional (if available), `warehouse_request_id` unique, presence of Dolomite / Satin / Velvet / Concrete / Matte. This GET changes nothing. Do not submit a real entry until permitted.
+**Outcome:** the read-only Kintone form metadata check described below was run successfully as ZMP. No record was created or modified.
 
 ## Employee-account read-only Form Fields REST API check — PASSED (October 19, 2026)
 
@@ -84,12 +84,40 @@ It does **not** disclose/prove the exact user identity in Peter Notification
 a newly created record, actual add-record API permission, or receipt of
 a notification. No record was created or updated.
 
-**Next read-only check:** under the same ZMP login, verify safe GET from
-Master App 6 using the addon `MASTER_FIELDS` allowlist, and the
-App 15 Pending OUT lookup using `master_record_id`,
-`inventory_status=Out`, `inventory_verified=No`, and
-`warehouse_disposition=Active`. Avoid displaying sensitive record
-values. Continue to keep all live writes disabled.
+**Outcome:** the ZMP employee-account Master / pending OUT read-only test described below was successful. Live writes remain disabled.
+
+## Employee-account read-only Master and Pending OUT checks — PASSED (October 19, 2026)
+
+Using the **ZMP** account, the owner ran a console script with **GET-only**
+requests to:
+
+- **App 6:** read 1 Master record meeting the staged/in-inventory conditions
+  using exactly the draft addon safe allowlist.
+- **App 15:** check that sampled Master record ID for existing
+  `inventory_status=Out`, `inventory_verified=No` and
+  `warehouse_disposition=Active` movement entries.
+
+Console results: **Read Master Inventory = PASS**;
+**Read pending movements = PASS**; sampled piece
+**existing Pending OUT = No**. Query covered one sampled Master piece,
+not the entire inventory. No Kintone writes occurred.
+
+**Read-only access gates are passed.** The remaining major gate is a
+**supervised real physical OUT** on a selected piece with two distinct
+photos and post-submit verification. Avoid dummy movement entries in
+production; prepare rollback/owner correction path and obtain explicit
+approval of the selected piece and test time before enabling any crew
+submission.
+
+**API mapping risk caught during review:** Kintone refuses REST Add Record
+writes to lookup field-mapping targets, calculated fields and fields
+lacking caller Edit permission. The draft now **omits**
+`color_combined`, `zmv_num`, `length_2`, `width_2`,
+`parent_slab_id` and all three owner-only fields from the crew POST.
+Secondary details remain accessible via `master_record_id`.
+The critical Color and Rack lookup source keys must still be validated
+when testing a real Add Record. Reference:
+https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
 
 ## Remaining blockers before installing or merging
 
