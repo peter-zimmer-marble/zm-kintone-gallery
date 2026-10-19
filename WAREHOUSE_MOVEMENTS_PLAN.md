@@ -17,7 +17,7 @@
 - Prefill from the exact Master record, reread permitted nonfinancial metadata just before submission; do not fabricate missing or incompatible values.
 - **Require two distinct photos:** (1) full piece, (2) identifying label. More photos optional. **Missing Label** exception requires an alternative identifying photo **plus an explanation** and flags the transaction.
 - Attach photos to the **new App 15 Entry record** with distinguishable filenames/labels; don't replace Master `exact_picture` or `example_picture`.
-- Write **one App 15 OUT entry**, including `master_record_id`, `inventory_status=Out`, `inventory_verified=No`, origin rack, job information, optional notes, and source identifiers; *never* write to App 6.
+- Write **one App 15 OUT entry**, including `master_record_id`, `inventory_status=Out`, origin rack, job information, optional notes, and source identifiers. **Do not include owner-only fields `inventory_verified`, `warehouse_disposition`, or `peter_notification` in the crew POST**; Kintone uses validated defaults (`No`, `Active`, and owner's USER respectively). *Never* write to App 6.
 - Mark **Pending OUT** in Warehouse Staging immediately and after refresh, based on current Entry movement state, not just temporary browser memory. Avoid duplicate submissions and surface an explicit warning when pending status cannot be verified due to permissions. **Confirmed approval convention:** on newly submitted App 15 movements, `inventory_verified=No` means pending owner reconciliation, and owner sets `inventory_verified=Yes` after successfully reconciling to Master. Do not treat historical blanks as new pending movements. **Owner confirmed current behavior:** deletes entries for movements that never happened, but corrects entries in place when the physical movement was real and the data was wrong. For new automated submissions, use owner-approved owner-only **Void** instead of deletion to clear false pending status while retaining an audit record; do not conflate this with `move_complete`.
 - Do not treat the piece as available for another pull while a pending OUT is present. Warehouse workers must still verify the physical piece; a photo/entry is not a substitute for physical identification.
 
@@ -49,9 +49,9 @@ One IN process covers remnant off saw, unused staged slab returned, new supplier
 - **Implementation prerequisite:** App 15 needs a dedicated way to distinguish *Voided* from *Pending* and *Verified* (e.g. a new owner-only disposition field, default Active/Voided, plus void reason/at/by). Keep **`inventory_verified=No`** as the existing owner review cue; pending detection must also exclude Voided records. Do not reuse `move_complete` or treat historical blank `inventory_verified` records as newly pending.
 - **Decision confirmed:** owner approves replacing deletion with owner-only Void **for the new workflow**; current manual process and older entries remain unchanged until a deliberate migration decision.
 
-## Existing App 15 required fields (field schema provided)
+## Existing App 15 field mapping (original field schema, updated configuration)
 
-All twelve required fields must be written or validated, never silently populated with placeholders:
+**Eleven required fields** must be written by the crew API or validated, never silently populated with placeholders. `peter_notification` was originally the twelfth, but the owner made it optional while preserving its owner-only default and permissions. The draft must omit that protected field:
 
 | Field code | Type | OUT sourcing / verification |
 |---|---|---|
@@ -60,7 +60,7 @@ All twelve required fields must be written or validated, never silently populate
 | `inventory_status` | radio | Out |
 | `finish` | dropdown | Master `finish`, valid App 15 option |
 | `new_job` | text | **Confirmed:** job the piece is being moved/pulled **for**; prefill from Master `job` when available, but make editable and require a meaningful destination job before OUT |
-| `peter_notification` | required USER_SELECT | **Confirmed behavior:** owner receives a Kintone notification for each newly created App 15 record in the current manual workflow. Preserve this on custom submissions. Check actual selected user/default (and app notification configuration) before API POST; do not invent a user code, assume defaults apply to API inserts, or send a second duplicate notification. |
+| `peter_notification` | optional, **protected** USER_SELECT | Owner's existing single-user default, Required unchecked (confirmed). **OMIT in crew POST**, and verify Kintone applied the correct recipient and sends one notification. |
 | `rack` | lookup text (App 7) | Master `rack`, valid lookup key |
 | `shape` | dropdown | Master `shape` |
 | `length` | number | Master `length` |
@@ -70,13 +70,13 @@ All twelve required fields must be written or validated, never silently populate
 
 **Schema mismatch to resolve before production:** Master `material` includes **Dolomite** but App 15 `material` does not; App 15 instead has **NOT SURE**. Master `finish` includes **Satin, Velvet, Concrete, Matte** that are absent from App 15. We should ideally align App 15 dropdown options before automation, never substitute a different material or finish silently.
 
-Optional, approved-safe fields may include `master_record_id`, `inventory_verified`, `in_out_note`, `move_notes`, `color_combined`, `zmv_num`, `length_2`, `width_2`, and `exact_picture`. **Do not change, infer meaning from, or repurpose `move_complete`:** owner created it for an unrelated purpose and no longer recalls the original use. Some App 15 note fields are single-line: plan around actual configured limits or add a dedicated long-text field later.
+Other approved-safe fields may include `master_record_id`, `in_out_note`, `move_notes`, `color_combined`, `zmv_num`, `length_2`, `width_2`, and `exact_picture`. **Inventory Verified (`No` default) and Warehouse Disposition (`Active` default) are deliberately OMITTED from crew POST due to owner-only field edit permissions.** **Do not change, infer meaning from, or repurpose `move_complete`:** owner created it for an unrelated purpose and no longer recalls the original use. Some App 15 note fields are single-line: plan around actual configured limits or add a dedicated long-text field later.
 
 ### Current code deliverables (isolated draft only)
 
 - Standalone opt-in module: zm-warehouse-out-v1.js and zm-warehouse-out-v1.css. **Disabled unless explicitly configured**; inserted into existing Warehouse Staging cards by observer without editing existing production staging files.
-- Mock validation suite: tests/warehouse-out-v1.test.js, included in staging GitHub CI. Covers App 15 form schema, source field mapping, required two photos, Missing Label exception, Out pending/void status, idempotency key, request ambiguity, and stale Master checks.
-- Owner setup/acceptance plan: WAREHOUSE_OUT_SETUP.md. The owner reports the four new fields are published in App 15 (and removed from mistaken additions in App 6), and Peter Notification has the owner as its existing default. Still confirm live schema/default via Kintone API, crew app/field permissions, dropdown alignment, owner-only Void procedure, and an actual phone transaction test. No real Kintone record has been written.
+- Mock validation suite: tests/warehouse-out-v1.test.js, included in staging GitHub CI. Covers App 15 form schema and **live preflight of the three protected defaults** (`No`, `Active`, owner), **absence of owner-only fields in crew POST**, source field mapping, two photos, Missing Label exception, pending/void status, idempotency key, ambiguous requests, and stale Master checks.
+- Owner setup/acceptance plan: WAREHOUSE_OUT_SETUP.md. The owner reports the four new fields are published in App 15 (removed from mistakenly added Master fields), Peter Notification is now optional with owner default, Inventory Verified already defaults `No`, and Warehouse Disposition now defaults `Active`. App 15 owner-only field ACLs and conditional verified-record edit lock are configured. **Still verify** these settings as a restricted crew user with actual App 15 API response, dropdown alignment, owner-only Void procedure, and a real phone transaction. No real Kintone record has been written.
 
 ## Implementation & safety gates
 
@@ -90,7 +90,7 @@ Optional, approved-safe fields may include `master_record_id`, `inventory_verifi
 ## Open owner decisions (don't guess)
 
 - **Confirmed job semantics:** Old Job = former assignment; New Job = job material is going to. Existing practice uses `N/A` if no previous job. Crew-facing UI should offer **No Previous Job** explicitly and serialize that as `N/A` for backward compatibility; a genuinely **Unknown** prior job is distinct and should require owner decision/approved sentinel before deployment.
-- **Confirmed notification outcome:** owner receives a notification whenever crew creates a new App 15 record. **Owner confirmed:** the required `peter_notification` USER_SELECT field defaults to the owner in App 15. **Implementation verification still needed:** read the exact default USER code/type from Kintone form schema, then submit a test via Kintone REST API as a crew account and confirm it triggers exactly one owner notification.
+- **Confirmed notification outcome:** owner receives a notification whenever crew creates a new App 15 record. **Owner confirmed:** `peter_notification` USER_SELECT is now optional with owner as the single USER default and owner-only view/edit access. The crew POST omits the field. **Implementation verification still needed:** a real restricted crew-account API submission, then owner confirms default recipient and exactly one notification.
 - **Confirmed owner approval workflow:** After reconciling an App 15 entry to Master, owner manually sets `inventory_verified=Yes`. For new automated movements, start `inventory_verified=No` to mean pending. `move_complete` is unrelated and must be left unchanged. **Owner confirmed:** delete truly accidental entries today; correct real but erroneous entries in place. **Approved for new workflow:** owner-only Void with reason/audit trail instead of deletion for transactions that did not happen, excluded from pending indicators. Use a separate disposition field; do not reuse `move_complete`.
 - Confirm crew create/read permissions in App 15, and create/validate temporary App 7 Rack entries **Remnant Cart** and **Pending Putaway** before the IN phase.
 
