@@ -9,6 +9,26 @@ const vm = require('node:vm');
 const script = fs.readFileSync('zm-warehouse-out-v1.js', 'utf8');
 new vm.Script(script, { filename: 'zm-warehouse-out-v1.js' });
 
+// The publishable preview configuration is deliberately frozen with
+// writes disabled for employee zmproduction, Master #8160 only.
+const previewConfigSource = fs.readFileSync(
+  'zm-warehouse-out-pilot-preview-v1.js', 'utf8');
+new vm.Script(previewConfigSource, {
+  filename: 'zm-warehouse-out-pilot-preview-v1.js'
+});
+const previewConfigEnv = { window: {} };
+vm.runInNewContext(previewConfigSource, previewConfigEnv);
+const previewConfig = previewConfigEnv.window.ZM_WAREHOUSE_OUT_CONFIG;
+assert.equal(previewConfig.enabled, true);
+assert.equal(previewConfig.ownerValidatedPermissions, true);
+assert.equal(previewConfig.pilotMasterRecordId, '8160');
+assert.equal(previewConfig.pilotUserCode, 'zmproduction');
+assert.equal(previewConfig.pilotSubmitEnabled, false,
+  'Published pilot preview must never permit OUT submission');
+assert.equal(Object.isFrozen(previewConfig), true,
+  'Published preview config must be immutable in the page session');
+
+
 function createProperties() {
   const base = Object.fromEntries([
     'color', 'thickness', 'inventory_status', 'finish', 'new_job',
@@ -472,6 +492,26 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
     /Kintone permissions/);
   assert.equal(uploadCount, uploadsBefore);
   apiReadEnabled = true;
+
+  // The real frozen pilot config can load the modal with the verified
+  // ZMP login, but may not issue ANY network request, upload, or OUT POST.
+  const previewHandlers = [];
+  const previewEnv = {
+    window: previewConfigEnv.window,
+    kintone: {
+      getLoginUser() { return { code: 'zmproduction' }; },
+      events: { on(names) { previewHandlers.push(names); } },
+      api() { throw new Error('PREVIEW MUST NEVER CALL KINTONE API'); }
+    }
+  };
+  vm.runInNewContext(script, previewEnv);
+  assert.equal(previewHandlers.length, 1,
+    'Correct employee should see the single-record preview module');
+  const noWrite = previewEnv.window.ZM_WAREHOUSE_OUT_DRAFT;
+  assert.ok(noWrite);
+  await assert.rejects(noWrite.submit(makeMaster({'$id':'8160'}), {
+    requestId:'preview-only-test'
+  }, {}), /Preview only/);
 
   // With the opt-in flag missing, addon is inert even if script is installed.
   const disabledRegistrations = [];
