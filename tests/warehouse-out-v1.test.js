@@ -121,7 +121,8 @@ async function api(url, method, data) {
     // Real crew user has no Edit permission to these protected fields.
     // Any attempt to include even the expected defaults must fail.
     for (const restricted of ['inventory_verified',
-      'warehouse_disposition', 'peter_notification']) {
+      'warehouse_disposition', 'peter_notification',
+      'parent_slab_id', 'ZMID', 'current_placement']) {
       assert.ok(!(restricted in data.record),
         'Crew API POST must omit owner-only field: ' + restricted);
     }
@@ -254,14 +255,17 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
     missingLabel: false, labelReason: '', notes: 'Take carefully'
   };
   const schema = mod.validateSchema(properties);
-  const entry = mod.buildEntry(makeMaster(), base,
+  const entry = mod.buildEntry(makeMaster({
+      parent_slab_id:'PARENT-123'
+    }), base,
     ['file-one', 'file-two'], schema, 'request-001');
   assert.equal(entry.old_job.value, 'N/A');
   assert.equal(entry.new_job.value, 'Johnson Kitchen');
   assert.equal(entry.inventory_status.value, 'Out');
   assert.equal(entry.master_record_id.value, '123');
   for (const protectedField of ['inventory_verified',
-    'warehouse_disposition', 'peter_notification']) {
+    'warehouse_disposition', 'peter_notification',
+    'parent_slab_id', 'ZMID', 'current_placement']) {
     assert.ok(!(protectedField in entry),
       'Do not submit owner-only field: ' + protectedField);
   }
