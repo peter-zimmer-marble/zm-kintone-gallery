@@ -76,6 +76,7 @@ let nextId = 5001;
 let uploadCount = 0;
 let apiReadEnabled = true;
 let activeCode = 'peter-validated';
+let currentMaster = makeMaster();
 const previousCalls = () => calls.length;
 const eventHandlers = [];
 async function api(url, method, data) {
@@ -91,7 +92,7 @@ async function api(url, method, data) {
   if (method === 'GET' && data.app === 6) {
     assert.ok(!data.fields.includes('purchase_price'));
     assert.ok(!data.fields.includes('vendor'));
-    return { records: [makeMaster()] };
+    return { records: [currentMaster] };
   }
   if (method === 'GET' && data.app === 15) {
     assert.ok(data.fields, 'Explicit allowlist required');
@@ -339,6 +340,16 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
     /Do NOT submit again/);
   assert.equal(calls.filter(x => x.method==='POST').length,
     beforeRejected+1, 'Do not retry POST after ambiguous result');
+
+  // If Master changed while the crew was taking photos, prevent submitting
+  // stale rack/condition/job data. Re-read happens before photo uploads.
+  currentMaster = makeMaster({ rack: 'Z-9A' });
+  const uploadsBeforeStale = uploadCount;
+  await assert.rejects(mod.submit(makeMaster(),
+    {...base,requestId:'request-stale'}, {full,label}),
+    /Master data changed (rack)/);
+  assert.equal(uploadCount, uploadsBeforeStale);
+  currentMaster = makeMaster();
 
   // If unable to check pending state, no uploads or submissions happen.
   apiReadEnabled = false;
