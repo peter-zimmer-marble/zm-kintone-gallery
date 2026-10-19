@@ -44,7 +44,8 @@
   // These existing fields are controlled by the owner via Kintone field ACLs.
   // The crew must not send values for them through Add Record.
   const PROTECTED_ENTRY_FIELDS = Object.freeze([
-    'inventory_verified', 'warehouse_disposition', 'peter_notification'
+    'inventory_verified', 'warehouse_disposition', 'peter_notification',
+    'parent_slab_id', 'ZMID', 'current_placement'
   ]);
   const EXTRA_FIELDS = Object.freeze({
     master_record_id: 'NUMBER',
@@ -212,8 +213,10 @@
       exact_picture: { value: keys.map(fileKey => ({ fileKey })) }
     };
     if (note) record.in_out_note = { value: note };
-    for (const code of ['color_combined', 'zmv_num', 'length_2', 'width_2',
-      'parent_slab_id']) {
+    // Parent Slab ID in App 15 is owner-only editable: do NOT send it.
+    // Keep the authoritative Master record link via master_record_id; any
+    // parent lineage can be reviewed on the original Master record.
+    for (const code of ['color_combined', 'zmv_num', 'length_2', 'width_2']) {
       if (readValue(master, code) && schema.properties[code]) {
         record[code] = { value: readValue(master, code) };
       }
