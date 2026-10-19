@@ -129,8 +129,12 @@ const event={viewName:'Visual Search',viewType:'custom',type:'app.record.index.s
   assert.match(resultHTML(),/>ON HOLD<\/span>/);
   assert.match(resultHTML(),/SOLD TO \/ JOB/);
   assert.match(resultHTML(),/ON HOLD FOR \/ JOB/);
-  assert.match(resultHTML(),/class="zmwm-visual-piece-type">Stock Slab/);
+  assert.match(resultHTML(),/class="zmwm-visual-piece-type(?: type-stock-slab)?"\>Stock Slab/);
   assert.match(resultHTML(),/class="zmwm-visual-material">Quartz/);
+  assert.match(resultHTML(),
+    /class="zmwm-visual-material">Quartz<\/span><span class="zmwm-visual-rack">Rack: Z-5A<\/span>/);
+  for (const cls of ['type-stock-slab','type-so-slab','type-consigned-slab','type-stock-rem','type-standard-rem'])
+    assert.ok(resultHTML().includes('zmwm-visual-piece-type ' + cls), 'Missing colored type ' + cls);
   assert.equal(count(),5);
   assert.equal(shownCards(),5);
   assert.match(nodes.get('zmwm-visual-material-options').innerHTML,/Quartz/);
