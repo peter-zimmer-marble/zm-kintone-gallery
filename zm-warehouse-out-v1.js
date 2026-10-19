@@ -232,7 +232,10 @@
   async function api(path, method, data) {
     return kintone.api(kintone.api.url(path, true), method, data);
   }
-  async function schema() {
+  async function schema(forceRefresh = false) {
+    // Re-check form defaults just before a write; a stale default could
+    // incorrectly auto-verify an OUT or fail to notify the owner.
+    if (forceRefresh) formSchemaPromise = null;
     if (!formSchemaPromise) {
       formSchemaPromise = api('/k/v1/app/form/fields.json', 'GET',
         { app: ENTRY_APP }).then(response =>
@@ -354,7 +357,9 @@
         'Master data changed (' + field + ') while preparing this OUT. ' +
         'Close and refresh Warehouse Staging.');
     }
-    const verifiedSchema = await schema();
+    // Force a fresh defaults/permissions preflight before the first photo
+    // upload; never rely on the form schema cached when the view opened.
+    const verifiedSchema = await schema(true);
     // Fully validate every required field before starting photo uploads.
     buildEntry(latest, input, ['validation-full', 'validation-label'],
       verifiedSchema, requestId);
