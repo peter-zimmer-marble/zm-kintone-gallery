@@ -1,254 +1,69 @@
-# Confirm OUT v1 — disabled draft
+# Warehouse Confirm OUT v1 — supervised rollout checklist
 
-**User confirmation (2026-10-19):** All four core tracking fields were added to **Entry Sheet App 15** and the same accidental additions were removed from **Master App 6**. The changes have been published. The owner also confirmed that App 15's existing **Peter Notification** user-select field has him as its default, and on 2026-10-19 he **unchecked Required**, retained that default and the owner-only permissions, and published App 15. These are user-reported settings; verify their exact field codes/types/default through the live Kintone form schema as part of acceptance testing.
+**Status: DRAFT, NOT INSTALLED.** The Confirm OUT addon exists only on GitHub draft PR #15. It is disabled by default. The live Warehouse Staging v1, Visual Search v2, native Staging Sheet and all active Kintone inventory records are unchanged.
 
-**Do not deploy yet.** This branch has an additional JavaScript module and
-stylesheet. Both are absent from the installed live Kintone customization.
-The existing Warehouse Staging and Visual Search remain unchanged.
+## Kintone setup already completed by the owner (October 19, 2026)
 
-## What works in the draft
+The owner has reported making/publishing the following changes. **These have not yet been verified through a live Kintone API response or a warehouse-login test.**
 
-The optional addon inserts Confirm OUT buttons into Warehouse Staging cards
-and fetches pending movements from Entry App 15. All staged pieces remain
-visible, without pagination. Buttons are disabled if the pending status
-cannot be checked (for example, insufficient Kintone permissions).
-
-The crew must take **two separate photos**: the whole piece and the
-identifying label. Missing-label exceptions require an alternative
-identifying photo and a reason. Additional photos and a short note are
-optional. New Job is prefilled from Master job and editable. The crew
-chooses Previous Job; No Previous Job maps to N/A, and Unknown maps to
-UNKNOWN - REVIEW. The owner should confirm the Unknown sentinel during testing.
-
-The new Entry is linked via master_record_id; it starts with
-inventory_status=Out, inventory_verified=No, warehouse_disposition=Active.
-The code never writes Master App 6, modifies existing Master photos, overwrites
-the old entry_id lookup, or uses move_complete. It preserves the existing
-Movement History related table.
-
-Kintone uploads photos individually using multipart form data and a session
-CSRF token. The Add Record request attaches their returned file keys to
-App 15 exact_picture. The required Peter Notification user is explicitly
-specified. No confidential API token, password, or inventory export is shipped
-in this public repo.
-
-## Required App 15 fields before enabling
-
-The following four NEW field codes have been added/published by the owner, subject to live schema verification:
-
-| Field code | Kintone type | Details |
+| App | Field / rule | Current owner-reported setting |
 | --- | --- | --- |
-| warehouse_request_id | Text | Must prohibit duplicate values |
-| warehouse_disposition | Drop-down | Active, Voided |
-| warehouse_label_status | Drop-down | Present, Missing |
-| warehouse_label_note | Text area | Reason for missing label |
-| warehouse_void_reason | Text area | Recommended for the owner-only Void step; not yet automated |
+| Entry Sheet App 15 | Warehouse Request ID (`warehouse_request_id`) | Single-line text, optional, no default, duplicate values prohibited |
+| Entry Sheet App 15 | Warehouse Disposition (`warehouse_disposition`) | Drop-down: Active / Voided, optional, **default Active**; owner View+Edit / Everyone View only |
+| Entry Sheet App 15 | Warehouse Label Status (`warehouse_label_status`) | Drop-down: Present / Missing, optional, blank default |
+| Entry Sheet App 15 | Warehouse Label Note (`warehouse_label_note`) | Multiline text, optional |
+| Entry Sheet App 15 | Peter Notification (`peter_notification`) | USER_SELECT, **Required unchecked**, default to owner's specific user; owner View+Edit / Everyone no View or Edit |
+| Entry Sheet App 15 | Inventory Verified (`inventory_verified`) | Drop-down No/Yes, optional, **default No**; owner View+Edit / Everyone View only |
+| Entry Sheet App 15 | Record permissions | Priority rule for Inventory Verified = Yes: owner View+Edit+Delete, Everyone View only; below it, All Records: owner full, Everyone View+Edit (not Delete) |
+| Master App 6 | Existing field setup | Accidental four tracking fields removed; original `movement_history` linking Master record number to App 15 `master_record_id` is retained |
 
-The already-added master_record_id Number field must remain on App 15.
-The native Master Movement History related-records field must remain linked.
-Eleven existing Entry fields remain required after the owner removed **Required** from Peter Notification: color, thickness,
-inventory_status, finish, new_job, rack, shape, length,
-old_job, material, width. The `peter_notification` USER_SELECT field remains present but optional and access-restricted. The draft reads App 15's live form schema and
-refuses to submit if any expected new fields or dropdown choices are missing.
+Other preexisting Entry field ACLs remain untouched: ZMID, Parent Slab ID, Current Placement. `move_complete` is unrelated and **must not be repurposed**. The owner uses Inventory Verified = Yes to indicate that the Entry was reconciled to Master.
 
-**Resolve known dropdown mismatches before activation:** Master material
-includes Dolomite but App 15 currently does not. Master finish includes
-Satin, Velvet, Concrete and Matte, which App 15 currently lacks.
-Do not guess or substitute values.
+## Updated Add Record behavior — protected defaults
 
-**Peter Notification:** Owner confirms App 15 USER_SELECT has **his account as its default**, **Required unchecked**, and remains **owner-only** for view/edit; the change was published. Official Add Record API docs say omitted optional fields receive defaults. The draft module still explicitly writes this restricted field, so **must be adapted to OMIT `peter_notification` from crew API POST** before activation. Confirm actual field default and resulting recipient through a supervised crew-account create/read/notification test; do not invent a login code.
+The **crew-side Kintone POST omits these three fields entirely**:
 
-**Permissions:** Warehouse users need safe Master read access and App 15
-read/create access, but must not gain access to confidential Master fields
-or permission to verify/void/correct an Entry. Only the owner can mark
-Inventory Verified=Yes and use Void. Verify Kintone app, record and field
-permissions with a real warehouse login; a frontend button is not a
-permission boundary.
+- `inventory_verified`: Kintone must apply **No** from its configured default.
+- `warehouse_disposition`: Kintone must apply **Active**.
+- `peter_notification`: Kintone must apply the **owner's single-user default**, resulting in the same single owner notification as manual entries.
 
-## Permission review — screenshot supplied by owner (2026-10-19)
+Kintone's documented Add Record API applies defaults to omitted fields and requires Edit permission for any field **explicitly supplied**. Peter Notification was made optional so the restricted crew account can omit it, while retaining the existing owner recipient and field permissions. It remains forbidden for the crew to explicitly edit these fields.
 
-On **App 15 → Permissions for app**, screenshot shows:
+**Safety guard:** The addon reads App 15's `GET /k/v1/app/form/fields.json` schema and checks the three exact defaults, optional status, valid choices, and protected user default before enabling submission. Immediately before uploading the first photo it **fetches the form schema again** and aborts on any mismatches. It refuses to POST protected fields.
 
-- Owner's specific user row and App Creator role: **View, Add, Edit, Delete, Manage App, Import, Export** enabled.
-- **Everyone:** **View, Add, Edit** enabled; **Delete, Manage App, Import, Export** disabled.
-- No warehouse-specific permission row is visible. This **does not prove** Everyone can edit approval/void fields: record-level and field-level permissions must also be checked.
+**Unverified in real Kintone:** We have not tested whether a restricted warehouse login can read the necessary default metadata, whether omitted protected fields actually receive those expected values under that login, or whether Kintone sends the owner exactly one notification. **Do not enable the draft addon until all three are confirmed.** Mock tests do not establish live behavior.
 
-**Do not remove Everyone's existing App-level Edit permission yet.** Existing manual Entry Sheet operations may rely on it. App 15 field and record-level permissions were subsequently inspected as documented below.
+Docs:
+- [Add Record API](https://kintone.dev/en/docs/kintone/rest-api/records/add-record/)
+- [Get Form Fields API](https://kintone.dev/en/docs/kintone/rest-api/apps/form/get-form-fields/)
 
-**Important Kintone API constraint:** Add Record requires field-level **Edit** permission for **every field provided in the request body**, even when the caller has App Add permission. If we make `inventory_verified` or `warehouse_disposition` owner-only at the field level while the new browser addon still submits `No` or `Active` explicitly, **the crew's API POST will fail**. The future secure arrangement may involve Kintone new-record field defaults (`No` and `Active`) with those restricted fields **omitted** from crew POSTs, after testing default application with a real restricted warehouse login. App-level Add remains enabled; Edit can eventually be owner-only if the crew does not need to correct existing entries directly.
+## Optional addon behavior (code complete in draft, not deployed)
 
-**Never rely on frontend-only rules to prevent a crew account from writing `Yes` or `Voided`.** App/record/field permissions must enforce this. Need design verification via a restricted-login add test and then revise the draft POST mapping **before deployment**.
+- Adds **Confirm OUT** buttons only inside the existing Warehouse Staging custom view; the original read-only JS and CSS aren't edited.
+- Keeps **all staged pieces** visible, with photos and current Master In/Out Notes; four simultaneous photo downloads is only a network-concurrency limit.
+- Before enabling an OUT button, queries new App 15 entries with matching `master_record_id`, `inventory_status=Out`, `inventory_verified=No` and `warehouse_disposition=Active`. Marks matches **Pending OUT**. Unverified historical blanks, verified entries and voided entries do not count. If Entry API permissions prevent the pending check, **disable submissions but still show all staging pieces**.
+- Requires two distinct phone photos: **whole piece + identifying label**; if missing label, **alternative identifying photo + required explanation**. Additional photos optional. Photo filenames distinguish purpose; all go on new App 15 movement, not Master.
+- Prefills safe material, rack, dimensions, color and job from the selected Master record. Crew enters/edit New Job (destination) and Previous Job (a name, No Previous Job => N/A, or Unknown => UNKNOWN - REVIEW). Existing In/Out Notes remain read-only; the movement may also carry a short new note.
+- Submits one App 15 OUT movement with `master_record_id`, `inventory_status=Out`, `warehouse_request_id` (unique), source info and new photos. Crew cannot write any financial fields or protected approval/notification fields. **Never writes App 6**.
+- Refreshes safe Master fields before file uploads; rejects stale job, rack, dimensions, material or movement status. The browser never automatically retries an ambiguous record POST and uses the unique request ID to look up prior successes.
+- Leaves existing RTS, the original Staging Sheet, Visual Search v2, and the native Create Child Record action untouched.
 
-Kintone docs:
-- https://kintone.dev/en/docs/kintone/rest-api/records/add-record/ (Add Record permission to edit included fields; omitted fields get defaults)
-- https://us.kintone.help/k/en/app/rights/field_rights (field-level ACL behavior)
-- https://us.kintone.help/k/en/app/rights/record_rights (record-level ACL behavior)
+## Remaining blockers before installing or merging
 
-## App 15 FIELD permissions confirmed by screenshot (2026-10-19)
+1. **Live Kintone schema and restricted-login check:** Confirm that App 15's actual field codes/types/required/defaults exactly match the table above, including the unique request ID. Crew must read permitted status fields while NOT receiving edit access to Inventory Verified, Warehouse Disposition, or Peter Notification.
+2. **Align dropdowns:** Master material includes Dolomite, absent from App 15; Master finish includes Satin, Velvet, Concrete, Matte, absent from App 15. The draft rejects unsupported values rather than silently substituting.
+3. **Confirm protected defaults through a supervised OUT test** on a safe known Master piece: both photos attached to App 15, fields filled as expected, Master Movement History displays the entry, `inventory_verified=No`, `warehouse_disposition=Active`, owner recipient preserved, **one notification**, Master unchanged.
+4. **Test record ACLs:** A warehouse login can still create/edit unverified entries but cannot modify verified entries, verify an Entry, void an Entry, or change Peter Notification. Existing manual Entry Sheet work must remain functional.
+5. **Owner Void action:** The new owner-only disposition field exists, but a convenient Void-with-reason UI is **not yet built**. Owner can decide on an interim native edit procedure and add an owner-only `warehouse_void_reason` text-area field when designing the audited Void action. Don't delete newly automated movement history.
+6. **Phone/reliability tests:** Validate camera input, Missing Label, additional photos, temporary API failures and cross-device duplicate risks. Current pending checks + unique request ID prevent accidental retry but are **not an atomic lock** between two devices.
 
-The owner supplied **Permissions for fields** screenshot. The following
-existing field permission sets are visible:
+### Future activation — NOT YET
 
-| Field | Owner | Everyone |
-| --- | --- | --- |
-| `ZMID` | View + Edit | View; no Edit |
-| `Peter Notification` (`peter_notification`) | View + Edit | **No View and no Edit** |
-| `Parent Slab ID` (`parent_slab_id`) | View + Edit | View; no Edit |
-| `Current Placement` (`current_placement`) | View + Edit | View; no Edit |
-| `Inventory Verified` (`inventory_verified`) | View + Edit | **View; no Edit** |
+After real-user acceptance tests and owner sign-off, install the additional addon JS/CSS after the **existing** Warehouse Staging customization on desktop and mobile. The addon is inert unless an administrator supplies its explicit enablement/permissions-validation config. Do not publish privileged API tokens or login credentials in public GitHub or browser code.
 
-**Keep these existing permissions unchanged.** In particular, the crew
-cannot manually verify inventory and cannot alter the required
-`peter_notification` recipient. These field-level restrictions override
-the broad "Everyone: Edit records" at the App level.
+Draft assets (not yet live on Pages):
+- `zm-warehouse-out-v1.js`
+- `zm-warehouse-out-v1.css`
+- `tests/warehouse-out-v1.test.js`
 
-**Critical issue with the current draft browser API implementation:**
-It explicitly includes `inventory_verified=No` and the
-`peter_notification` selected user in the Add Record request. Kintone's
-official Add Record documentation states (1) every included field requires
-**Edit** permission, and (2) **required fields must be included in the API
-request**. Therefore, the current draft direct App 15 REST POST is **not
-ready to work from crew accounts**. Field defaults on native record forms do
-not establish an exemption from those API rules. Do not remove the existing
-field restrictions to make an experimental POST pass.
-
-**Implementation redesign / prerequisite:** Preserve native field ACLs. For
-the optional `inventory_verified` and `warehouse_disposition` fields,
-test use of server-populated defaults while omitting protected fields from
-the crew API payload. But for the required, protected Peter Notification,
-research/test either a suitable **native Kintone create-record flow** that
-preserves its protected default, or a **properly authenticated secure
-server-side write broker** with no credentials or elevated Kintone tokens in
-public JavaScript. The actual crew transaction, correct owner notification,
-all required fields, and no Master modifications must be verified before
-activation. **Do not claim that omitting the required user field is proven
-to work.**
-
-**Field permission change completed (owner-confirmed 2026-10-19):** Added a
-`Warehouse Disposition` field-level permission set in **Entry Sheet App 15**:
-owner **View+Edit**, Everyone **View only**. Owner reports saving and publishing.
-Verify the live settings with a restricted warehouse login before deployment.
-Leave `Warehouse Label Status`, `Warehouse Label Note`, and
-`Warehouse Request ID` editable by crew so submission data can be recorded.
-**Do not change App-level Everyone Edit** yet because manual workflows may rely
-on it. **Next:** inspect App 15's **Permissions for records** before deciding
-whether additional record-level controls are needed.
-
-Official Kintone API limitation:
-https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
-
-## App 15 RECORD permissions confirmed by screenshot (2026-10-19)
-
-The **Permissions for records** screenshot shows a single rule:
-**Target: All records**. Owner: View+Edit+Delete. Everyone:
-View+Edit, **no Delete**. There are no other record-level
-conditions shown. Combined with field-level ACLs, the crew can
-currently edit ordinary fields (dimensions, jobs, racks) even in
-entries whose **Inventory Verified=Yes** was already approved by the
-owner; crew cannot change Inventory Verified or Warehouse Disposition.
-
-**Owner confirmed (2026-10-19):** Nobody other than the owner needs to edit
-an Entry Sheet record after Inventory Verified=Yes. **Owner reports the
-record-permission change was saved and App 15 updated:** a higher-priority
-**Inventory Verified = Yes** rule grants owner View+Edit+Delete and
-Everyone **View only** (no Edit/Delete). Existing lower-priority All records
-rule remains unchanged for No/blank verification entries. This is the
-owner's report, not a live Kintone API verification. Test a verified and
-an unverified record under a warehouse login before production rollout.
-App-level Everyone Edit and existing field permissions were left in place.
-
-**Potential simpler Peter Notification solution — still requires owner
-approval and a safe test:** Keep owner default and field-level
-**owner-only** visibility/editing, but unset **Required** on
-`peter_notification`. Kintone's Add Record API applies defaults to
-fields omitted from requests, yet it requires explicitly including
-fields marked Required. If the user field becomes optional and stays
-protected, the crew API payload could OMIT it, avoiding a forbidden
-edit. Similarly, set safe defaults **Inventory Verified=No** and
-**Warehouse Disposition=Active**, then omit both protected fields in
-the crew request. This is a **proposed configuration**, not yet made
-or verified. It avoids elevated API tokens and preserves the owner
-notification default, assuming actual default application and the
-existing Kintone notification rule are verified end-to-end. The
-**current draft JS still explicitly includes these protected fields
-and MUST be changed before any crew activation**.
-
-Documentation:
-- https://us.kintone.help/k/en/app/rights/record_rights
-- https://us.kintone.help/k/en/trouble_shooting/app_qa/permission_example1
-- https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
-- https://us.kintone.help/k/en/app/form/form_parts/user_selection
-
-**Peter Notification prerequisite complete (owner report; API verification outstanding):**
-The existing `peter_notification` USER_SELECT field is now **optional**,
-still defaults to the owner, and remains fully hidden from the crew by field ACLs.
-The documented Add Record REST API requires Required fields to be included,
-and requires Edit permission for included fields. Our new crew API POST must
-**omit** `peter_notification` so its protected default can be applied.
-The owner has already made and published that change. Kintone's Add Record API
-documents that omitted fields receive their defaults; the custom submission
-must omit `peter_notification` entirely rather than trying to write it.
-End-to-end test that the owner gets the expected notification on an App 15
-entry created as a restricted warehouse user. **The configuration is published,
-but API behavior is still unverified.** Related next steps:
-configure Inventory Verified default `No` and Warehouse Disposition
-default `Active`, omitting both restricted fields from crew API POSTs.
-Do not change existing permissions to make the draft work.
-Official docs: https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
-
-**Inventory Verified default confirmed (owner, 2026-10-19):** The existing App 15 Inventory Verified field already had **Default = No**, **Required unchecked**, with the existing Yes/No choices intact. Its field permissions remain owner Edit, Everyone View only. No Kintone change was necessary. **Next user step:** set new App 15 Warehouse Disposition drop-down default to **Active**, keep Required unchecked, preserve owner-only Edit and Everyone View permissions; test that the server sets it on new API records while protected from crew writes.
-
-## Configuration — DO NOT INSTALL UNTIL TESTED
-
-Add a Kintone-only configuration script before the addon, and place its
-JS/CSS URLs AFTER existing Warehouse Staging customization in desktop
-and mobile, once all acceptance checks pass. The global config must be
-enabled=true and ownerValidatedPermissions=true. A peterUserCode may also
-be supplied using the actual verified Kintone owner login code.
-
-The two ADDITIONAL script URLs will eventually be:
-- https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-v1.js
-- https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-v1.css
-
-**These files are in an unmerged draft branch, so do not use the URLs now.**
-Simply leaving out the config disables all addon behavior.
-
-## Supervised tests before approving production
-
-1. Leave addon disabled; confirm existing staging counts/photos/notes and
-   native Staging Sheet, RTS, Visual Search v2 all remain unchanged.
-2. Enable only on a controlled test account/view with Kintone field setup
-   and permissions reviewed. Pending OUT prevents a second crew submission.
-   Historical blank, verified, and owner-voided records must not block.
-3. Take two unique photos; submit for a safe test Master piece.
-   App 15 must have exactly one new Entry with both attachment file keys,
-   correct source/job/rack/material/dimensions, and Master Record ID.
-4. Confirm Entry appears in Master Movement History, notification arrives
-   once, and Master inventory did not change.
-5. Refresh staging: the piece is still shown but flagged Pending OUT.
-   Confirm mobile behavior for Missing Label exception and extra photos.
-6. Owner reconciles and sets Inventory Verified=Yes. An erroneous movement
-   can be Voided with a reason by the owner while retaining history; the
-   owner-only Void action is NOT built in this draft yet.
-7. Exercise permission errors, incompatible Master dropdown selections,
-   interrupted uploads, ambiguous submissions and stale Master data.
-
-## Duplicate caveat
-
-The unique warehouse_request_id protects a retry of the same request.
-A pending-read preflight and disabled buttons help protect against
-double pulling. Two different devices can still submit in a narrow race
-window, because independent Kintone Add Record calls aren't atomic on
-Master record ID. Decide whether a server-side or unique-key locking
-mechanism is required before broad deployment.
-
-## Official API references
-
-Upload File: https://kintone.dev/en/docs/kintone/rest-api/files/upload-file/
-Add Record: https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
-Get Form Fields: https://kintone.dev/en/docs/kintone/rest-api/apps/form/get-form-fields/
-
-## Rollback
-
-Remove ONLY the addon configuration and its JS/CSS customizations.
-Do not remove the existing Warehouse Staging or Visual Search files.
+Rollback: remove only the optional addon configuration and its JS/CSS; never remove the working Warehouse Staging or Visual Search scripts.
