@@ -273,6 +273,12 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(entry.exact_picture.value.length, 2);
   assert.equal(entry.in_out_note.value, 'Take carefully');
   assert.equal(entry.warehouse_request_id.value, 'request-001');
+  // Optional lookup/computed/secondary metadata remains linked through
+  // master_record_id instead of being guessed as API-editable.
+  for (const code of ['color_combined', 'zmv_num',
+    'length_2', 'width_2', 'parent_slab_id']) {
+    assert.ok(!(code in entry), 'Never write optional possibly mapped field: '+code);
+  }
   for(const bad of ['purchase_price', 'vendor', 'entry_id',
     'move_complete', 'example_picture', 'notes']) {
     assert.ok(!(bad in entry), 'Must not write existing field: ' + bad);
