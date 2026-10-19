@@ -65,6 +65,25 @@ Inventory Verified=Yes and use Void. Verify Kintone app, record and field
 permissions with a real warehouse login; a frontend button is not a
 permission boundary.
 
+## Permission review — screenshot supplied by owner (2026-10-19)
+
+On **App 15 → Permissions for app**, screenshot shows:
+
+- Owner's specific user row and App Creator role: **View, Add, Edit, Delete, Manage App, Import, Export** enabled.
+- **Everyone:** **View, Add, Edit** enabled; **Delete, Manage App, Import, Export** disabled.
+- No warehouse-specific permission row is visible. This **does not prove** Everyone can edit approval/void fields: record-level and field-level permissions must also be checked.
+
+**Do not remove Everyone's existing Edit permission yet.** Existing manual Entry Sheet operations may rely on it. Next gather **App 15 → Permissions → Fields**, then record-level permissions and understand which users currently edit historical entries.
+
+**Important Kintone API constraint:** Add Record requires field-level **Edit** permission for **every field provided in the request body**, even when the caller has App Add permission. If we make `inventory_verified` or `warehouse_disposition` owner-only at the field level while the new browser addon still submits `No` or `Active` explicitly, **the crew's API POST will fail**. The future secure arrangement may involve Kintone new-record field defaults (`No` and `Active`) with those restricted fields **omitted** from crew POSTs, after testing default application with a real restricted warehouse login. App-level Add remains enabled; Edit can eventually be owner-only if the crew does not need to correct existing entries directly.
+
+**Never rely on frontend-only rules to prevent a crew account from writing `Yes` or `Voided`.** App/record/field permissions must enforce this. Need design verification via a restricted-login add test and then revise the draft POST mapping **before deployment**.
+
+Kintone docs:
+- https://kintone.dev/en/docs/kintone/rest-api/records/add-record/ (Add Record permission to edit included fields; omitted fields get defaults)
+- https://us.kintone.help/k/en/app/rights/field_rights (field-level ACL behavior)
+- https://us.kintone.help/k/en/app/rights/record_rights (record-level ACL behavior)
+
 ## Configuration — DO NOT INSTALL UNTIL TESTED
 
 Add a Kintone-only configuration script before the addon, and place its
