@@ -469,7 +469,30 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(disabledRegistrations.length, 0);
   assert.equal(inert.window.ZM_WAREHOUSE_OUT_DRAFT, undefined);
 
-  console.log('Warehouse OUT draft: opt-in guard, protected-default schema preflight, ' +
+  // An incomplete pilot, incorrect account, or invalid record ID must be inert.
+  const badPilotConfigs = [
+    {pilotMasterRecordId:'123', pilotUserCode:'not-the-employee'},
+    {pilotMasterRecordId:'123', pilotUserCode:''},
+    {pilotMasterRecordId:'', pilotUserCode:'crew-test-user'},
+    {pilotMasterRecordId:'invalid', pilotUserCode:'crew-test-user'}
+  ];
+  for (const pilot of badPilotConfigs) {
+    const registered = [];
+    const context = {
+      window:{ZM_WAREHOUSE_OUT_CONFIG:{
+        enabled:true,ownerValidatedPermissions:true,...pilot
+      }},
+      kintone:{
+        getLoginUser(){return {code:'crew-test-user'};},
+        events:{on(names){registered.push(names);}}
+      }
+    };
+    vm.runInNewContext(script,context);
+    assert.equal(registered.length,0);
+    assert.equal(context.window.ZM_WAREHOUSE_OUT_DRAFT,undefined);
+  }
+
+  console.log('Warehouse OUT draft: single-employee single-record pilot guard, protected-default schema preflight, ' +
     'no crew POST of owner-only fields, 2 required photos, Missing Label, unique request IDs, ' +
     'pending/void exclusion, retry safety, notification user and App 15 only: PASSED');
 })().catch(error => {
