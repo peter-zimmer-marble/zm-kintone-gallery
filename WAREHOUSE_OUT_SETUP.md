@@ -196,6 +196,8 @@ default `Active`, omitting both restricted fields from crew API POSTs.
 Do not change existing permissions to make the draft work.
 Official docs: https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
 
+**Inventory Verified default confirmed (owner, 2026-10-19):** The existing App 15 Inventory Verified field already had **Default = No**, **Required unchecked**, with the existing Yes/No choices intact. Its field permissions remain owner Edit, Everyone View only. No Kintone change was necessary. **Next user step:** set new App 15 Warehouse Disposition drop-down default to **Active**, keep Required unchecked, preserve owner-only Edit and Everyone View permissions; test that the server sets it on new API records while protected from crew writes.
+
 ## Configuration — DO NOT INSTALL UNTIL TESTED
 
 Add a Kintone-only configuration script before the addon, and place its
