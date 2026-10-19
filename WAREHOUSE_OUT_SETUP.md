@@ -135,8 +135,7 @@ The result checks **lookup schema compatibility, not that a particular
 Master piece's Color/Rack will successfully resolve or grant the
 user access at submission time**. No records were changed.
 
-**Next step:** identify one **real, imminent warehouse OUT** of a specific
-staged piece. Owner must approve that piece and the exact test window.
+**Pilot identified:** Owner selected **Master #8160** and the ZMP employee account for a future **real warehouse OUT**. The actual movement date/time is not yet confirmed; preview-only inspection can proceed without a physical pull.
 Before enabling a crew-facing button, keep the addon draft isolated,
 prepare a controlled rollout/rollback, check the current PR CI, ensure
 the correct phone account is used and a **Void/correction protocol**
@@ -149,21 +148,34 @@ remained unchanged. Do not create a dummy OUT solely to test code.
 
 **Pilot piece selected by owner:** [Master record #8160](https://zimmermarble.kintone.com/k/6/show#record=8160).
 This is the sole eligible Master record for the first supervised OUT. No
-movement has been recorded. **User code is still unverified:** the
-employee's Kintone display name appears to be **ZMP**, but the actual
-`kintone.getLoginUser().code` must be read before configuration.
+movement has been recorded. **Verified employee login code: `zmproduction`**,
+confirmed in the ZMP employee Console screenshot. The same GET-only
+test confirmed **Essenza / Quartzite / BRUSHED**, dimensions **131 × 80
+inches**, rack **LP-2A**, **inventory_status=In**, **staging_status=RTS**,
+and **no current Pending OUT**. The job label begins
+**Brandenburg, Ellen & ...** (truncated in the screenshot; don't infer
+its complete name).
 
-**Pilot-specific addon configuration (not installed yet):**
+**Dedicated pilot preview configuration created on the draft branch,
+not installed or published to GitHub Pages:**
+`zm-warehouse-out-pilot-preview-v1.js`. Its COMPLETE contents are:
 
 ```js
-window.ZM_WAREHOUSE_OUT_CONFIG = {
+window.ZM_WAREHOUSE_OUT_CONFIG = Object.freeze({
   enabled: true,
   ownerValidatedPermissions: true,
   pilotMasterRecordId: '8160',
-  pilotUserCode: 'REPLACE_WITH_VERIFIED_ZMP_LOGIN_CODE',
+  pilotUserCode: 'zmproduction',
   pilotSubmitEnabled: false
-};
+});
 ```
+
+This is immutable for the page session; the addon checks
+`pilotSubmitEnabled === true` **before even its first network
+request or photo upload** when submitting. The preview form also shows a
+**disabled** submit button. To transition to the real OUT later, make
+a **separate approved live config**—do NOT try to modify the frozen
+preview configuration from the browser Console.
 
 This must be loaded **before** the standalone OUT addon script, following
 the existing Warehouse Staging JS. The draft addon is inert for any
@@ -172,18 +184,22 @@ The selected ID is also enforced in the submission method before any
 network request/photo upload. This browser-side gating is NOT a security
 boundary; Kintone App 15 permissions remain authoritative.
 
-**Dry-run stage (no writes):** First inspect Master #8160 and pending OUT
-as ZMP using **GET-only** calls. Confirm it is genuinely still staged,
-In, has meaningful values, is scheduled for a real physical pull, and
-is not already pending. After the separate rollout approval, load only
-the draft addon + preview configuration above to display the Confirm OUT
-form with a **disabled Submit** button; inspect mobile layout,
-autofilled job/rack/color/dimensions and source record selection. No
-photo upload, file-key creation or App 15 record POST occurs during
-preview.
+**Dry-run stage (no writes):** The GET-only checks already confirmed the
+Master's staging/stock/pending status and the ZMP login. **Next owner
+approval:** publish the preview-only JS/CSS and configure them in
+Master App 6 after the existing Staging customization (do not change
+the original JS/CSS). In Kintone's file loading order: existing
+Staging JS, then the new **pilot preview config**, then the **OUT addon**
+JS; also add OUT addon CSS. The preview only shows Confirm OUT for #8160
+as `zmproduction`; inspect mobile layout, autofilled
+job/rack/color/dimensions and source record selection with a
+**disabled Submit** button. No photo upload, file-key creation or
+App 15 record POST occurs during preview. The PR is still draft,
+**not merged**, so do not paste imaginary GitHub Pages links.
 
-**Supervised live stage (only after separate owner approval):** Change
-`pilotSubmitEnabled` to `true` in the pilot's configuration, verify
+**Supervised live stage (only after separate owner approval):** Replace the
+frozen preview config with a separately reviewed live configuration
+setting `pilotSubmitEnabled: true`, then verify
 signed-in employee code and record #8160 again, ensure the
 actual piece is physically pulled, take **two distinct photos** (whole
 piece and identifying label; missing label requires alternate image
@@ -225,7 +241,8 @@ without owner review.
 After real-user acceptance tests and owner sign-off, install the additional addon JS/CSS after the **existing** Warehouse Staging customization on desktop and mobile. The addon is inert unless an administrator supplies its explicit enablement/permissions-validation config. Do not publish privileged API tokens or login credentials in public GitHub or browser code.
 
 Draft assets (not yet live on Pages):
-- `zm-warehouse-out-v1.js`
+- `zm-warehouse-out-pilot-preview-v1.js` (**frozen preview config for #8160/zmproduction**)
+- `zm-warehouse-out-v1.js` (addon, scoped to one record and user)
 - `zm-warehouse-out-v1.css`
 - `tests/warehouse-out-v1.test.js`
 
