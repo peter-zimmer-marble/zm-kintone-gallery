@@ -124,12 +124,15 @@ all required fields, and no Master modifications must be verified before
 activation. **Do not claim that omitting the required user field is proven
 to work.**
 
-**Next safe permission change proposed (not yet done):** Add a
-`Warehouse Disposition` field-level permission set with owner View+Edit
-and Everyone View only; leave `Warehouse Label Status`,
-`Warehouse Label Note`, and `Warehouse Request ID` editable by crew so
-submission data can be recorded. Do not change the App-level Everyone Edit
-checkbox yet because existing manual workflows may rely on it.
+**Field permission change completed (owner-confirmed 2026-10-19):** Added a
+`Warehouse Disposition` field-level permission set in **Entry Sheet App 15**:
+owner **View+Edit**, Everyone **View only**. Owner reports saving and publishing.
+Verify the live settings with a restricted warehouse login before deployment.
+Leave `Warehouse Label Status`, `Warehouse Label Note`, and
+`Warehouse Request ID` editable by crew so submission data can be recorded.
+**Do not change App-level Everyone Edit** yet because manual workflows may rely
+on it. **Next:** inspect App 15's **Permissions for records** before deciding
+whether additional record-level controls are needed.
 
 Official Kintone API limitation:
 https://kintone.dev/en/docs/kintone/rest-api/records/add-record/
