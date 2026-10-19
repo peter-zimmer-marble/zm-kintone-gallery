@@ -29,7 +29,7 @@
     '$id', 'color', 'color_combined', 'zmv_num', 'stock_id',
     'thickness', 'finish', 'shape', 'length', 'width', 'length_2',
     'width_2', 'rack', 'job', 'material', 'inventory_status',
-    'staging_status', 'type'
+    'staging_status', 'type', 'parent_slab_id'
   ]);
   const REQUIRED_ENTRY_FIELDS = Object.freeze([
     'color', 'thickness', 'inventory_status', 'finish',
@@ -54,8 +54,12 @@
   let modal = null;
   let formSchemaPromise = null;
   let pendingIds = new Set();
+  // Lock successful submissions in this view session even if the Kintone
+  // query index takes a moment to reflect the newly created Entry record.
+  let submittedThisSession = new Set();
   let pendingError = '';
   let isChecking = true;
+  let mobile = false;
 
   function str(value) {
     return value == null ? '' : String(value);
@@ -309,12 +313,23 @@
       'Take two different photos: one full piece and one label/alternative.');
     const saved = await findSubmittedRequest(requestId);
     if (saved) return { id: saved, existing: true };
-    const pending = await pendingForIds([readValue(master, '$id')]);
-    assert(!pending.has(readValue(master, '$id')),
+    const masterId = readValue(master, '$id');
+    const pending = await pendingForIds([masterId]);
+    assert(!pending.has(masterId),
       'This piece already has an unverified OUT. Contact the owner.');
+    // Source data may have changed while the crew filled out the form.
+    // Re-read only the safe Master fields; fail closed instead of posting a
+    // movement with the wrong rack, job, status, dimensions or material.
+    const latest = await fetchMaster(masterId);
+    for (const field of ['color','thickness','finish','shape','length',
+      'width','rack','material','staging_status','inventory_status','job']) {
+      assert(readValue(master, field) === readValue(latest, field),
+        'Master data changed (' + field + ') while preparing this OUT. ' +
+        'Close and refresh Warehouse Staging.');
+    }
     const verifiedSchema = await schema();
     // Fully validate every required field before starting photo uploads.
-    buildEntry(master, input, ['validation-full', 'validation-label'],
+    buildEntry(latest, input, ['validation-full', 'validation-label'],
       verifiedSchema, requestId);
     const files = [
       { file: photos.full, prefix: 'FULL_PIECE' },
@@ -331,7 +346,7 @@
       }
       keys.push(await uploadPhoto(files[i].file, files[i].prefix));
     }
-    const entry = buildEntry(master, input, keys, verifiedSchema, requestId);
+    const entry = buildEntry(latest, input, keys, verifiedSchema, requestId);
     if (typeof statusUpdate === 'function') statusUpdate('Submitting OUT entry…');
     try {
       const created = await api('/k/v1/record.json', 'POST', {
@@ -367,8 +382,9 @@
       if (!button) continue;
       const masterId = button.dataset.zmoutMaster;
       button.disabled = isChecking || Boolean(pendingError) ||
-        pendingIds.has(masterId) || busy;
-      button.textContent = pendingIds.has(masterId) ? 'Pending OUT' :
+        pendingIds.has(masterId) || submittedThisSession.has(masterId) || busy;
+      button.textContent = (pendingIds.has(masterId) ||
+        submittedThisSession.has(masterId)) ? 'Pending OUT' :
         isChecking ? 'Checking OUT status…' :
         pendingError ? 'OUT unavailable' : 'Confirm OUT';
       button.setAttribute('aria-label',
@@ -551,11 +567,14 @@
       submitButton.disabled = true;
       try {
         const result = await submit(master, input, photos, showMessage);
+        submittedThisSession.add(readValue(master, '$id'));
         target.innerHTML =
           '<div class="zmout-success"><strong>OUT recorded in Entry Sheet.</strong>' +
           '<p>Entry #' + esc(result.id) +
           ' is awaiting owner verification. Master Inventory was not changed.</p>' +
-          '<a href="/k/15/show#record=' + encodeURIComponent(result.id) +
+          '<a href="' +
+          (mobile ? '/k/m/15/show?record=' : '/k/15/show#record=') +
+          encodeURIComponent(result.id) +
           '" target="_blank" rel="noopener noreferrer">Open Entry record</a>' +
           '<button type="button" data-zmout-done>Done</button></div>';
         target.querySelector('[data-zmout-done]').addEventListener('click', () => {
@@ -567,13 +586,17 @@
         showError(txt(error.message));
         // In case of ambiguous POST result, do not permit blind resubmission.
         if (/result could not be confirmed/.test(txt(error.message))) {
+          // An ambiguous POST might already have created the Entry record.
+          // Lock this form until the owner resolves its outcome.
+          submitButton.dataset.zmoutAmbiguous = '1';
           showMessage('Submission outcome uncertain: contact owner before retrying.');
         } else {
           showMessage('Submission did not complete. Review the error.');
         }
       } finally {
         busy = false;
-        if (submitButton.isConnected) {
+        if (submitButton.isConnected &&
+            submitButton.dataset.zmoutAmbiguous !== '1') {
           submitButton.disabled = false;
         }
         setButtonStates();
@@ -611,8 +634,10 @@
       return event;
     }
     root = document.getElementById('zm-warehouse-staging-root');
+    mobile = event.type === 'mobile.app.record.index.show';
     firstCard = null;
     pendingIds = new Set();
+    submittedThisSession = new Set();
     pendingError = '';
     isChecking = true;
     if (!root) return event;
