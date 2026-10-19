@@ -7,9 +7,14 @@
  *
  * window.ZM_WAREHOUSE_OUT_CONFIG = {
  *   enabled: true,
- *   ownerValidatedPermissions: true,
- *   peterUserCode: 'CONFIRMED_KINTONE_LOGIN_CODE' // or single USER default
+ *   ownerValidatedPermissions: true
  * };
+ *
+ * The required protected defaults must already be configured on App 15:
+ *   Inventory Verified = No; Warehouse Disposition = Active;
+ *   Peter Notification = owner (single USER default, NOT required).
+ * Crew Add Record must OMIT all three protected fields.
+ * The form-schema preflight validates these settings before enabling OUT.
  *
  * The enabled switch and permissions acknowledgement are not security
  * boundaries. Set actual App 15 add/read/edit and field permissions in Kintone.
@@ -33,8 +38,13 @@
   ]);
   const REQUIRED_ENTRY_FIELDS = Object.freeze([
     'color', 'thickness', 'inventory_status', 'finish',
-    'new_job', 'peter_notification', 'rack', 'shape', 'length',
+    'new_job', 'rack', 'shape', 'length',
     'old_job', 'material', 'width'
+  ]);
+  // These existing fields are controlled by the owner via Kintone field ACLs.
+  // The crew must not send values for them through Add Record.
+  const PROTECTED_ENTRY_FIELDS = Object.freeze([
+    'inventory_verified', 'warehouse_disposition', 'peter_notification'
   ]);
   const EXTRA_FIELDS = Object.freeze({
     master_record_id: 'NUMBER',
@@ -104,16 +114,30 @@
       assert(dropdownHas(properties.warehouse_label_status, label),
         'Add the ' + label + ' choice to warehouse_label_status.');
     }
-    assert(properties.peter_notification.type === 'USER_SELECT',
+    const verified = properties.inventory_verified;
+    assert(verified && verified.type === 'DROP_DOWN',
+      'Inventory Verified must be an App 15 Drop-down field.');
+    assert(verified.required === false &&
+      verified.defaultValue === 'No' &&
+      dropdownHas(verified, 'No') && dropdownHas(verified, 'Yes'),
+      'Set Inventory Verified to optional with default No and Yes/No options in App 15.');
+    const disposition = properties.warehouse_disposition;
+    assert(disposition.required === false &&
+      disposition.defaultValue === STATUS.active,
+      'Set Warehouse Disposition to optional with default Active in App 15.');
+    const notification = properties.peter_notification;
+    assert(notification && notification.type === 'USER_SELECT',
       'Peter Notification must remain a User selection field.');
-    const configuredUser = txt(config.peterUserCode);
-    const defaults = properties.peter_notification.defaultValue;
-    const defaultUser = Array.isArray(defaults) && defaults.length === 1 &&
-      defaults[0].type === 'USER' ? txt(defaults[0].code) : '';
-    const peterUserCode = configuredUser || defaultUser;
-    assert(peterUserCode && peterUserCode !== 'LOGINUSER()',
-      'Confirm the Peter Notification Kintone user code (or a single USER default) before writing.');
-    return { properties, peterUserCode };
+    assert(notification.required === false,
+      'Uncheck Required on Peter Notification in App 15 so crew submissions can use its protected default.');
+    const defaults = notification.defaultValue;
+    assert(Array.isArray(defaults) && defaults.length === 1 &&
+      defaults[0].type === 'USER' && txt(defaults[0].code) &&
+      txt(defaults[0].code) !== 'LOGINUSER()',
+      'Peter Notification must default to one specific USER (the owner). Verify App 15 form settings.');
+    // Do not return or include the owner's private notification field value
+    // in crew-created records. Kintone applies it as a default.
+    return { properties };
   }
 
   function verifyAllowedMasterValues(master, props) {
@@ -172,12 +196,9 @@
     const record = {
       master_record_id: { value: readValue(master, '$id') },
       inventory_status: { value: 'Out' },
-      inventory_verified: { value: 'No' },
       warehouse_request_id: { value: requestId },
-      warehouse_disposition: { value: STATUS.active },
       warehouse_label_status: { value: missing ? 'Missing' : 'Present' },
       warehouse_label_note: { value: missing ? reason : '' },
-      peter_notification: { value: [{ code: schema.peterUserCode }] },
       old_job: { value: jobs.oldJob },
       new_job: { value: jobs.currentJob },
       color: { value: readValue(master, 'color') },
@@ -196,6 +217,12 @@
       if (readValue(master, code) && schema.properties[code]) {
         record[code] = { value: readValue(master, code) };
       }
+    }
+    // Leave protected owner-controlled fields out of the crew API request:
+    // Kintone must populate verified=No, disposition=Active and the owner
+    // notification recipient from the defaults validated above.
+    for (const code of PROTECTED_ENTRY_FIELDS) {
+      assert(!(code in record), 'Protected field cannot be posted by warehouse staff: ' + code);
     }
     // Do not populate or overwrite Move Complete, Master entry_id, Master
     // photos, sale status, or any confidential/financial fields.
