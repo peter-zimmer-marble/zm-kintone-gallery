@@ -5,8 +5,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const source = fs.readFileSync('zm-visual-search-v3.js','utf8');
-new vm.Script(source, {filename:'zm-visual-search-v3.js'});
+const scriptPath = process.env.VISUAL_SEARCH_ASSET || 'zm-visual-search-v3.js';
+const source = fs.readFileSync(scriptPath,'utf8');
+new vm.Script(source, {filename:scriptPath});
 
 const nodes = new Map();
 function makeNode() {
@@ -86,7 +87,7 @@ const env={
   URL:{revokeObjectURL(){}},
   XMLHttpRequest:function UnexpectedPhotoRequest(){throw Error('No fixture photos');}
 };
-vm.runInNewContext(source,env,{filename:'zm-visual-search-v3.js'});
+vm.runInNewContext(source,env,{filename:scriptPath});
 assert.equal(registered.length,1);
 const handler=registered[0].cb;
 assert.deepEqual(Array.from(registered[0].types),
