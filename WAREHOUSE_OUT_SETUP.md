@@ -1,5 +1,7 @@
 # Confirm OUT v1 — disabled draft
 
+**User confirmation (2026-10-19):** All four core tracking fields were added to **Entry Sheet App 15** and the same accidental additions were removed from **Master App 6**. The changes have been published. The owner also confirmed that App 15's existing **Peter Notification** user-select field has him as its default. These are user-reported settings; verify their exact field codes/types/default through the live Kintone form schema as part of acceptance testing.
+
 **Do not deploy yet.** This branch has an additional JavaScript module and
 stylesheet. Both are absent from the installed live Kintone customization.
 The existing Warehouse Staging and Visual Search remain unchanged.
@@ -32,7 +34,7 @@ in this public repo.
 
 ## Required App 15 fields before enabling
 
-The following NEW field codes must be added and published by a Kintone admin:
+The following four NEW field codes have been added/published by the owner, subject to live schema verification:
 
 | Field code | Kintone type | Details |
 | --- | --- | --- |
@@ -54,10 +56,7 @@ includes Dolomite but App 15 currently does not. Master finish includes
 Satin, Velvet, Concrete and Matte, which App 15 currently lacks.
 Do not guess or substitute values.
 
-**Peter Notification:** Crew-created manual Entry records currently notify
-the owner. The module obtains a confirmed single static USER default from
-the required App 15 user select field or uses an explicit verified user code
-in config. Test that a custom submission sends exactly one notification.
+**Peter Notification:** Owner confirms App 15 already has **his Kintone user as the default** in the required USER_SELECT field. The module can read that configured single USER default from the App 15 form schema and explicitly set the same user in the API-created entry; do not guess the login code or assume the default is automatically inserted for a required API field. Confirm schema default type/code and test that a crew-created custom submission sends exactly one owner notification.
 
 **Permissions:** Warehouse users need safe Master read access and App 15
 read/create access, but must not gain access to confidential Master fields
