@@ -76,7 +76,7 @@ Optional, approved-safe fields may include `master_record_id`, `inventory_verifi
 
 - Standalone opt-in module: zm-warehouse-out-v1.js and zm-warehouse-out-v1.css. **Disabled unless explicitly configured**; inserted into existing Warehouse Staging cards by observer without editing existing production staging files.
 - Mock validation suite: tests/warehouse-out-v1.test.js, included in staging GitHub CI. Covers App 15 form schema, source field mapping, required two photos, Missing Label exception, Out pending/void status, idempotency key, request ambiguity, and stale Master checks.
-- Owner setup/acceptance plan: WAREHOUSE_OUT_SETUP.md. Current remaining blockers are new Kintone App 15 fields, confirmed owner User Select default/user code, crew app/field permissions, dropdown alignment, owner-only Void procedure, and an actual phone transaction test. No real Kintone record has been written.
+- Owner setup/acceptance plan: WAREHOUSE_OUT_SETUP.md. The owner reports the four new fields are published in App 15 (and removed from mistaken additions in App 6), and Peter Notification has the owner as its existing default. Still confirm live schema/default via Kintone API, crew app/field permissions, dropdown alignment, owner-only Void procedure, and an actual phone transaction test. No real Kintone record has been written.
 
 ## Implementation & safety gates
 
@@ -90,7 +90,7 @@ Optional, approved-safe fields may include `master_record_id`, `inventory_verifi
 ## Open owner decisions (don't guess)
 
 - **Confirmed job semantics:** Old Job = former assignment; New Job = job material is going to. Existing practice uses `N/A` if no previous job. Crew-facing UI should offer **No Previous Job** explicitly and serialize that as `N/A` for backward compatibility; a genuinely **Unknown** prior job is distinct and should require owner decision/approved sentinel before deployment.
-- **Confirmed notification outcome:** owner receives a notification whenever crew creates a new App 15 record. **Implementation verification still needed:** inspect the required `peter_notification` USER_SELECT field's default/selected user and Kintone app notification rule, then submit a test via Kintone REST API as a crew account and confirm it triggers exactly one owner notification.
+- **Confirmed notification outcome:** owner receives a notification whenever crew creates a new App 15 record. **Owner confirmed:** the required `peter_notification` USER_SELECT field defaults to the owner in App 15. **Implementation verification still needed:** read the exact default USER code/type from Kintone form schema, then submit a test via Kintone REST API as a crew account and confirm it triggers exactly one owner notification.
 - **Confirmed owner approval workflow:** After reconciling an App 15 entry to Master, owner manually sets `inventory_verified=Yes`. For new automated movements, start `inventory_verified=No` to mean pending. `move_complete` is unrelated and must be left unchanged. **Owner confirmed:** delete truly accidental entries today; correct real but erroneous entries in place. **Approved for new workflow:** owner-only Void with reason/audit trail instead of deletion for transactions that did not happen, excluded from pending indicators. Use a separate disposition field; do not reuse `move_complete`.
 - Confirm crew create/read permissions in App 15, and create/validate temporary App 7 Rack entries **Remnant Cart** and **Pending Putaway** before the IN phase.
 
