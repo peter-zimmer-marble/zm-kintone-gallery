@@ -147,16 +147,17 @@ currently edit ordinary fields (dimensions, jobs, racks) even in
 entries whose **Inventory Verified=Yes** was already approved by the
 owner; crew cannot change Inventory Verified or Warehouse Disposition.
 
-**Proposed optional safety improvement, not yet published:** Add a
-higher-priority record permission set for **Inventory Verified includes
-Yes**, granting owner View+Edit+Delete and Everyone **View only**.
-Leave the existing lower-priority **All records** rule unchanged.
-Kintone documents that higher rules win, so this would lock
-owner-verified entries from crew edits while retaining their ability
-to correct unverified entries. **Confirm with owner whether anyone
-still legitimately edits an already-verified Entry before changing.**
-Also verify this condition can be built using the existing dropdown
-and tested with a restricted crew account.
+**Owner confirmed (2026-10-19):** Nobody other than the owner needs to edit
+an Entry Sheet record after Inventory Verified=Yes. **Permission change
+approved in principle, not yet applied:** Add a new record permission set
+targeting **Inventory Verified = Yes** with owner View+Edit+Delete and
+Everyone **View only** (Edit and Delete unchecked). Move this **new
+conditional rule above** the existing All records rule. Preserve the
+existing All records rule below, unchanged, so records with No or blank
+verification status remain editable for the crew. Owner must appear
+**above Everyone** within the new rule. Save, Update App, and test a
+verified and an unverified record under a warehouse login. Do not change
+App-wide Edit permission or field permission rules.
 
 **Potential simpler Peter Notification solution — still requires owner
 approval and a safe test:** Keep owner default and field-level
