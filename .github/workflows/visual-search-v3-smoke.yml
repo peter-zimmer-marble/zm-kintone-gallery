@@ -11,10 +11,12 @@ on:
       - 'gallery-a-v0.5.css'
       - 'tests/visual-search-v3.test.js'
       - 'tests/visual-search-shared.test.js'
+      - 'tests/visual-search-photo-details.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
       - visual-search-update-existing-urls
+      - visual-search-piece-type-rack-photo-details
 
 permissions:
   contents: read
@@ -35,3 +37,5 @@ jobs:
         run: VISUAL_SEARCH_ASSET=zm-visual-search-v2.js node tests/visual-search-v3.test.js
       - name: Test shared Warehouse Map Visual Search
         run: node tests/visual-search-shared.test.js
+      - name: Verify enlarged-photo detail parity
+        run: node tests/visual-search-photo-details.test.js

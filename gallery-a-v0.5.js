@@ -1001,6 +1001,21 @@
   // Restrict optional customer/operational details to authenticated Kintone
   // fields. Do not request prices, purchase notes, costs or suppliers.
   const VISUAL_OPTIONAL_FIELDS = ['material','in_out_note'];
+  // Apply the same fixed category colors used by standalone Inventory Visual Search.
+  function visualPieceTypeClass(value) {
+    const normalized = toText(value).toLowerCase().replace(/[^a-z0-9]/g,'');
+    const classes = {
+      stockslab:'type-stock-slab',
+      soslab:'type-so-slab',
+      cosignedslab:'type-consigned-slab',
+      consignedslab:'type-consigned-slab',
+      stockrem:'type-stock-rem',
+      stanrem:'type-standard-rem'
+    };
+    return classes[normalized] ||
+      (/rem/.test(normalized) ? 'type-remnant' :
+        /slab/.test(normalized) ? 'type-slab' : 'type-other');
+  }
   const visualState = {
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
     sale:'', minLength:'', minWidth:'', photosOnly:false, shown:VISUAL_PAGE_SIZE,
@@ -1082,8 +1097,10 @@
         '">' + esc(label) + '</span>' : '') +
       '</div><div class="zmwm-visual-card-details">' +
       '<div class="zmwm-visual-classifications">' +
-        '<span class="zmwm-visual-piece-type">' + esc(type) + '</span>' +
+        '<span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
+          '">' + esc(type) + '</span>' +
         (material ? '<span class="zmwm-visual-material">' + esc(material) + '</span>' : '') +
+        '<span class="zmwm-visual-rack">Rack: ' + esc(rack) + '</span>' +
       '</div>' +
       '<div class="zmwm-visual-size">' + esc(length) + ' × ' + esc(width) + ' in</div>' +
       (shape && shape.toLowerCase() !== 'rectangle' ?
@@ -1094,8 +1111,8 @@
       (note ? '<div class="zmwm-visual-note">' +
         '<span class="zmwm-visual-note-label">IN / OUT NOTES</span>' +
         '<p>' + esc(note) + '</p></div>' : '') +
-      '<div class="zmwm-visual-card-meta"><span>' + esc(rack) +
-        ' · #' + esc(id) + '</span></div>' +
+      '<div class="zmwm-visual-card-meta"><span>Record #' + esc(id) +
+        '</span></div>' +
       '</div></a></article>';
   }
   function visualShell() {

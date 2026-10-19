@@ -733,3 +733,47 @@
 #zm-warehouse-map-root .zmwm-visual-multifield + .zmwm-visual-multifield .zmwm-visual-multi-options {
   left:auto;right:0;
 }
+
+
+/* Visual Search: fixed, accessible colors for exact Kintone piece classifications.
+   Status remains independently labeled as SOLD/ON HOLD; never use color alone. */
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-stock-slab {
+  background:#216447;border-color:#216447;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-so-slab {
+  background:#285d8a;border-color:#285d8a;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-consigned-slab {
+  background:#5d5488;border-color:#5d5488;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-stock-rem {
+  background:#98531d;border-color:#98531d;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-standard-rem {
+  background:#126b63;border-color:#126b63;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-remnant {
+  background:#835e26;border-color:#835e26;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-slab {
+  background:#3b6675;border-color:#3b6675;color:#fff;
+}
+#zm-warehouse-map-root .zmwm-visual-piece-type.type-other {
+  background:#4a5f58;border-color:#4a5f58;color:#fff;
+}
+/* Material and rack are equal-weight chips; rack immediately follows material. */
+#zm-warehouse-map-root .zmwm-visual-material,
+#zm-warehouse-map-root .zmwm-visual-rack {
+  display:inline-flex;align-items:center;padding:5px 8px;font-size:10.5px;
+  font-weight:800;line-height:1.3;border:1px solid #d5e3d7;
+  background:#edf2ec;color:#435c4b;overflow-wrap:anywhere;
+}
+#zm-warehouse-map-root .zmwm-visual-rack {
+  background:#edf2ec;color:#435c4b;border-color:#d5e3d7;
+}
+
+
+@media(max-width:470px) {
+  #zm-warehouse-map-root .zmwm-visual-rack,
+  #zm-warehouse-map-root .zmwm-visual-material {font-size:9px;padding:4px 6px;}
+}
