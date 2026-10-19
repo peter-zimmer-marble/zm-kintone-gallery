@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v2.0. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.0 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -215,4 +215,103 @@
   #zm-visual-search-root .zmwm-visual-lightbox-footer > span {font-size:10px;}
   #zm-visual-search-root .zmwm-visual-lightbox-download {font-size:11px;}
   #zm-visual-search-root .zmwm-visual-photo-count {font-size:9px;padding:4px 6px;}
+}
+
+
+/* Visual Search v3: mobile-friendly multi-select menus. Native details/summary
+   keep the controls keyboard-accessible without a custom dropdown library. */
+#zm-visual-search-root .zmwm-visual-multifield {flex:1.15 1 165px;min-width:155px;}
+#zm-visual-search-root .zmwm-visual-multi {position:relative;width:100%;min-width:0;}
+#zm-visual-search-root .zmwm-visual-multi > summary {
+  height:42px;min-width:0;display:flex;justify-content:space-between;align-items:center;
+  gap:9px;padding:0 10px;background:#fff;color:#304a3a;font-weight:700;
+  font-size:12px;border:1px solid #cfdacf;cursor:pointer;list-style:none;
+}
+#zm-visual-search-root .zmwm-visual-multi > summary::-webkit-details-marker {display:none;}
+#zm-visual-search-root .zmwm-visual-multi > summary span:first-child {
+  min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+#zm-visual-search-root .zmwm-visual-multi > summary:focus-visible {outline:3px solid #ab8553;outline-offset:2px;}
+#zm-visual-search-root .zmwm-visual-multi[open] > summary {border-color:#698e75;}
+#zm-visual-search-root .zmwm-visual-multi.is-filtered > summary {
+  background:#e9f3eb;color:#285b3a;border-color:#87ac90;
+}
+#zm-visual-search-root .zmwm-visual-chevron {color:#64806d;font-size:14px;flex-shrink:0;}
+#zm-visual-search-root .zmwm-visual-multi[open] .zmwm-visual-chevron {transform:rotate(180deg);}
+#zm-visual-search-root .zmwm-visual-multi-options {
+  position:absolute;left:0;right:0;top:calc(100% + 3px);z-index:30;
+  min-width:220px;max-height:300px;overflow-y:auto;
+  padding:7px;background:#fff;border:1px solid #c3d3c8;
+  box-shadow:0 12px 25px rgba(22,53,31,.18);
+}
+#zm-visual-search-root .zmwm-visual-filter-hint {
+  padding:6px 9px;color:#788b7e;font-size:10px;font-weight:800;
+  letter-spacing:.4px;text-transform:uppercase;
+}
+#zm-visual-search-root .zmwm-visual-filter-empty {padding:14px 9px;color:#819388;font-size:11px;}
+#zm-visual-search-root .zmwm-visual-option {
+  min-height:36px;padding:6px 8px;display:flex;gap:8px;align-items:center;
+  color:#345541;font-size:12px;cursor:pointer;
+}
+#zm-visual-search-root .zmwm-visual-option:hover {background:#edf4ed;}
+#zm-visual-search-root .zmwm-visual-option input {
+  flex-shrink:0;width:15px;height:15px;margin:0;accent-color:#3a7952;
+}
+#zm-visual-search-root .zmwm-visual-option span {flex:1;min-width:0;overflow-wrap:anywhere;}
+#zm-visual-search-root .zmwm-visual-option small {flex-shrink:0;color:#8b9c90;font-size:10px;}
+
+/* Status cues use words, high contrast and card borders; photo detail stays visible. */
+#zm-visual-search-root .zmwm-visual-card.is-sold {
+  border:2px solid #ba6a57;box-shadow:0 0 0 1px #f0d9d1;
+}
+#zm-visual-search-root .zmwm-visual-card.is-hold {
+  border:2px solid #8662a4;box-shadow:0 0 0 1px #eadff2;
+}
+#zm-visual-search-root .zmwm-visual-status {
+  top:9px;right:9px;padding:7px 10px;font-size:11px;font-weight:900;
+  letter-spacing:.75px;border-radius:2px;
+}
+#zm-visual-search-root .zmwm-visual-status.sold {
+  background:#a43d30;color:#fff;box-shadow:0 2px 8px rgba(44,19,14,.3);
+}
+#zm-visual-search-root .zmwm-visual-status.hold {
+  background:#654482;color:#fff;box-shadow:0 2px 8px rgba(32,20,42,.3);
+}
+#zm-visual-search-root .zmwm-visual-status.available {
+  background:rgba(252,255,252,.95);color:#326e4c;
+}
+#zm-visual-search-root .zmwm-visual-classifications {
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:0;
+}
+#zm-visual-search-root .zmwm-visual-piece-type {
+  display:inline-flex;align-items:center;padding:5px 9px;font-size:11px;
+  font-weight:900;letter-spacing:.16px;line-height:1.3;
+  color:#fff;background:#345a43;border:1px solid #345a43;
+}
+#zm-visual-search-root .zmwm-visual-material {
+  display:inline-flex;align-items:center;padding:5px 7px;font-size:10.5px;
+  font-weight:750;line-height:1.3;color:#5a7161;background:#edf2ec;border:1px solid #d5e3d7;
+}
+#zm-visual-search-root .zmwm-visual-job.is-sold {background:#fbefeb;border-left-color:#b85a45;}
+#zm-visual-search-root .zmwm-visual-job.is-hold {background:#f2ebf8;border-left-color:#8260a1;}
+#zm-visual-search-root .zmwm-visual-note {
+  padding:8px 9px 9px;border-left:3px solid #c69b4e;background:#faf5e9;color:#615339;
+}
+#zm-visual-search-root .zmwm-visual-note-label {
+  display:block;color:#8c7140;font-weight:900;font-size:9px;
+  letter-spacing:.85px;line-height:1.3;
+}
+#zm-visual-search-root .zmwm-visual-note p {
+  margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;
+  color:#514c3b;font-size:11.5px;font-weight:650;line-height:1.42;
+}
+#zm-visual-search-root .zmwm-visual-card-meta {padding-top:3px;}
+
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-multifield {min-width:0;flex-basis:calc(50% - 5px);}
+  #zm-visual-search-root .zmwm-visual-multi-options {min-width:190px;}
+  #zm-visual-search-root .zmwm-visual-status {top:5px;right:5px;padding:5px 7px;font-size:9px;}
+  #zm-visual-search-root .zmwm-visual-piece-type {font-size:9.5px;padding:4px 6px;}
+  #zm-visual-search-root .zmwm-visual-material {font-size:9px;padding:4px 6px;}
+  #zm-visual-search-root .zmwm-visual-note p {font-size:10.5px;}
 }
