@@ -312,7 +312,10 @@
       exact_picture:{value:keys.map(fileKey=>({fileKey}))}
     };
     if (masterId) record.master_record_id={value:masterId};
-    if (type) record.type={value:type};
+    // If an optional drop-down has a Kintone default, an omitted field
+    // would silently adopt it. Explicitly clear an unconfirmed choice.
+    if (type || txt(props.type.defaultValue))
+      record.type={value:type};
     // Color is an App 5 lookup: do NOT write arbitrary observed color text to
     // its key. Keep unknown/free-text color in warehouse_observed_color.
     const colorSource = masterId ? master :
@@ -333,7 +336,8 @@
     if (width!=='') record.width={value:width};
     for (const code of ['material','finish','shape']) {
       const choice = selectedOption(input,code,props);
-      if (choice) record[code]={value:choice};
+      if (choice || txt(props[code].defaultValue))
+        record[code]={value:choice};
     }
     for (const field of PROTECTED_FIELDS) {
       fail(!(field in record),'Crew cannot submit owner-only field '+field+'.');
@@ -850,7 +854,7 @@
       try{
         // A fresh schema and rack existence check run again in submit().
         buildEntry(input,['check1','check2'],await schema(),
-          matchedMaster);
+          matchedMaster,matchedParent);
         fail(distinctFiles(photos.full,photos.label),
           'Take two different required photos.');
       }catch(error){showError(txt(error.message));return;}
