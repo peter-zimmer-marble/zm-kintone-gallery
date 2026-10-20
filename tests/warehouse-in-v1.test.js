@@ -347,6 +347,75 @@ const extra=smallPhoto('extra.jpg');
   }),/Do NOT resubmit/);
   assert.equal(records.length,3);
 
+  // Large mobile camera shots should be adaptively resized in few passes;
+  // converted JPEG still retains the <=500,000-byte hard cap.
+  let encodes=0,decodes=0,revocations=0;
+  let multiplier=1;
+  const canvas={
+    width:0,height:0,
+    getContext(){
+      return {set fillStyle(v){},
+        fillRect(){},drawImage(){}};
+    },
+    toBlob(cb,type,quality){
+      encodes++;
+      assert.equal(type,'image/jpeg');
+      const pixels=this.width*this.height;
+      cb({size:Math.round(900000*pixels/(2048*1536)*
+        quality*multiplier),type:'image/jpeg'});
+    }
+  };
+  class FakeImage {
+    constructor(){
+      this.naturalWidth=4032;
+      this.naturalHeight=3024;
+    }
+    set src(v){decodes++;if(v&&this.onload)this.onload();}
+  }
+  class FakeFile {
+    constructor(blobs,name,opts){
+      this.name=name;
+      this.type=opts.type;
+      this.lastModified=opts.lastModified;
+      this.size=blobs.reduce((n,b)=>n+b.size,0);
+    }
+  }
+  const resizeEnv={
+    window:{kintone,ZM_WAREHOUSE_IN_CONFIG:{
+      enabled:true,submissionsEnabled:false
+    }},
+    kintone,Image:FakeImage,File:FakeFile,
+    URL:{
+      createObjectURL(){return 'blob:mock';},
+      revokeObjectURL(url){
+        assert.equal(url,'blob:mock');revocations++;
+      }
+    },
+    document:{createElement(name){
+      assert.equal(name,'canvas');return canvas;
+    },getElementById(){return null;}}
+  };
+  vm.runInNewContext(js,resizeEnv);
+  const photo=resizeEnv.window.ZM_WAREHOUSE_IN_V1.optimizePhoto;
+  const large={name:'iPhone.HEIC',size:9200000,
+    type:'image/heic',lastModified:125};
+  const startEncodes=encodes;
+  const shrink=await photo(large,'FULL_PIECE');
+  assert.ok(shrink.size>0&&shrink.size<=500000);
+  assert.equal(shrink.type,'image/jpeg');
+  assert.equal(shrink.name,'iPhone_500kb.jpg');
+  assert.ok(encodes-startEncodes<=3);
+  const labelStart=encodes;
+  const labelShrink=await photo(large,'IDENTIFYING_LABEL');
+  assert.ok(labelShrink.size<=500000);
+  assert.ok(encodes-labelStart<=4);
+  assert.equal(await photo(full,'FULL_PIECE'),full,
+    'Already-small photos should skip JPEG work');
+  assert.equal(decodes,2,'Do not decode small photos');
+  multiplier=100;
+  await assert.rejects(photo(large,'IDENTIFYING_LABEL'),/500 KB/);
+  assert.equal(revocations,3,'All blob URLs should be released');
+
   // Preview config still allows a visible form but blocks all writes.
   const noWriteCalls=[];
   const kintonePreview={
