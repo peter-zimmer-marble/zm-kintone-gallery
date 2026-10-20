@@ -1,6 +1,8 @@
 /*
  * Zimmer Marble Universal Warehouse IN - initial capture workflow.
- * APP 15 ONLY. Does not write Master Inventory App 6.
+ * Hosted in a custom view on Master Inventory App 6.
+ * Writes IN journal entries ONLY to Inventory Entry Sheet App 15.
+ * NEVER creates, updates, or deletes Master Inventory App 6 records.
  * No production writes unless an administrator installs an IN config
  * with enabled:true and submissionsEnabled:true.
  *
@@ -15,7 +17,8 @@
   if (!window.kintone || !kintone.events) return;
   const canSubmit = config.submissionsEnabled === true;
   const MASTER_APP = 6;
-  const ENTRY_APP = 15;
+  const HOST_APP = MASTER_APP; // Same app as Warehouse Staging / OUT.
+  const ENTRY_APP = 15;       // Destination of all IN movement writes.
   const RACK_APP = 7;
   const VIEW = 'Warehouse IN';
   const ROOT_ID = 'zm-warehouse-in-root';
@@ -914,7 +917,7 @@
     });
   }
   function onShow(event){
-    if(Number(event.appId)!==ENTRY_APP||event.viewType!=='custom'||
+    if(Number(event.appId)!==HOST_APP||event.viewType!=='custom'||
       event.viewName!==VIEW){root=null;return event;}
     root=document.getElementById(ROOT_ID);
     mobile=event.type==='mobile.app.record.index.show';
