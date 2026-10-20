@@ -18,8 +18,8 @@ assert.equal(Object.isFrozen(defaults.window.ZM_WAREHOUSE_IN_CONFIG),true);
 const options = (...labels)=>Object.fromEntries(labels.map((label,i)=>[
   'opt'+i,{label}
 ]));
-const SOURCES = ['Remnant Off Saw','Unused Staged Slab Return',
-  'New Supplier Slab','Jobsite Return','Customer Drop-off','Other / Unknown'];
+const SOURCES = ['New Remnant','New Slab','Unused Piece',
+  'Field Return','Customer Drop-off','Other / Unknown'];
 const props={};
 for(const code of ['color','thickness','finish','old_job','new_job',
   'shape','length','width','material','rack']) {
@@ -204,11 +204,31 @@ const extra=smallPhoto('extra.jpg');
     assert.ok(!(code in unknown),'Unknown '+code+' should stay blank.');
   }
   const remnant=tool.buildEntry({...unmatched,
-    source:'Remnant Off Saw',pieceKind:'Remnant',
+    source:'New Remnant',pieceKind:'Remnant',
     parentReference:'Parent Slab 12222'
   },['first','second'],schema);
   assert.equal(remnant.rack.value,'Remnant Cart');
   assert.equal(remnant.warehouse_parent_reference.value,'Parent Slab 12222');
+  const newSlab=tool.buildEntry({...unmatched,
+    source:'New Slab',pieceKind:'Slab'
+  },['first','second'],schema);
+  assert.equal(newSlab.warehouse_in_source.value,'New Slab');
+  assert.equal(newSlab.rack.value,'Pending Putaway');
+  const fieldReturn=tool.buildEntry({...unmatched,
+    source:'Field Return',pieceKind:'Remnant'
+  },['first','second'],schema);
+  assert.equal(fieldReturn.rack.value,'Remnant Cart',
+    'Field Return may be a remnant, determined by its piece type');
+  const unused=tool.buildEntry({...unmatched,
+    source:'Unused Piece',pieceKind:'Other / Unknown'
+  },['first','second'],schema);
+  assert.equal(unused.rack.value,'Pending Putaway');
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Remnant',pieceKind:'Slab'
+  },['first','second'],schema),/New Remnant must be identified/);
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Slab',pieceKind:'Remnant'
+  },['first','second'],schema),/New Slab must be identified/);
   assert.ok(!('parent_slab_id' in remnant));
   const now=tool.buildEntry({...unmatched,putawayPlan:'Put Away Now',
     finalRack:'Z-5A',source:'Customer Drop-off',pieceKind:'Slab'
@@ -233,7 +253,7 @@ const extra=smallPhoto('extra.jpg');
   assert.equal(alt.warehouse_label_note.value,
     'No sticker; photographed etched edge');
 
-  const known={...unmatched,source:'Unused Staged Slab Return',
+  const known={...unmatched,source:'Unused Piece',
     pieceKind:'Slab',masterId:'8765',masterColor:'Blue Dunes',
     material:'Quartz',thickness:'3cm',finish:'Polished',
     shape:'Rectangle',length:'120',width:'60',oldJob:'Test Job',
