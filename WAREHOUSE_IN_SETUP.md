@@ -10,6 +10,7 @@ Status: PREVIEW-ONLY. No Master App 6, OUT, Visual Search, staging, or live Kint
 - Leave unknown color, material, dimensions, shape, thickness, finish, job, and Master ID truly blank. Do NOT invent App 5 lookup keys or other values.
 - Save freeform label/color observations separately from the Color lookup field.
 - A brand-new remnant is its own unmatched IN entry; its parent slab can be referenced without pretending the parent is the remnant.
+- IN Source uses six shop-friendly labels: New Remnant, New Slab, Unused Piece, Field Return, Customer Drop-off, and Other / Unknown. New Remnant automatically selects piece type Remnant, New Slab selects Slab, and the other four sources can be either type.
 - Put Away Later is the default: Remnant Cart for remnants, Pending Putaway for other items; Put Away Now needs a real final rack.
 - Each IN creates one App 15 Entry Sheet record with Inventory Status=In and identification state Needs Review or Identified. App 6 remains unchanged until owner reconciliation; Inventory Verified=No and Peter Notification default preserved.
 - A separate Awaiting Putaway workflow and PUTAWAY event journal are next-phase work, NOT implemented in this initial IN form.
@@ -35,7 +36,7 @@ Rack may stay Required because all IN records use a verified temporary or perman
 | Exact field code | Kintone field type | Choices/purpose |
 |---|---|---|
 | warehouse_event_type | Drop-down | IN; PUTAWAY (reserved for second phase; existing OUT events leave blank) |
-| warehouse_in_source | Drop-down | Remnant Off Saw; Unused Staged Slab Return; New Supplier Slab; Jobsite Return; Customer Drop-off; Other / Unknown |
+| warehouse_in_source | Drop-down | New Remnant; New Slab; Unused Piece; Field Return; Customer Drop-off; Other / Unknown |
 | warehouse_piece_kind | Drop-down | Slab; Remnant; Other / Unknown |
 | warehouse_putaway_plan | Drop-down | Put Away Later; Put Away Now |
 | warehouse_identification_status | Drop-down | Needs Review; Identified |
