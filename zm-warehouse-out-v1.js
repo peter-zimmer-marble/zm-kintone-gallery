@@ -346,35 +346,46 @@
     return records.length ? readValue(records[0], '$id') : '';
   }
 
-  // Resize large camera shots in the browser before uploading to App 15.
-  // Limits are soft targets: preserving readable label text takes priority.
-  // Keep the user's original File untouched for an explicit full-resolution
-  // override, and fall back to it if a browser cannot decode/encode the image.
+  // Keep EVERY stored movement photo at or below 500,000 bytes (500 KB).
+  // Kintone's native mobile file chooser has its own optional size reduction,
+  // but this custom UI cannot depend on that native behavior.
+  const PHOTO_MAX_BYTES = 500000;
   const PHOTO_PROFILES = Object.freeze({
-    full: { maxEdge: 2048, maxBytes: 1400 * 1024,
-      qualities: [0.84, 0.78, 0.72] },
-    label: { maxEdge: 2560, maxBytes: 1800 * 1024,
-      qualities: [0.88, 0.82, 0.76] }
+    full: { maxEdge: 2048, minEdge: 900 },
+    label: { maxEdge: 2560, minEdge: 1200 }
   });
-  const PHOTO_COMPRESS_MIN_BYTES = 1100 * 1024;
+  const PHOTO_QUALITIES = Object.freeze([0.86, 0.76, 0.66, 0.56, 0.48]);
   function photoSize(bytes) {
-    return (Number(bytes || 0) / (1024 * 1024)).toFixed(1) + ' MB';
+    const n = Number(bytes || 0);
+    return n >= 1000000 ? (n / 1000000).toFixed(1) + ' MB' :
+      Math.round(n / 1000) + ' KB';
   }
   function photoProfile(prefix) {
     return prefix === 'IDENTIFYING_LABEL' || prefix === 'ALTERNATIVE_ID'
       ? PHOTO_PROFILES.label : PHOTO_PROFILES.full;
   }
-  async function optimizePhoto(file, prefix, keepOriginal = false) {
-    if (keepOriginal || !file || Number(file.size) <= PHOTO_COMPRESS_MIN_BYTES ||
-        !/^image\/(jpeg|png|webp|heic|heif)$/i.test(str(file.type))) return file;
-    // Image/canvas decoding support varies inside mobile app webviews.
-    // An unavailable optimization must never prevent documenting a movement.
-    if (typeof Image === 'undefined' || typeof File === 'undefined' ||
-        typeof document === 'undefined' ||
+  function photoTooLargeMessage(prefix) {
+    const what = prefix === 'IDENTIFYING_LABEL' || prefix === 'ALTERNATIVE_ID'
+      ? 'identifying/label photo' : 'photo';
+    return 'This ' + what + ' could not be reduced to 500 KB on this device. ' +
+      'Retake it closer and with less background, or select a smaller/mobile-' +
+      'optimized JPEG. Nothing has been submitted.';
+  }
+  async function optimizePhoto(file, prefix) {
+    assert(file && /^image\//i.test(str(file.type)),
+      'Please select a valid photo for ' + prefix + '.');
+    assert(Number.isFinite(Number(file.size)) && Number(file.size) > 0,
+      'The selected photo is empty or has an invalid file size.');
+    // Already-optimized images need no conversion and retain their metadata.
+    if (Number(file.size) <= PHOTO_MAX_BYTES) return file;
+    const failureMessage = photoTooLargeMessage(prefix);
+    if (typeof Image === 'undefined' || typeof document === 'undefined' ||
         typeof document.createElement !== 'function' ||
         typeof URL === 'undefined' ||
         typeof URL.createObjectURL !== 'function' ||
-        typeof URL.revokeObjectURL !== 'function') return file;
+        typeof URL.revokeObjectURL !== 'function') {
+      throw new Error(failureMessage);
+    }
 
     let objectUrl = '', canvas = null;
     try {
@@ -382,45 +393,53 @@
       const image = await new Promise((resolve, reject) => {
         const bitmap = new Image();
         bitmap.onload = () => resolve(bitmap);
-        bitmap.onerror = () => reject(new Error('Image decoding unavailable.'));
+        bitmap.onerror = () => reject(new Error('Photo decoder unavailable.'));
         bitmap.src = objectUrl;
       });
       const w = Number(image.naturalWidth || image.width);
       const h = Number(image.naturalHeight || image.height);
-      if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1)
-        return file;
-      const profile = photoProfile(prefix);
-      const scale = Math.min(1, profile.maxEdge / Math.max(w, h));
-      const width = Math.max(1, Math.round(w * scale));
-      const height = Math.max(1, Math.round(h * scale));
+      assert(Number.isFinite(w) && Number.isFinite(h) && w >= 1 && h >= 1,
+        'Could not read photo dimensions.');
       canvas = document.createElement('canvas');
-      if (!canvas || typeof canvas.getContext !== 'function' ||
-          typeof canvas.toBlob !== 'function') return file;
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return file;
-      // Avoid black backgrounds when converting transparent PNGs to JPEG.
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(image, 0, 0, width, height);
-      let best = null;
-      for (const quality of profile.qualities) {
-        const blob = await new Promise(resolve =>
-          canvas.toBlob(resolve, 'image/jpeg', quality));
-        if (!blob || !blob.size || blob.type !== 'image/jpeg') continue;
-        if (!best || blob.size < best.size) best = blob;
-        if (blob.size <= profile.maxBytes) break;
+      assert(canvas && typeof canvas.getContext === 'function' &&
+        typeof canvas.toBlob === 'function', 'Canvas compression unsupported.');
+      const profile = photoProfile(prefix);
+      let longestEdge = Math.min(profile.maxEdge, Math.max(w, h));
+      const minimumEdge = Math.min(profile.minEdge, longestEdge);
+      for (let attempt = 0; attempt < 9; attempt++) {
+        const scale = longestEdge / Math.max(w, h);
+        const width = Math.max(1, Math.round(w * scale));
+        const height = Math.max(1, Math.round(h * scale));
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        assert(ctx, 'Photo drawing unavailable.');
+        // Keep transparent source backgrounds white rather than black.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(image, 0, 0, width, height);
+        for (const quality of PHOTO_QUALITIES) {
+          const blob = await new Promise(resolve =>
+            canvas.toBlob(resolve, 'image/jpeg', quality));
+          if (!blob || blob.type !== 'image/jpeg' || !blob.size) continue;
+          if (blob.size > PHOTO_MAX_BYTES) continue;
+          const base = txt(file.name || 'photo').replace(/\.[^.]+$/, '');
+          const name = (base || 'photo') + '_500kb.jpg';
+          const result = typeof File === 'function'
+            ? new File([blob], name, { type:'image/jpeg',
+              lastModified:Number(file.lastModified) || Date.now() })
+            : blob;
+          assert(result.size <= PHOTO_MAX_BYTES,
+            'Compressed photo size exceeded limit.');
+          return result;
+        }
+        if (longestEdge <= minimumEdge) break;
+        longestEdge = Math.max(minimumEdge, Math.floor(longestEdge * 0.82));
       }
-      // Never make a photo larger for the sake of transcoding.
-      if (!best || best.size >= Number(file.size) * 0.88) return file;
-      const base = txt(file.name || 'photo').replace(/\.[^.]+$/, '');
-      return new File([best], (base || 'photo') + '_optimized.jpg', {
-        type: 'image/jpeg', lastModified: Number(file.lastModified) || Date.now()
-      });
+      throw new Error(failureMessage);
     } catch (_) {
-      // Keep source evidence if JPEG encoding/HEIC decoding fails on a device.
-      return file;
+      // Never fall back to a multi-megabyte original: storage cap is mandatory.
+      throw new Error(failureMessage);
     } finally {
       if (canvas) { canvas.width = 0; canvas.height = 0; }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -430,6 +449,8 @@
   async function uploadPhoto(file, name) {
     assert(file && /^image\//i.test(str(file.type)),
       'Please choose an image for ' + name + '.');
+    assert(Number(file.size) > 0 && Number(file.size) <= PHOTO_MAX_BYTES,
+      'Upload blocked: every photo must be 500 KB or less.');
     const token = kintone.getRequestToken();
     assert(token, 'Kintone session token unavailable. Sign in again.');
     const data = new FormData();
@@ -492,24 +513,32 @@
     for (const file of (photos.extra || [])) {
       files.push({ file, prefix: 'ADDITIONAL' });
     }
-    const keys = [];
+    // Preprocess ALL photos before uploading ANYTHING: a failed oversized
+    // optional photo must not leave earlier temporary Kintone file uploads.
     let originalBytes = 0, uploadedBytes = 0, optimizedCount = 0;
+    const uploadFiles = [];
     for (let i = 0; i < files.length; i++) {
       const original = files[i].file;
-      originalBytes += Number(original.size || 0);
-      if (typeof statusUpdate === 'function' && !input.keepOriginalPhotos) {
-        statusUpdate('Optimizing photo ' + (i + 1) + ' of ' + files.length + '…');
-      }
-      const outgoing = await optimizePhoto(original, files[i].prefix,
-        input.keepOriginalPhotos === true);
-      uploadedBytes += Number(outgoing.size || 0);
-      if (outgoing !== original) optimizedCount++;
+      originalBytes += Number(original && original.size || 0);
       if (typeof statusUpdate === 'function') {
-        statusUpdate('Uploading photo ' + (i + 1) + ' of ' + files.length +
-          ' (' + photoSize(outgoing.size) +
-          (outgoing !== original ? ' optimized' : ' original') + ')…');
+        statusUpdate('Preparing photo ' + (i + 1) + ' of ' + files.length +
+          ' (500 KB maximum each)…');
       }
-      keys.push(await uploadPhoto(outgoing, files[i].prefix));
+      const outgoing = await optimizePhoto(original, files[i].prefix);
+      assert(outgoing.size <= PHOTO_MAX_BYTES,
+        'Photo size exceeds the 500 KB maximum.');
+      uploadedBytes += Number(outgoing.size);
+      if (outgoing !== original) optimizedCount++;
+      uploadFiles.push({file:outgoing, prefix:files[i].prefix});
+    }
+    const keys = [];
+    for (let i = 0; i < uploadFiles.length; i++) {
+      const item = uploadFiles[i];
+      if (typeof statusUpdate === 'function') {
+        statusUpdate('Uploading photo ' + (i + 1) + ' of ' +
+          uploadFiles.length + ' (' + photoSize(item.file.size) + ')…');
+      }
+      keys.push(await uploadPhoto(item.file, item.prefix));
     }
     const photoStats = { originalBytes, uploadedBytes, optimizedCount };
     const entry = buildEntry(latest, input, keys, verifiedSchema, requestId);
@@ -681,9 +710,8 @@
       '<textarea name="labelReason" rows="2"></textarea></label>' +
       '<label>Additional photos (optional)<input name="extraPhotos" type="file"' +
       ' accept="image/*" multiple></label>' +
-      '<p class="zmout-photo-hint">Large photos are reduced before upload to save time and storage. Label photos retain extra detail.</p>' +
-      '<label class="zmout-check"><input name="keepOriginalPhotos" type="checkbox">' +
-      'Keep original-size photos (use if tiny markings need full detail)</label>' +
+      '<p class="zmout-photo-hint">All photos are automatically reduced to 500 KB or less before upload. ' +
+      'For small label text, take a close-up. Oversized photos that cannot be reduced will not be uploaded.</p>' +
       '<label>OUT notes (optional, max 255 characters)' +
       '<textarea name="notes" maxlength="255" rows="2"></textarea></label>' +
       '<div class="zmout-actions"><button type="button" data-zmout-close>Cancel</button>' +
@@ -717,8 +745,7 @@
         previousJob: form.elements.previousJob.value,
         missingLabel: missing.checked,
         labelReason: form.elements.labelReason.value,
-        notes: form.elements.notes.value,
-        keepOriginalPhotos: form.elements.keepOriginalPhotos.checked
+        notes: form.elements.notes.value
       };
       const photos = {
         full: form.elements.fullPhoto.files[0],
@@ -744,9 +771,10 @@
         submittedThisSession.add(readValue(master, '$id'));
         showMessage('OUT recorded successfully.');
         const stats = result.photoStats;
-        const savings = stats && stats.optimizedCount ?
-          '<p>Photos optimized: ' + esc(photoSize(stats.originalBytes)) +
-          ' → ' + esc(photoSize(stats.uploadedBytes)) + ' uploaded.</p>' : '';
+        const savings = stats ?
+          '<p>Photo storage: ' + esc(photoSize(stats.originalBytes)) +
+          ' original → ' + esc(photoSize(stats.uploadedBytes)) +
+          ' uploaded (each ≤500 KB).</p>' : '';
         target.innerHTML =
           '<div class="zmout-success"><strong>OUT recorded in Entry Sheet.</strong>' +
           '<p>Entry #' + esc(result.id) +
