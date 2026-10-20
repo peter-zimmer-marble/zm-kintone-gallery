@@ -267,8 +267,10 @@ const extra=smallPhoto('extra.jpg');
     'Blue Dunes V99 - 120 x 60 in - Record 8765 - IN - Label.jpg');
   assert.match(tool.photoFilename(known,currentMaster,'ADDITIONAL',2,extra),
     / - IN - Additional 2\.jpg$/);
-  assert.equal(tool.distinctFiles(full,label),false,
-    'Equal name-independent size/date inputs must still be distinct');
+  assert.equal(tool.distinctFiles(full,label),true,
+    'Different image names must be treated as distinct evidence');
+  assert.equal(tool.distinctFiles(full,{...full}),false,
+    'A copy with the same name, size and date is not distinct');
   assert.equal(tool.distinctFiles(full,{...label,lastModified:43}),true);
   // Required two images must be distinct by actual fingerprint.
   const distinctLabel={...label,lastModified:43};
