@@ -29,8 +29,8 @@ props.color.lookup={relatedApp:{app:5},relatedKeyField:'color_name'};
 props.rack.lookup={relatedApp:{app:7},relatedKeyField:'rack'};
 props.inventory_status={type:'RADIO_BUTTON',required:true,
   options:options('In','Out')};
-props.thickness={type:'RADIO_BUTTON',required:false,
-  options:options('2cm','3cm')};
+props.thickness={type:'RADIO_BUTTON',required:true,defaultValue:'3cm',
+  options:options('3cm','2cm','12mm','Other','Unknown')};
 props.material={type:'DROP_DOWN',required:false,
   options:options('Quartz','Granite','Quartzite','Dolomite')};
 props.finish={type:'DROP_DOWN',required:false,
@@ -200,7 +200,11 @@ const extra=smallPhoto('extra.jpg');
     'Mysterious gray with red mark');
   assert.equal(unknown.rack.value,'Pending Putaway');
   assert.ok(!('color' in unknown),'Unknown color must not fake App 5 lookup.');
-  for(const code of ['master_record_id','thickness','finish','material',
+  assert.equal(unknown.thickness.value,'Unknown',
+    'IN must never silently inherit the radio default 3cm for an unknown piece');
+  assert.equal(props.thickness.defaultValue,'3cm',
+    'Keep 3cm for ordinary manual App 15 records');
+  for(const code of ['master_record_id','finish','material',
     'shape','length','width','old_job','new_job']){
     assert.ok(!(code in unknown),'Unknown '+code+' should stay blank.');
   }
@@ -252,6 +256,8 @@ const extra=smallPhoto('extra.jpg');
   assert.equal(fromParent.warehouse_parent_reference.value,'Master #8765');
   assert.equal(fromParent.old_job.value,'Test Job');
   assert.equal(fromParent.material.value,'Quartz');
+  assert.equal(fromParent.thickness.value,'3cm',
+    'The identified parent supplies actual thickness');
   assert.equal(fromParent.type.value,'STOCK Rem');
   assert.equal(fromParent.length.value,29);
   assert.equal(fromParent.width.value,18);
@@ -266,6 +272,15 @@ const extra=smallPhoto('extra.jpg');
   },['first','second'],schema,null,currentMaster);
   assert.equal(discontinued.type.value,'Stan-Rem',
     'Allow manual override for no-longer-stock stone');
+  assert.equal(discontinued.thickness.value,'Unknown',
+    'Unconfirmed remnant thickness must never become 3cm by default');
+  for(const value of ['12mm','Other','2cm','3cm']){
+    const alternate=tool.buildEntry({...unmatched,
+      thickness:value
+    },['first','second'],schema);
+    assert.equal(alternate.thickness.value,value,
+      'IN must preserve a crew-chosen thickness '+value);
+  }
   assert.throws(()=>tool.buildEntry({...unmatched,
     source:'New Remnant',type:'STOCK Rem',
     parentMasterId:'8765',parentColor:'Blue Dunes'
@@ -314,6 +329,14 @@ const extra=smallPhoto('extra.jpg');
 
   assert.ok(!js.includes('warehouse_piece_kind'),
     'Do not require an extra generic warehouse piece-kind field');
+  const oldThicknessDefault=props.thickness.defaultValue;
+  props.thickness.defaultValue='Unknown';
+  assert.throws(()=>tool.validateSchema(props),/3cm default/);
+  props.thickness.defaultValue=oldThicknessDefault;
+  const oldThicknessOptions=props.thickness.options;
+  props.thickness.options=options('2cm','3cm');
+  assert.throws(()=>tool.validateSchema(props),/Add "12mm"/);
+  props.thickness.options=oldThicknessOptions;
   const oldTypeRequired=props.type.required;
   props.type.required=true;
   assert.throws(()=>tool.validateSchema(props),
