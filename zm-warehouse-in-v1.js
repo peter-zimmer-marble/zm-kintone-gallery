@@ -21,8 +21,8 @@
   const ROOT_ID = 'zm-warehouse-in-root';
   const PHOTO_MAX_BYTES = 500000;
   const SOURCE_CHOICES = Object.freeze([
-    'Remnant Off Saw', 'Unused Staged Slab Return', 'New Supplier Slab',
-    'Jobsite Return', 'Customer Drop-off', 'Other / Unknown'
+    'New Remnant', 'New Slab', 'Unused Piece',
+    'Field Return', 'Customer Drop-off', 'Other / Unknown'
   ]);
   const KIND_CHOICES = Object.freeze(['Slab','Remnant','Other / Unknown']);
   const PUTAWAY = Object.freeze({later:'Put Away Later',now:'Put Away Now'});
@@ -209,7 +209,7 @@
       return txt(input.finalRack);
     }
     return txt(input.pieceKind)==='Remnant' ||
-      txt(input.source)==='Remnant Off Saw'
+      txt(input.source)==='New Remnant'
       ? TEMP_RACKS.remnant : TEMP_RACKS.other;
   }
   function selectedOption(input, code, props) {
@@ -245,6 +245,10 @@
     const source = normalizedSource(input);
     const kind = txt(input.pieceKind);
     fail(KIND_CHOICES.includes(kind),'Select Slab, Remnant or Other.');
+    fail(source!=='New Remnant' || kind==='Remnant',
+      'New Remnant must be identified as a Remnant.');
+    fail(source!=='New Slab' || kind==='Slab',
+      'New Slab must be identified as a Slab.');
     const rack = assignedRack(input);
     const masterId = read(master,'$id');
     fail(!txt(input.masterId) || masterId === txt(input.masterId),
@@ -549,8 +553,9 @@
   function sourceLocation(form){
     const source=form.elements.source.value;
     const kind=form.elements.pieceKind;
-    if(source==='Remnant Off Saw')kind.value='Remnant';
-    const temporary=source==='Remnant Off Saw'||kind.value==='Remnant'?
+    if(source==='New Remnant')kind.value='Remnant';
+    if(source==='New Slab')kind.value='Slab';
+    const temporary=source==='New Remnant'||kind.value==='Remnant'?
       TEMP_RACKS.remnant:TEMP_RACKS.other;
     const now=form.elements.putawayPlan.value===PUTAWAY.now;
     form.querySelector('[data-in-final-rack]').hidden=!now;
