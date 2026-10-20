@@ -42,7 +42,7 @@
     warehouse_in_description:'MULTI_LINE_TEXT'
   });
   const OPTIONAL_FIELDS = Object.freeze([
-    'color','thickness','finish','old_job','new_job','shape',
+    'color','finish','old_job','new_job','shape',
     'length','width','material','type'
   ]);
   const MASTER_FIELDS = Object.freeze([
@@ -97,6 +97,16 @@
       fail(props[code].required !== true,
         'For incomplete IN records, make App 15 field "'+code+'" optional. ' +
         'The existing OUT addon still validates this field.');
+    }
+    // Radio buttons cannot have an empty value. Preserve App 15's familiar
+    // 3cm default for manual entries; IN explicitly sends Unknown for blanks.
+    fail(props.thickness.type === 'RADIO_BUTTON' &&
+      props.thickness.required === true &&
+      props.thickness.defaultValue === '3cm',
+      'App 15 Thickness must stay a radio button with 3cm default.');
+    for (const option of ['3cm','2cm','12mm','Other','Unknown']) {
+      fail(hasOption(props.thickness,option),
+        'Add "'+option+'" to App 15 Thickness radio options.');
     }
     for (const [code,type] of Object.entries(NEW_FIELDS)) {
       fail(props[code] && props[code].type===type,
@@ -252,6 +262,7 @@
       'Warehouse request ID is too long.');
     const source = normalizedSource(input);
     const type = selectedOption(input,'type',props);
+    const thickness = selectedOption(input,'thickness',props) || 'Unknown';
     fail(source!=='New Remnant' ||
       !['Stock Slab','SO-Slab','Cosigned Slab'].includes(type),
       'New Remnant Type must be STOCK Rem or Stan-Rem (or blank for review).');
@@ -290,6 +301,7 @@
       warehouse_event_type:{value:'IN'},
       warehouse_request_id:{value:txt(input.requestId)},
       warehouse_in_source:{value:source},
+      thickness:{value:thickness},
       warehouse_putaway_plan:{value:txt(input.putawayPlan)},
       warehouse_identification_status:{
         value:identification({...input,length,width},masterId)
@@ -319,7 +331,7 @@
     if (txt(input.newJob)) record.new_job={value:txt(input.newJob)};
     if (length!=='') record.length={value:length};
     if (width!=='') record.width={value:width};
-    for (const code of ['thickness','material','finish','shape']) {
+    for (const code of ['material','finish','shape']) {
       const choice = selectedOption(input,code,props);
       if (choice) record[code]={value:choice};
     }
@@ -556,7 +568,8 @@
     for(const code of ['type','thickness','material','finish','shape']){
       const control=form.elements[code];
       const previous=control.value;
-      control.innerHTML=optionHtml(sortedOptions(props[code]));
+      control.innerHTML=optionHtml(sortedOptions(props[code]),
+        code==='thickness'?'Unknown (not confirmed)':undefined);
       if(sortedOptions(props[code]).includes(previous)){
         control.value=previous;
       }
