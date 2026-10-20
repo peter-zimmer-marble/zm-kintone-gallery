@@ -233,20 +233,9 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
 (async () => {
   const data = mod.validateSchema(properties);
   assert.equal(data.properties, properties);
-  // Preview must not touch the network or even upload a photo if an
-  // exposed submit() is invoked programmatically without write approval.
-  config.pilotSubmitEnabled = false;
-  const beforePreviewCalls = previousCalls();
-  const beforePreviewUploads = uploadCount;
-  await assert.rejects(mod.submit(makeMaster(), {
-    requestId:'preview-only', previousMode:'none', newJob:'Test',
-    missingLabel:false, notes:''
-  }, {full:{name:'full.jpg',size:1,lastModified:1,type:'image/jpeg'},
-      label:{name:'label.jpg',size:1,lastModified:2,type:'image/jpeg'}}),
-    /Preview only/);
-  assert.equal(previousCalls(), beforePreviewCalls);
-  assert.equal(uploadCount, beforePreviewUploads);
-  config.pilotSubmitEnabled = true;
+  // Submission permission is fixed when the module initializes. Test the
+  // preview-only runtime separately below rather than toggling the config
+  // after loading this write-enabled pilot instance.
   const beforeWrongPilot = previousCalls();
   const beforeWrongUploads = uploadCount;
   const wrongMaster = makeMaster({ '$id': '999' });
