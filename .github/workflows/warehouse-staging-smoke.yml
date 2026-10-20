@@ -10,6 +10,11 @@ on:
       - 'zm-warehouse-out-pilot-preview-v1.js'
       - 'zm-warehouse-out-live-config-v1.js'
       - 'tests/warehouse-out-v1.test.js'
+      - 'zm-warehouse-in-v1.js'
+      - 'zm-warehouse-in-v1.css'
+      - 'zm-warehouse-in-preview-config-v1.js'
+      - 'tests/warehouse-in-v1.test.js'
+      - 'WAREHOUSE_IN_SETUP.md'
       - '.github/workflows/warehouse-staging-smoke.yml'
 
 permissions:
@@ -32,3 +37,7 @@ jobs:
         run: node --check zm-warehouse-out-v1.js
       - name: Run draft OUT Kintone mock tests
         run: node tests/warehouse-out-v1.test.js
+      - name: Check Warehouse IN script and preview config syntax
+        run: node --check zm-warehouse-in-v1.js && node --check zm-warehouse-in-preview-config-v1.js
+      - name: Run Universal Warehouse IN Kintone mock tests
+        run: node tests/warehouse-in-v1.test.js
