@@ -270,8 +270,9 @@ const extra=smallPhoto('extra.jpg');
     source:'New Remnant',type:'STOCK Rem',
     parentMasterId:'8765',parentColor:'Blue Dunes'
   },['first','second'],schema),/Parent slab lookup is unconfirmed/);
-  assert.throws(()=>tool.buildEntry({...known,
-    source:'New Remnant',type:'STOCK Rem'
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Remnant',type:'STOCK Rem',
+    masterId:'8765',masterColor:'Blue Dunes'
   },['first','second'],schema,currentMaster),/New Remnant is a separate piece/);
   const now=tool.buildEntry({...unmatched,putawayPlan:'Put Away Now',
     finalRack:'Z-5A',source:'Customer Drop-off',type:'Stock Slab'
