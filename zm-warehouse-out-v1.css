@@ -132,6 +132,12 @@
   outline: 3px solid #8abd9f;
   outline-offset: 2px;
 }
+.zmout-photo-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #4e6759;
+}
 .zmout-modal form .zmout-check {
   display: flex;
   align-items: flex-start;
