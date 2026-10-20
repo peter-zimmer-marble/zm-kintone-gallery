@@ -7,7 +7,7 @@ Status: PREVIEW-ONLY. No Master App 6, OUT, Visual Search, staging, or live Kint
 - Every incoming piece may be recorded immediately even when not identified or in Master Inventory.
 - Require two distinct photos: full piece and identifying label (or alternative photo plus explanation if missing label). Additional photos optional.
 - Keep all photos at 500,000 bytes (500 KB) or less, with Visual Search-style names and an IN suffix.
-- Leave unknown color, material, dimensions, shape, finish, job, and Master ID truly blank. For Thickness only, Kintone requires a radio selection, so an unidentified IN explicitly saves `Unknown` rather than silently inheriting the App 15 `3cm` default. Do NOT invent App 5 lookup keys or other values.
+- Leave unknown color, material, dimensions, shape, finish, job, and Master ID truly blank. Thickness is an exception: Kintone requires a radio selection, so an unidentified IN explicitly saves `Unknown` rather than silently inheriting App 15's `3cm` default. For other optional drop-downs (especially Shape), Warehouse IN explicitly sends a blank value when unconfirmed, overriding any Kintone default. Do NOT invent App 5 lookup keys or other values.
 - Save freeform label/color observations separately from the Color lookup field.
 - A brand-new remnant is its own unmatched IN entry. An optional Parent Slab lookup (by exact Master record number) inherits color, material, thickness, finish, and originating job. It NEVER copies parent dimensions, shape, or parent Master record ID into the new remnant's master_record_id. If parent Type is Stock Slab, suggest STOCK Rem; if SO-Slab, suggest Stan-Rem; for other types, leave manual choice. The suggested Type is always editable, including to reclassify no-longer-stock material.
 - IN Source uses six shop-friendly labels: New Remnant, New Slab, Unused Piece, Field Return, Customer Drop-off, and Other / Unknown. Inventory Type uses the same five categories as Master Inventory (not an additional generic Slab/Remnant field).
@@ -30,6 +30,8 @@ All of the following must become non-required, except Thickness (a radio button 
 - type (new field; same categories as Master, not required for unknown pieces)
 
 **Thickness (field code `thickness`):** Keep the existing radio button, required, with `3cm` as its default. Retain `2cm`; add options exactly `12mm`, `Other`, `Unknown`. In the custom IN form, if thickness isn't confirmed by the crew or inherited from the parent slab, explicitly POST `Unknown` to App 15 (never omit this field, which would silently use the `3cm` default). Describe unusual `Other` thickness in IN Description.
+
+**Shape (field code `shape`):** Optional drop-down; leave `Rectangle` as the existing default for manual records. Warehouse IN explicitly POSTs an empty Shape when unconfirmed so default Rectangle is not applied to unknown pieces or automatically inherited from a parent slab.
 
 Rack may stay Required because all IN records use a verified temporary or permanent Rack App 7 value. Keep inventory_status required. Do NOT change move_complete, App 6 Master, or any historical record. Confirm existing Warehouse OUT remains functional; it performs its own strict Master-data checks.
 
@@ -84,7 +86,7 @@ Do not install these links into App 6. They are for App 15 only. Do not install 
 ## Validation after field setup
 
 1. Preview the IN form on a phone and PC with the employee account.
-2. Unmatched test: photos + source + temporary location. All optional data blank; Thickness must explicitly be `Unknown` (not `3cm`). Status must be Needs Review and not linked to any Master.
+2. Unmatched test: photos + source + temporary location. All optional data blank; Thickness must explicitly be `Unknown` (not `3cm`), and Shape must explicitly stay blank (not the default `Rectangle`). Status must be Needs Review and not linked to any Master.
 3. Matched test: enter the exact piece's Master record ID and tap Find Master. Master is read-only; values can be captured on the IN entry.
 4. New remnant: enter the PARENT Master record number in the dedicated Find Parent lookup and confirm inheritance (Color, Material, Thickness, Finish, Job). The NEW remnant must remain unmatched to a Master child record, and its own dimensions/shape must stay separate. Test editing STOCK Rem to Stan-Rem for stone no longer in stock. If no parent is known, allow manual description and Type.
 5. Put Away Now: require final real rack (not Remnant Cart or Pending Putaway); verify it is in App 7.
