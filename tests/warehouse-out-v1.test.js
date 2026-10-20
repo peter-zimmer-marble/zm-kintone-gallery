@@ -586,25 +586,26 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
     assert.equal(context.window.ZM_WAREHOUSE_OUT_DRAFT,undefined);
   }
 
-  // Large iPhone/Android camera photos are resized/encoded before App 15
-  // uploads. Small files and an explicit original-quality override are untouched.
-  const photoSizes = [];
-  const revoked = [];
+  // Enforce <=500,000 bytes; pass through already-small mobile-optimized
+  // files, preserve extra label detail, and reject unsupported oversized shots.
+  const photoSizes = [], revoked = [];
   let createCount = 0, whiteBackgroundCount = 0;
-  let brokenCanvas = false;
+  let brokenCanvas = false, complexityMultiplier = 1;
   const fakeCanvas = {
-    width: 0, height: 0,
+    width:0,height:0,
     getContext() {
       return {
         set fillStyle(_color) {},
         fillRect() { whiteBackgroundCount++; },
-        drawImage() { photoSizes.push([fakeCanvas.width, fakeCanvas.height]); }
+        drawImage() { photoSizes.push([fakeCanvas.width,fakeCanvas.height]); }
       };
     },
-    toBlob(callback, format, quality) {
+    toBlob(callback,format,quality) {
       if (brokenCanvas) return callback(null);
-      assert.equal(format, 'image/jpeg');
-      callback({ type:'image/jpeg', size:Math.round(2000000 * quality) });
+      assert.equal(format,'image/jpeg');
+      const pixels = fakeCanvas.width * fakeCanvas.height;
+      callback({type:'image/jpeg',size:Math.round(
+        900000 * pixels / (2048 * 1536) * quality * complexityMultiplier)});
     }
   };
   class PhotoFile {
@@ -616,64 +617,97 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
     }
   }
   class PhoneImage {
-    constructor() { this.naturalWidth=4032; this.naturalHeight=3024; }
-    set src(value) { if (value && this.onload) this.onload(); }
+    constructor(){this.naturalWidth=4032;this.naturalHeight=3024;}
+    set src(value) {if(value && this.onload)this.onload();}
   }
   const photoEnv = {
-    window: { ZM_WAREHOUSE_OUT_CONFIG: {
-      enabled:true, ownerValidatedPermissions:true,
-      pilotMasterRecordId:'123', pilotUserCode:'crew-test-user',
+    window:{ZM_WAREHOUSE_OUT_CONFIG:{
+      enabled:true,ownerValidatedPermissions:true,
+      pilotMasterRecordId:'123',pilotUserCode:'crew-test-user',
       pilotSubmitEnabled:true
-    } },
-    kintone: {
-      getLoginUser() { return {code:'crew-test-user'}; },
-      events: { on() {} }
+    }},
+    kintone:{
+      getLoginUser(){return {code:'crew-test-user'};},
+      events:{on(){}}
     },
     Image:PhoneImage,
     File:PhotoFile,
     URL:{
-      createObjectURL() { createCount++; return 'blob:mock-test'; },
-      revokeObjectURL(value) { revoked.push(value); }
+      createObjectURL(){createCount++;return 'blob:mock-test';},
+      revokeObjectURL(value){revoked.push(value);}
     },
-    document: {
-      createElement(tag) { assert.equal(tag,'canvas'); return fakeCanvas; }
-    }
+    document:{createElement(tag){
+      assert.equal(tag,'canvas');return fakeCanvas;
+    }}
   };
   vm.runInNewContext(script,photoEnv);
   const optimize = photoEnv.window.ZM_WAREHOUSE_OUT_DRAFT.optimizePhoto;
-  assert.equal(typeof optimize, 'function');
+  assert.equal(typeof optimize,'function');
   const phoneShot = {name:'mobile-camera.heic',size:9*1024*1024,
     type:'image/heic',lastModified:4567};
   const fullOptimized = await optimize(phoneShot,'FULL_PIECE');
-  assert.equal(fullOptimized.name,'mobile-camera_optimized.jpg');
+  assert.equal(fullOptimized.name,'mobile-camera_500kb.jpg');
   assert.equal(fullOptimized.type,'image/jpeg');
   assert.equal(fullOptimized.lastModified,4567);
-  assert.ok(fullOptimized.size < phoneShot.size / 3);
+  assert.ok(fullOptimized.size <= 500000,'Full photo must be <= 500 KB');
   assert.deepEqual(photoSizes[0],[2048,1536]);
   assert.ok(whiteBackgroundCount > 0);
-  assert.equal(revoked.length,1,'Remove mobile source blob URL after resize');
+  assert.equal(revoked.length,1,'Free temporary photo URL');
+  const labelStart=photoSizes.length;
   const labelOptimized = await optimize(phoneShot,'IDENTIFYING_LABEL');
-  assert.equal(labelOptimized.type,'image/jpeg');
-  assert.deepEqual(photoSizes.at(-1),[2560,1920],
-    'Preserve extra pixels for labels and tiny markings');
-  assert.equal(await optimize(phoneShot,'FULL_PIECE',true),phoneShot,
-    'Original-quality override must skip image transcoding');
-  const smallPhoto = {name:'small.jpg',size:250000,
+  assert.ok(labelOptimized.size <= 500000,'Label photo must be <= 500 KB');
+  assert.deepEqual(photoSizes[labelStart],[2560,1920],
+    'Start with extra pixels for fine text on a label');
+  assert.ok(photoSizes.length > labelStart+1,
+    'Adaptive size reduction must kick in if high-res label exceeds 500 KB');
+  const originalSmall = {name:'mobile-optimized.jpg',size:499999,
     type:'image/jpeg',lastModified:1};
-  assert.equal(await optimize(smallPhoto,'FULL_PIECE'),smallPhoto,
-    'Avoid worsening already-small evidence files');
+  assert.equal(await optimize(originalSmall,'FULL_PIECE'),originalSmall,
+    'Preserve files already below 500 KB');
+  const atBoundary={...originalSmall,size:500000};
+  assert.equal(await optimize(atBoundary,'IDENTIFYING_LABEL'),atBoundary);
   const video = {name:'clip.mp4',size:8000000,
     type:'video/mp4',lastModified:1};
-  assert.equal(await optimize(video,'FULL_PIECE'),video,
-    'Never attempt to transcode videos using image canvas');
+  await assert.rejects(optimize(video,'FULL_PIECE'),/valid photo/);
   const beforeBroken = revoked.length;
   brokenCanvas = true;
-  assert.equal(await optimize(phoneShot,'FULL_PIECE'),phoneShot,
-    'Keep the photo if mobile canvas encoding fails');
+  await assert.rejects(optimize(phoneShot,'FULL_PIECE'),/500 KB/);
   assert.equal(revoked.length,beforeBroken+1,
-    'Release object URLs even after encoding failure');
-  assert.equal(createCount,revoked.length);
+    'Release temporary URL even on canvas encoding failure');
   brokenCanvas = false;
+  const beforeTooComplex = revoked.length;
+  complexityMultiplier = 100;
+  await assert.rejects(optimize(phoneShot,'IDENTIFYING_LABEL'),/500 KB/);
+  assert.equal(revoked.length,beforeTooComplex+1,
+    'Fail closed if the image cannot fit below the cap');
+  complexityMultiplier = 1;
+  assert.equal(createCount,revoked.length);
+
+  // Try OUT with small first photo, then an oversized label or optional photo.
+  // No photo may reach the Kintone file API until EVERY photo passes.
+  const oversized={name:'too-large.png',size:8*1024*1024,
+    type:'image/png',lastModified:88};
+  const uploadsBeforeOversized=uploadCount;
+  const entriesBeforeOversized=entryRecords.length;
+  const beforeOversizePosts=calls.filter(x=>x.method==='POST').length;
+  await assert.rejects(mod.submit(makeMaster(),
+    {...base,requestId:'test-too-large-label'},
+    {full:smallPhotoForPost(),label:oversized}),/500 KB/);
+  await assert.rejects(mod.submit(makeMaster(),
+    {...base,requestId:'test-too-large-extra'},
+    {full:smallPhotoForPost(),label:smallLabelForPost(),extra:[oversized]}),
+    /500 KB/);
+  assert.equal(uploadCount,uploadsBeforeOversized);
+  assert.equal(entryRecords.length,entriesBeforeOversized);
+  assert.equal(calls.filter(x=>x.method==='POST').length,beforeOversizePosts);
+  function smallPhotoForPost(){
+    return {name:'small-full.jpg',size:200000,
+      type:'image/jpeg',lastModified:12};
+  }
+  function smallLabelForPost(){
+    return {name:'small-label.jpg',size:200000,
+      type:'image/jpeg',lastModified:13};
+  }
 
   console.log('Warehouse OUT draft: single-employee single-record pilot guard, protected-default schema preflight, ' +
     'no crew POST of owner-only fields, 2 required photos, Missing Label, unique request IDs, ' +
