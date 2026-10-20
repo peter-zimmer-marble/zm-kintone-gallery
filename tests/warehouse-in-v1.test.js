@@ -148,6 +148,7 @@ async function fakeFetch(path,opt){
   }};
 }
 const handlers=[];
+let viewMountAttempts=0;
 const kintone={
   api,
   events:{on(names,cb){handlers.push({names,cb});}},
@@ -160,7 +161,11 @@ const env={
   kintone,
   fetch:fakeFetch,
   FormData:FormDataMock,
-  document:{getElementById(){return null;}}
+  document:{getElementById(id){
+    viewMountAttempts++;
+    assert.equal(id,'zm-warehouse-in-root');
+    return null;
+  }}
 };
 vm.runInNewContext(js,env);
 const tool=env.window.ZM_WAREHOUSE_IN_V1;
@@ -168,6 +173,21 @@ assert.ok(tool);
 assert.equal(handlers.length,1);
 assert.deepEqual(Array.from(handlers[0].names),
   ['app.record.index.show','mobile.app.record.index.show']);
+
+// The employee UI must mount ONLY on the App 6 Warehouse IN view.
+// App 15 stores journal records and must not host this form.
+function showView(appId,viewName,type='app.record.index.show'){
+  const event={appId,viewType:'custom',viewName,type};
+  assert.equal(handlers[0].cb(event),event);
+}
+showView(15,'Warehouse IN');
+showView(6,'Warehouse Staging');
+showView(6,'Visual Search');
+assert.equal(viewMountAttempts,0,'Do not mount IN on App 15 or other App 6 views');
+showView(6,'Warehouse IN');
+assert.equal(viewMountAttempts,1,'Mount on App 6 desktop Warehouse IN view');
+showView(6,'Warehouse IN','mobile.app.record.index.show');
+assert.equal(viewMountAttempts,2,'Mount on App 6 mobile Warehouse IN view');
 
 const unmatched={
   requestId:'IN-unmatched-1',source:'Other / Unknown',
@@ -540,5 +560,5 @@ const extra=smallPhoto('extra.jpg');
   console.log('Warehouse Universal IN mocked tests PASSED: '+
     'unmatched capture, source and parent lineage, identified Master, '+
     'putaway-now/later, protected field defaults, 500 KB no-partial-upload, '+
-    'filenames, idempotency and preview disabled.');
+    'filenames, idempotency, App 6-only UI mounting and preview disabled.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
