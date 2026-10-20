@@ -5,6 +5,11 @@ on:
     paths:
       - 'zm-warehouse-staging-v1.js'
       - 'tests/warehouse-staging-v1.test.js'
+      - 'zm-warehouse-out-v1.js'
+      - 'zm-warehouse-out-v1.css'
+      - 'zm-warehouse-out-pilot-preview-v1.js'
+      - 'zm-warehouse-out-live-config-v1.js'
+      - 'tests/warehouse-out-v1.test.js'
       - '.github/workflows/warehouse-staging-smoke.yml'
 
 permissions:
@@ -19,3 +24,11 @@ jobs:
         run: node --check zm-warehouse-staging-v1.js
       - name: Run read-only Kintone mock tests
         run: node tests/warehouse-staging-v1.test.js
+      - name: Check pilot config JavaScript syntax
+        run: node --check zm-warehouse-out-pilot-preview-v1.js
+      - name: Check live OUT configuration JavaScript syntax
+        run: node --check zm-warehouse-out-live-config-v1.js
+      - name: Check draft OUT JavaScript syntax
+        run: node --check zm-warehouse-out-v1.js
+      - name: Run draft OUT Kintone mock tests
+        run: node tests/warehouse-out-v1.test.js
