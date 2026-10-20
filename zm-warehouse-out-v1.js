@@ -5,20 +5,16 @@
  * is inert until an administrator explicitly provides the configuration below.
  * It never modifies App 6 and never stores credentials/API tokens.
  *
- * PILOT CONFIGURATION ONLY (never put passwords or API tokens in here):
- * window.ZM_WAREHOUSE_OUT_CONFIG = {
- *   enabled: true,
- *   ownerValidatedPermissions: true,
- *   pilotMasterRecordId: '8160',
- *   pilotUserCode: 'CONFIRMED_EMPLOYEE_LOGIN_CODE',
- *   pilotSubmitEnabled: false  // preview-only until owner approves a real OUT
- * };
+ * Configurations (never put passwords or API tokens in here):
  *
- * Pilot is inert without the exact eligible Kintone user and Master ID.
- * Only the chosen Master card receives Confirm OUT, and submissions for
- * any other Master ID are rejected before uploads or record writes.
- * This is a UI rollout safeguard, not an API security boundary.
- * Unless pilotSubmitEnabled is TRUE, the preview cannot upload or write.
+ * Legacy single-record preview: requires pilotMasterRecordId,
+ * pilotUserCode, and pilotSubmitEnabled: false.
+ *
+ * Full warehouse test mode: requires mode:'live' and
+ * submissionsEnabled:true. It makes Confirm OUT available for ALL
+ * staged pieces and ALL signed-in Kintone users allowed by Kintone ACLs.
+ * Browser config is not an access-control boundary. Remove the live
+ * config/addon URLs after testing if crews must not see them later.
  *
  * The required protected defaults must already be configured on App 15:
  *   Inventory Verified = No; Warehouse Disposition = Active;
@@ -36,22 +32,33 @@
 
   const config = window.ZM_WAREHOUSE_OUT_CONFIG || {};
   if (config.enabled !== true || config.ownerValidatedPermissions !== true) return;
-  // Explicit, single-record + single-employee rollout; don't assume that
-  // the account's DISPLAY name is its Kintone login user code.
+  // Explicit live mode removes the temporary user/record pilot gates.
+  // Kintone's native permissions, not this browser code, control data access.
+  const liveMode = config.mode === 'live';
   const pilotRecordId = String(config.pilotMasterRecordId || '').trim();
   const pilotUserCode = String(config.pilotUserCode || '').trim();
-  if (!/^[1-9]\d*$/.test(pilotRecordId) || !pilotUserCode ||
+  const login = typeof kintone.getLoginUser === 'function'
+    ? kintone.getLoginUser() : null;
+  if (!login || !login.code) return;
+  if (liveMode) {
+    if (config.submissionsEnabled !== true) return;
+  } else if (!/^[1-9]\d*$/.test(pilotRecordId) || !pilotUserCode ||
       pilotUserCode === 'CONFIRMED_EMPLOYEE_LOGIN_CODE' ||
-      typeof kintone.getLoginUser !== 'function' ||
-      !kintone.getLoginUser() ||
-      kintone.getLoginUser().code !== pilotUserCode) return;
+      login.code !== pilotUserCode) return;
+  const canSubmit = liveMode ? config.submissionsEnabled === true :
+    config.pilotSubmitEnabled === true;
 
+  function eligibleMaster(masterId) {
+    return liveMode || String(masterId) === pilotRecordId;
+  }
   function assertPilot(masterId) {
-    assert(String(masterId) === pilotRecordId,
+    assert(eligibleMaster(masterId),
       'This Confirm OUT pilot is available only for Master #' + pilotRecordId + '.');
-    assert(typeof kintone.getLoginUser === 'function' &&
-      kintone.getLoginUser() && kintone.getLoginUser().code === pilotUserCode,
-      'This Confirm OUT pilot is unavailable to the current Kintone user.');
+    const current = typeof kintone.getLoginUser === 'function'
+      ? kintone.getLoginUser() : null;
+    assert(current && current.code &&
+      (liveMode || current.code === pilotUserCode),
+      'Confirm OUT is unavailable to the current Kintone user.');
   }
 
   const MASTER_APP = 6;
@@ -368,8 +375,8 @@
   async function submit(master, input, photos, statusUpdate) {
     // Hard stop before ANY network reads, file uploads or writes.
     assertPilot(readValue(master, '$id'));
-    assert(config.pilotSubmitEnabled === true,
-      'Preview only. Owner has not enabled pilot OUT submissions.');
+    assert(canSubmit,
+      'Preview only. Owner has not enabled OUT submissions.');
     const requestId = txt(input.requestId);
     assert(requestId, 'Movement request ID is missing.');
     assert(distinctFiles(photos.full, photos.label),
@@ -475,7 +482,7 @@
   }
   async function checkVisibleCards() {
     const version = ++pendingRequestVersion;
-    const ids = cards().map(cardId).filter(id => id === pilotRecordId);
+    const ids = cards().map(cardId).filter(eligibleMaster);
     isChecking = true;
     pendingError = '';
     setButtonStates();
@@ -501,7 +508,7 @@
     const first = visible[0] || null;
     for (const card of visible) {
       const id = cardId(card);
-      if (id !== pilotRecordId ||
+      if (!eligibleMaster(id) ||
           card.querySelector('[data-zmout-master]')) continue;
       const foot = card.querySelector('.zmws-card-bottom');
       if (!foot) continue;
@@ -584,8 +591,8 @@
       '<textarea name="notes" maxlength="255" rows="2"></textarea></label>' +
       '<div class="zmout-actions"><button type="button" data-zmout-close>Cancel</button>' +
       '<button type="submit" data-zmout-submit' +
-      (config.pilotSubmitEnabled === true ? '' : ' disabled') + '>' +
-      (config.pilotSubmitEnabled === true ? 'Submit OUT' :
+      (canSubmit ? '' : ' disabled') + '>' +
+      (canSubmit ? 'Submit OUT' :
         'Preview only · Submission locked') + '</button></div>' +
       '</form>';
     const form = target.querySelector('form');
@@ -684,7 +691,7 @@
         'This piece already has an unverified OUT.');
       const master = await fetchMaster(masterId);
       verifyAllowedMasterValues(master, (await schema()).properties);
-      showMessage(config.pilotSubmitEnabled === true ?
+      showMessage(canSubmit ?
         'Two photos are required. Master Inventory will not change.' :
         'Preview only: OUT submission and photo uploads are disabled.');
       renderForm(master, requestId);
