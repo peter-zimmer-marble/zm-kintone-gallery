@@ -480,14 +480,19 @@
     if(prior)return {id:prior,existing:true};
     // Never trust stale form-schema/defaults from when the view opened.
     const verified=await schema(true);
-    let master=null;
+    let master=null,parent=null;
     if(txt(input.masterId)){
       master=await fetchMaster(input.masterId);
       fail(txt(input.masterColor)===read(master,'color'),
         'Master Color changed while recording IN. Lookup again.');
     }
+    if(txt(input.parentMasterId)){
+      parent=await fetchMaster(input.parentMasterId);
+      fail(txt(input.parentColor)===read(parent,'color'),
+        'Parent slab Color changed while recording IN. Find Parent again.');
+    }
     const recordPreview=buildEntry(input,['test1','test2'],
-      verified,master);
+      verified,master,parent);
     await validRack(recordPreview.rack.value);
     const photosToUpload=[
       {file:photos.full,prefix:'FULL_PIECE'},
@@ -520,7 +525,7 @@
         item.number,item.file);
       keys.push(await upload(item.file,filename));
     }
-    const record=buildEntry(input,keys,verified,master);
+    const record=buildEntry(input,keys,verified,master,parent);
     if(progress)progress('Recording IN in Entry Sheet…');
     try{
       const created=await api('/k/v1/record.json','POST',{
@@ -608,16 +613,30 @@
       optionHtml([])+'</select></label>'+
       '<label>Originating job (if known)<input name="oldJob" maxlength="255"></label>'+
       '<label>New / receiving job (optional)<input name="newJob" maxlength="255"></label>'+
-      '<label>Parent slab reference (remnants; optional)'+
-      '<input name="parentReference" maxlength="255" placeholder="Master # or label ID"></label></section>'+
+      '</section>'+
       '<section><h3>2. Identify the piece (optional)</h3>'+
-      '<p class="zmin-help">If this exact piece exists in Master Inventory, enter its record number. '+
-      'For a new remnant, leave it unmatched and enter the <strong>parent slab</strong> above.</p>'+
-      '<div class="zmin-match"><label>Existing Master record #'+
+      '<div data-in-parent-group hidden>'+
+      '<p class="zmin-help">Find the PARENT slab for a new remnant. We will copy its '+
+      'color, material, thickness, finish and job, but NEVER link the new '+
+      'remnant to that parent as the same piece.</p>'+
+      '<div class="zmin-match"><label>Parent slab Master record #'+
+      '<input name="parentMasterId" inputmode="numeric" pattern="[0-9]*" '+
+      'placeholder="Leave blank if unknown"></label>'+
+      '<button type="button" data-in-parent-lookup>Find Parent</button></div>'+
+      '<input type="hidden" name="parentColor">'+
+      '<p class="zmin-match-summary" data-in-parent-summary>No parent linked — Needs Review</p>'+
+      '<label>Parent slab reference (optional)'+
+      '<input name="parentReference" maxlength="255" placeholder="Slab label or other identifier"></label>'+
+      '</div>'+
+      '<div data-in-existing-piece>'+
+      '<p class="zmin-help">If this EXACT piece already has a Master record, '+
+      'enter its number. Otherwise leave it unmatched.</p>'+
+      '<div class="zmin-match"><label>Existing piece Master record #'+
       '<input name="masterId" inputmode="numeric" pattern="[0-9]*" placeholder="Leave blank if new or unknown"></label>'+
       '<button type="button" data-in-lookup>Find Master</button></div>'+
       '<input type="hidden" name="masterColor">'+
       '<p class="zmin-match-summary" data-in-master>Unmatched — Needs Review</p>'+
+      '</div>'+
       '<label>Observed color / marking (optional)'+
       '<input name="observedColor" maxlength="255" placeholder="What does the label or piece say?"></label>'+
       '<div class="zmin-two">'+
@@ -676,7 +695,7 @@
         ['length','length'],['width','width'],
         ['thickness','thickness'],['finish','finish'],
         ['material','material'],['shape','shape'],
-        ['oldJob','job']]){
+        ['type','type'],['oldJob','job']]){
         const v=read(master,field);
         if(v)form.elements[name].value=v;
       }
@@ -690,9 +709,86 @@
       showStatus('Master lookup failed; confirm the ID or clear it for unmatched IN.');
     }
   }
+  async function lookupParent(form){
+    const id=txt(form.elements.parentMasterId.value);
+    matchedParent=null;
+    form.elements.parentColor.value='';
+    if(!id){
+      form.querySelector('[data-in-parent-summary]').textContent=
+        'No parent linked — new remnant will need review.';
+      showStatus('Parent unknown. You can still record this remnant.');
+      return;
+    }
+    if(form.elements.source.value!=='New Remnant'){
+      showError('Parent lookup is only for New Remnant.');
+      return;
+    }
+    showStatus('Looking up parent slab #'+id+'…');
+    try {
+      const parent=await fetchMaster(id);
+      if(!form.isConnected||form.elements.parentMasterId.value!==id||
+        form.elements.source.value!=='New Remnant')return;
+      matchedParent=parent;
+      form.elements.parentColor.value=read(parent,'color');
+      form.querySelector('[data-in-parent-summary]').textContent=
+        'Parent slab #'+id+' · '+
+        (read(parent,'color_combined')||read(parent,'color')||'Unknown color')+
+        ' · '+(read(parent,'type')||'Type unknown');
+      for(const [name,field] of [
+        ['material','material'],['thickness','thickness'],
+        ['finish','finish'],['oldJob','job']]){
+        const value=read(parent,field);
+        if(value)form.elements[name].value=value;
+      }
+      // Deliberately NOT copying parent dimensions or shape.
+      // A new remnant gets its own physical dimensions.
+      if(!txt(form.elements.observedColor.value)){
+        form.elements.observedColor.value=
+          read(parent,'color_combined')||read(parent,'color');
+      }
+      if(!txt(form.elements.parentReference.value))
+        form.elements.parentReference.value='Master #'+id;
+      const suggestion=suggestRemnantType(parent);
+      if(suggestion && form.elements.type.dataset.inManual!=='1'){
+        form.elements.type.value=suggestion;
+      }
+      sourceLocation(form);
+      showStatus(suggestion ?
+        'Inherited parent details. Suggested '+suggestion+
+        '; Type is editable if material is no longer stock.' :
+        'Inherited available parent details. Choose the remnant Type manually.');
+    }catch(error){
+      showError(txt(error.message));
+      showStatus('Parent lookup failed. Correct the number, or clear it.');
+    }
+  }
+
   function bind(form){
-    form.elements.source.addEventListener('change',()=>sourceLocation(form));
-    form.elements.pieceKind.addEventListener('change',()=>sourceLocation(form));
+    form.elements.source.addEventListener('change',()=>{
+      const newRemnant=form.elements.source.value==='New Remnant';
+      if(newRemnant){
+        matchedMaster=null;
+        form.elements.masterId.value='';
+        form.elements.masterColor.value='';
+        form.querySelector('[data-in-master]').textContent='Unmatched — Needs Review';
+      }else{
+        matchedParent=null;
+        form.elements.parentMasterId.value='';
+        form.elements.parentColor.value='';
+        form.querySelector('[data-in-parent-summary]').textContent='No parent linked';
+      }
+      if(newRemnant &&
+        ['Stock Slab','SO-Slab','Cosigned Slab'].includes(form.elements.type.value))
+        form.elements.type.value='';
+      if(form.elements.source.value==='New Slab' &&
+        ['STOCK Rem','Stan-Rem'].includes(form.elements.type.value))
+        form.elements.type.value='';
+      sourceLocation(form);
+    });
+    form.elements.type.addEventListener('change',()=>{
+      form.elements.type.dataset.inManual='1';
+      sourceLocation(form);
+    });
     form.elements.putawayPlan.addEventListener('change',()=>sourceLocation(form));
     form.elements.masterId.addEventListener('input',()=>{
       matchedMaster=null;
@@ -703,6 +799,16 @@
     form.querySelector('[data-in-lookup]').addEventListener('click',()=>{
       showError('');
       lookup(form);
+    });
+    form.elements.parentMasterId.addEventListener('input',()=>{
+      matchedParent=null;
+      form.elements.parentColor.value='';
+      form.querySelector('[data-in-parent-summary]').textContent=
+        'Parent slab number not confirmed. Tap Find Parent.';
+    });
+    form.querySelector('[data-in-parent-lookup]').addEventListener('click',()=>{
+      showError('');
+      lookupParent(form);
     });
     form.elements.missingLabel.addEventListener('change',()=>{
       const missing=form.elements.missingLabel.checked;
@@ -776,6 +882,7 @@
   function render(){
     if(!root)return;
     matchedMaster=null;
+    matchedParent=null;
     root.innerHTML=makeForm();
     const form=root.querySelector('[data-in-form]');
     bind(form);
@@ -804,6 +911,7 @@
   // Exposed for isolated Kintone mock tests. No public write tokens.
   window.ZM_WAREHOUSE_IN_V1=Object.freeze({
     validateSchema,buildEntry,assignedRack,photoFilename,optimizePhoto,
+    suggestRemnantType,
     distinctFiles,submit,fetchMaster,validRack,findRequest
   });
 })();
