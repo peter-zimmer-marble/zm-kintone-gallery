@@ -1,6 +1,6 @@
 # Warehouse Confirm OUT v1 — supervised rollout checklist
 
-**Status: DRAFT, NOT INSTALLED.** The Confirm OUT addon exists only on GitHub draft PR #15. It is disabled by default. The live Warehouse Staging v1, Visual Search v2, native Staging Sheet and all active Kintone inventory records are unchanged.
+**Status: PREVIEW ASSETS PUBLISHED TO MAIN/GITHUB PAGES SOURCE; NOT INSTALLED IN KINTONE.** Only the three optional preview assets (`zm-warehouse-out-pilot-preview-v1.js`, `zm-warehouse-out-v1.js`, `zm-warehouse-out-v1.css`) were copied to GitHub `main` after owner approval; draft PR #15 remains open and unmerged. The preview config is frozen with `pilotSubmitEnabled:false`. The live Warehouse Staging v1, Visual Search v2, native Staging Sheet and all active Kintone inventory records are unchanged.
 
 ## Kintone setup already completed by the owner (October 19, 2026)
 
@@ -156,8 +156,8 @@ and **no current Pending OUT**. The job label begins
 **Brandenburg, Ellen & ...** (truncated in the screenshot; don't infer
 its complete name).
 
-**Dedicated pilot preview configuration created on the draft branch,
-not installed or published to GitHub Pages:**
+**Dedicated pilot preview configuration published from GitHub `main`,
+not installed in Kintone:**
 `zm-warehouse-out-pilot-preview-v1.js`. Its COMPLETE contents are:
 
 ```js
@@ -223,9 +223,8 @@ rollback. Before any live submission, agree on an owner-only Void
 with written reason or other auditable correction path for a
 transaction that was recorded incorrectly.
 
-**No live installation and no Kintone data writes have been made by
-GitHub changes.** Draft PR #15 must not be merged/deployed or enabled
-without owner review.
+**No live Kintone installation and no Kintone data writes have been made by
+these GitHub changes.** The three optional preview assets exist in the `main` publishing branch after explicit owner approval. Draft PR #15 remains unmerged; live submission is not authorized.
 
 ## Remaining blockers before installing or merging
 
@@ -240,10 +239,27 @@ without owner review.
 
 After real-user acceptance tests and owner sign-off, install the additional addon JS/CSS after the **existing** Warehouse Staging customization on desktop and mobile. The addon is inert unless an administrator supplies its explicit enablement/permissions-validation config. Do not publish privileged API tokens or login credentials in public GitHub or browser code.
 
-Draft assets (not yet live on Pages):
+Preview assets now present on GitHub Pages source branch `main` (HTTP delivery requires a browser check; not yet installed in Kintone):
 - `zm-warehouse-out-pilot-preview-v1.js` (**frozen preview config for #8160/zmproduction**)
 - `zm-warehouse-out-v1.js` (addon, scoped to one record and user)
 - `zm-warehouse-out-v1.css`
 - `tests/warehouse-out-v1.test.js`
+
+**Public GitHub Pages URLs (for browser verification before installation):**
+
+- Preview-only configuration: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-pilot-preview-v1.js`
+- OUT addon JS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-v1.js`
+- OUT addon CSS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-v1.css`
+
+**Proposed Kintone installation order only after URLs serve successfully:** In
+Master App 6's JavaScript and CSS Customization, for **both Desktop and
+Mobile**, keep all existing entries. Add the preview-only config JS
+**after existing Staging JS**, then the OUT addon JS **after that**.
+Add the OUT addon CSS **after existing Staging CSS**. Save and **Update
+App**. Preview should show an OUT button only on #8160 as
+`zmproduction`, with submission disabled; it must not affect other
+staff or other inventory pieces. Do not change App 15 customizations.
+If anything is wrong, remove only these optional three assets and update
+App 6. **Owner has not yet installed them.**
 
 Rollback: remove only the optional addon configuration and its JS/CSS; never remove the working Warehouse Staging or Visual Search scripts.
