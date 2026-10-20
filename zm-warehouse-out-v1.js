@@ -346,6 +346,87 @@
     return records.length ? readValue(records[0], '$id') : '';
   }
 
+  // Resize large camera shots in the browser before uploading to App 15.
+  // Limits are soft targets: preserving readable label text takes priority.
+  // Keep the user's original File untouched for an explicit full-resolution
+  // override, and fall back to it if a browser cannot decode/encode the image.
+  const PHOTO_PROFILES = Object.freeze({
+    full: { maxEdge: 2048, maxBytes: 1400 * 1024,
+      qualities: [0.84, 0.78, 0.72] },
+    label: { maxEdge: 2560, maxBytes: 1800 * 1024,
+      qualities: [0.88, 0.82, 0.76] }
+  });
+  const PHOTO_COMPRESS_MIN_BYTES = 1100 * 1024;
+  function photoSize(bytes) {
+    return (Number(bytes || 0) / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  function photoProfile(prefix) {
+    return prefix === 'IDENTIFYING_LABEL' || prefix === 'ALTERNATIVE_ID'
+      ? PHOTO_PROFILES.label : PHOTO_PROFILES.full;
+  }
+  async function optimizePhoto(file, prefix, keepOriginal = false) {
+    if (keepOriginal || !file || Number(file.size) <= PHOTO_COMPRESS_MIN_BYTES ||
+        !/^image\/(jpeg|png|webp|heic|heif)$/i.test(str(file.type))) return file;
+    // Image/canvas decoding support varies inside mobile app webviews.
+    // An unavailable optimization must never prevent documenting a movement.
+    if (typeof Image === 'undefined' || typeof File === 'undefined' ||
+        typeof document === 'undefined' ||
+        typeof document.createElement !== 'function' ||
+        typeof URL === 'undefined' ||
+        typeof URL.createObjectURL !== 'function' ||
+        typeof URL.revokeObjectURL !== 'function') return file;
+
+    let objectUrl = '', canvas = null;
+    try {
+      objectUrl = URL.createObjectURL(file);
+      const image = await new Promise((resolve, reject) => {
+        const bitmap = new Image();
+        bitmap.onload = () => resolve(bitmap);
+        bitmap.onerror = () => reject(new Error('Image decoding unavailable.'));
+        bitmap.src = objectUrl;
+      });
+      const w = Number(image.naturalWidth || image.width);
+      const h = Number(image.naturalHeight || image.height);
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1)
+        return file;
+      const profile = photoProfile(prefix);
+      const scale = Math.min(1, profile.maxEdge / Math.max(w, h));
+      const width = Math.max(1, Math.round(w * scale));
+      const height = Math.max(1, Math.round(h * scale));
+      canvas = document.createElement('canvas');
+      if (!canvas || typeof canvas.getContext !== 'function' ||
+          typeof canvas.toBlob !== 'function') return file;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return file;
+      // Avoid black backgrounds when converting transparent PNGs to JPEG.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0, width, height);
+      let best = null;
+      for (const quality of profile.qualities) {
+        const blob = await new Promise(resolve =>
+          canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (!blob || !blob.size || blob.type !== 'image/jpeg') continue;
+        if (!best || blob.size < best.size) best = blob;
+        if (blob.size <= profile.maxBytes) break;
+      }
+      // Never make a photo larger for the sake of transcoding.
+      if (!best || best.size >= Number(file.size) * 0.88) return file;
+      const base = txt(file.name || 'photo').replace(/\.[^.]+$/, '');
+      return new File([best], (base || 'photo') + '_optimized.jpg', {
+        type: 'image/jpeg', lastModified: Number(file.lastModified) || Date.now()
+      });
+    } catch (_) {
+      // Keep source evidence if JPEG encoding/HEIC decoding fails on a device.
+      return file;
+    } finally {
+      if (canvas) { canvas.width = 0; canvas.height = 0; }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    }
+  }
+
   async function uploadPhoto(file, name) {
     assert(file && /^image\//i.test(str(file.type)),
       'Please choose an image for ' + name + '.');
@@ -412,12 +493,25 @@
       files.push({ file, prefix: 'ADDITIONAL' });
     }
     const keys = [];
+    let originalBytes = 0, uploadedBytes = 0, optimizedCount = 0;
     for (let i = 0; i < files.length; i++) {
-      if (typeof statusUpdate === 'function') {
-        statusUpdate('Uploading photo ' + (i + 1) + ' of ' + files.length + '…');
+      const original = files[i].file;
+      originalBytes += Number(original.size || 0);
+      if (typeof statusUpdate === 'function' && !input.keepOriginalPhotos) {
+        statusUpdate('Optimizing photo ' + (i + 1) + ' of ' + files.length + '…');
       }
-      keys.push(await uploadPhoto(files[i].file, files[i].prefix));
+      const outgoing = await optimizePhoto(original, files[i].prefix,
+        input.keepOriginalPhotos === true);
+      uploadedBytes += Number(outgoing.size || 0);
+      if (outgoing !== original) optimizedCount++;
+      if (typeof statusUpdate === 'function') {
+        statusUpdate('Uploading photo ' + (i + 1) + ' of ' + files.length +
+          ' (' + photoSize(outgoing.size) +
+          (outgoing !== original ? ' optimized' : ' original') + ')…');
+      }
+      keys.push(await uploadPhoto(outgoing, files[i].prefix));
     }
+    const photoStats = { originalBytes, uploadedBytes, optimizedCount };
     const entry = buildEntry(latest, input, keys, verifiedSchema, requestId);
     if (typeof statusUpdate === 'function') statusUpdate('Submitting OUT entry…');
     try {
@@ -425,7 +519,7 @@
         app: ENTRY_APP, record: entry
       });
       assert(created && created.id, 'Kintone did not return an Entry record ID.');
-      return { id: str(created.id), existing: false };
+      return { id: str(created.id), existing: false, photoStats };
     } catch (error) {
       // A timed-out POST might have succeeded. Never blindly retry a write.
       try {
@@ -587,6 +681,9 @@
       '<textarea name="labelReason" rows="2"></textarea></label>' +
       '<label>Additional photos (optional)<input name="extraPhotos" type="file"' +
       ' accept="image/*" multiple></label>' +
+      '<p class="zmout-photo-hint">Large photos are reduced before upload to save time and storage. Label photos retain extra detail.</p>' +
+      '<label class="zmout-check"><input name="keepOriginalPhotos" type="checkbox">' +
+      'Keep original-size photos (use if tiny markings need full detail)</label>' +
       '<label>OUT notes (optional, max 255 characters)' +
       '<textarea name="notes" maxlength="255" rows="2"></textarea></label>' +
       '<div class="zmout-actions"><button type="button" data-zmout-close>Cancel</button>' +
@@ -620,7 +717,8 @@
         previousJob: form.elements.previousJob.value,
         missingLabel: missing.checked,
         labelReason: form.elements.labelReason.value,
-        notes: form.elements.notes.value
+        notes: form.elements.notes.value,
+        keepOriginalPhotos: form.elements.keepOriginalPhotos.checked
       };
       const photos = {
         full: form.elements.fullPhoto.files[0],
@@ -644,11 +742,16 @@
       try {
         const result = await submit(master, input, photos, showMessage);
         submittedThisSession.add(readValue(master, '$id'));
+        showMessage('OUT recorded successfully.');
+        const stats = result.photoStats;
+        const savings = stats && stats.optimizedCount ?
+          '<p>Photos optimized: ' + esc(photoSize(stats.originalBytes)) +
+          ' → ' + esc(photoSize(stats.uploadedBytes)) + ' uploaded.</p>' : '';
         target.innerHTML =
           '<div class="zmout-success"><strong>OUT recorded in Entry Sheet.</strong>' +
           '<p>Entry #' + esc(result.id) +
           ' is awaiting owner verification. Master Inventory was not changed.</p>' +
-          '<a href="' +
+          savings + '<a href="' +
           (mobile ? '/k/m/15/show?record=' : '/k/15/show#record=') +
           encodeURIComponent(result.id) +
           '" target="_blank" rel="noopener noreferrer">Open Entry record</a>' +
@@ -739,7 +842,7 @@
     ['app.record.index.show', 'mobile.app.record.index.show'], onShow);
   window.ZM_WAREHOUSE_OUT_DRAFT = Object.freeze({
     validateSchema, verifyAllowedMasterValues, buildEntry,
-    pendingForIds, findSubmittedRequest, submit, distinctFiles,
+    pendingForIds, findSubmittedRequest, submit, distinctFiles, optimizePhoto,
     openOut, scan
   });
 })();
