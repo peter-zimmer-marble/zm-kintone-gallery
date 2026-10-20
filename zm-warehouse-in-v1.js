@@ -231,6 +231,7 @@
   function identification(input, masterId) {
     return masterId && txt(input.masterColor) &&
       txt(input.material) && txt(input.thickness) &&
+      txt(input.finish) && txt(input.shape) &&
       txt(input.length) && txt(input.width) ?
       'Identified' : 'Needs Review';
   }
