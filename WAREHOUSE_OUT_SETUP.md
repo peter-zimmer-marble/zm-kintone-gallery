@@ -2,6 +2,57 @@
 
 **Status: PREVIEW ASSETS PUBLISHED TO MAIN/GITHUB PAGES SOURCE; NOT INSTALLED IN KINTONE.** Only the three optional preview assets (`zm-warehouse-out-pilot-preview-v1.js`, `zm-warehouse-out-v1.js`, `zm-warehouse-out-v1.css`) were copied to GitHub `main` after owner approval; draft PR #15 remains open and unmerged. The preview config is frozen with `pilotSubmitEnabled:false`. The live Warehouse Staging v1, Visual Search v2, native Staging Sheet and all active Kintone inventory records are unchanged.
 
+## CURRENT TESTING MODE — updated October 20, 2026
+
+**Owner changed course:** Work directly in the live Warehouse Staging app with
+no temporary user or Master-record pilot restrictions. Warehouse employees
+are currently logged out; owner is testing. **Important:** once the addon
+is installed, returning warehouse employees with existing Kintone permissions
+can also see/use Confirm OUT, so remove the optional addon/configuration URLs
+after testing if general rollout is not desired.
+
+**Test with dummy Master #8765**, not the former real piece #8160.
+The former preview-only single-user (#8160 / zmproduction) config still
+exists for archival purposes but **must NOT be installed simultaneously**.
+Use only the new `zm-warehouse-out-live-config-v1.js` plus
+`zm-warehouse-out-v1.js` and `zm-warehouse-out-v1.css`. These are already
+published on GitHub's `main` source branch after the owner's go-ahead;
+as of this note they are **not installed in Kintone by ChatGPT**.
+The original Warehouse Staging v1 JS/CSS and Visual Search v2 remain untouched.
+
+Public GitHub Pages URLs for installation:
+
+- Live config JS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-live-config-v1.js`
+- OUT addon JS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-v1.js`
+- OUT addon CSS: `https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-out-v1.css`
+
+**Kintone installation order:** App 6 → Settings → JavaScript and CSS
+Customization → for both desktop and mobile, keep existing Staging
+JS/CSS entries. Add live-config JS followed immediately by OUT addon JS,
+and add OUT addon CSS after staging CSS. **Remove any earlier
+#8160 preview or dummy #8765 pilot config URLs/file uploads first**.
+Save and Update App. Changes to GitHub alone do not alter Kintone.
+
+**Functionality:** This live mode has no Kintone user or Master record
+allowlist and has actual **App 15 submissions enabled**. Kintone's native
+field/record ACLs still apply. Submission requires distinct full-piece
+and label/alternative photo, checks existing Pending OUT and valid
+required fields, logs a unique request ID, and omits the protected
+owner-only fields (letting Kintone apply `No`, `Active`, and owner
+notification defaults). **Never writes Master App 6**.
+
+**Tests before publishing:** manual mocked full OUT API/Upload run of
+dummy #8765: 2 photos uploaded, exactly 1 App 15 POST and 0 App 6
+POSTs. A separate source-level mock confirmed multiple Master IDs
+were now eligible and missing live write approval kept code inert.
+These are *not* real Kintone submissions; actual runtime/notification
+behavior must be observed during first dummy test.
+
+**Do not attempt a second OUT while the first remains Pending OUT.**
+To test repeats, the owner can reconcile or deliberately Void the dummy
+movement in App 15. Do not edit `move_complete` or overwrite the
+original Master `entry_id`; preserve the movement journal.
+
 ## Kintone setup already completed by the owner (October 19, 2026)
 
 The owner has reported making/publishing the following changes. **Several settings have now been verified with GET-only API calls as the ZMP employee**, as detailed below. No production record has been created by the custom workflow; remaining write behavior must still be tested.
