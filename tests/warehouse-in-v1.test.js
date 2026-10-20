@@ -35,7 +35,7 @@ props.material={type:'DROP_DOWN',required:false,
   options:options('Quartz','Granite','Quartzite','Dolomite')};
 props.finish={type:'DROP_DOWN',required:false,
   options:options('Polished','Honed','Brushed')};
-props.shape={type:'DROP_DOWN',required:false,
+props.shape={type:'DROP_DOWN',required:false,defaultValue:'Rectangle',
   options:options('Rectangle','Left Hand L','Right Hand L')};
 props.length={type:'NUMBER',required:false};
 props.width={type:'NUMBER',required:false};
@@ -204,8 +204,12 @@ const extra=smallPhoto('extra.jpg');
     'IN must never silently inherit the radio default 3cm for an unknown piece');
   assert.equal(props.thickness.defaultValue,'3cm',
     'Keep 3cm for ordinary manual App 15 records');
+  assert.equal(props.shape.defaultValue,'Rectangle',
+    'Keep Rectangle for ordinary manual App 15 records');
+  assert.equal(unknown.shape.value,'',
+    'IN must explicitly clear default Rectangle for an unknown piece');
   for(const code of ['master_record_id','finish','material',
-    'shape','length','width','old_job','new_job']){
+    'length','width','old_job','new_job']){
     assert.ok(!(code in unknown),'Unknown '+code+' should stay blank.');
   }
   const remnant=tool.buildEntry({...unmatched,
@@ -261,8 +265,8 @@ const extra=smallPhoto('extra.jpg');
   assert.equal(fromParent.type.value,'STOCK Rem');
   assert.equal(fromParent.length.value,29);
   assert.equal(fromParent.width.value,18);
-  assert.ok(!('shape' in fromParent),
-    'Parent slab shape is not assumed to be new remnant shape');
+  assert.equal(fromParent.shape.value,'',
+    'Parent slab Rectangle must not leak into the new remnant shape');
   assert.ok(!('master_record_id' in fromParent),
     'Parent slab ID must NOT populate new remnant master_record_id');
   const discontinued=tool.buildEntry({...unmatched,
@@ -337,6 +341,12 @@ const extra=smallPhoto('extra.jpg');
   props.thickness.options=options('2cm','3cm');
   assert.throws(()=>tool.validateSchema(props),/Add "12mm"/);
   props.thickness.options=oldThicknessOptions;
+  const unknownMaterialDefault=props.material.defaultValue;
+  props.material.defaultValue='Quartz';
+  const guardedMaterial=tool.buildEntry(unmatched,['one','two'],schema);
+  assert.equal(guardedMaterial.material.value,'',
+    'Unknown material must explicitly override any optional Kintone default');
+  props.material.defaultValue=unknownMaterialDefault;
   const oldTypeRequired=props.type.required;
   props.type.required=true;
   assert.throws(()=>tool.validateSchema(props),
