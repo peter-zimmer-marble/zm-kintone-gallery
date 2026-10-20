@@ -1,6 +1,6 @@
 # Universal Warehouse IN v1 - Setup and Acceptance
 
-Status: PREVIEW-ONLY. No Master App 6, OUT, Visual Search, staging, or live Kintone customizations are changed by this branch. The preview config blocks submissions and all photo uploads.
+Status: PREVIEW-ONLY. The Warehouse IN employee interface is an App 6 CUSTOM VIEW alongside Warehouse Staging, but all new movement records belong in App 15. App 6 is READ-ONLY; the preview config blocks ALL submissions and photo uploads. Do not disturb existing Staging, OUT, or Visual Search customizations.
 
 ## Agreed operating rules
 
@@ -70,22 +70,22 @@ These are LOCATION LABELS, not a requirement to buy separate carts. Every IN, wh
 
 ## Preview installation (AFTER new code is merged; NOT YET live)
 
-App 15 (Inventory Entry Sheet) - Settings - Views - Add a Custom View:
+App 6 (Master Inventory) - Settings - Views - Add a Custom View:
 - Name exactly: Warehouse IN
 - Supported platforms: both Desktop and Mobile optimized
 - HTML: <div id="zm-warehouse-in-root"></div>
 - Disable pagination.
 
-App 15 - JavaScript and CSS customization, on PC AND Mobile, retain existing files and then add:
+App 6 - JavaScript and CSS customization, on PC AND Mobile, retain ALL existing Gallery, Visual Search, Warehouse Staging, and Warehouse OUT files in their current order. After them, add:
 1. JavaScript: https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-in-preview-config-v1.js
 2. JavaScript: https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-in-v1.js
 3. CSS: https://peter-zimmer-marble.github.io/zm-kintone-gallery/zm-warehouse-in-v1.css
 
-Do not install these links into App 6. They are for App 15 only. Do not install a live IN config until the app setup and employee test are approved. In PREVIEW, the Submit button is disabled. Actual write enablement requires a separate owner-approved live config that is not part of this branch.
+Do NOT install any of these IN JS/CSS links in App 15. App 15 is the data destination only (its form fields have already been configured). Only install IN preview assets in App 6. The IN view must match `Warehouse IN` exactly and its HTML must include `<div id="zm-warehouse-in-root"></div>`. Warehouse IN reads App 6 to match existing pieces / parent slabs and reads App 7 to validate rack names; it POSTs new journal records ONLY to App 15 when explicitly enabled in a later production release. In PREVIEW the Submit button is disabled and no writes or uploads can occur. Confirm the crew account can read the needed App 15 form fields and add records to App 15 before enabling submissions. NEVER grant the crew App 6 edit rights to enable IN.
 
 ## Validation after field setup
 
-1. Preview the IN form on a phone and PC with the employee account.
+1. Open the `Warehouse IN` custom view in App 6 alongside `Warehouse Staging`. Preview the IN form on a phone and PC with the employee account. Verify the existing App 6 Warehouse Staging, OUT and Visual Search views still work.
 2. Unmatched test: photos + source + temporary location. All optional data blank; Thickness must explicitly be `Unknown` (not `3cm`), and Shape must explicitly stay blank (not the default `Rectangle`). Status must be Needs Review and not linked to any Master.
 3. Matched test: enter the exact piece's Master record ID and tap Find Master. Master is read-only; values can be captured on the IN entry.
 4. New remnant: enter the PARENT Master record number in the dedicated Find Parent lookup and confirm inheritance (Color, Material, Thickness, Finish, Job). The NEW remnant must remain unmatched to a Master child record, and its own dimensions/shape must stay separate. Test editing STOCK Rem to Stan-Rem for stone no longer in stock. If no parent is known, allow manual description and Type.
