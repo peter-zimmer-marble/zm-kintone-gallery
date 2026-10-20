@@ -401,7 +401,6 @@
     full: { maxEdge: 2048, minEdge: 900 },
     label: { maxEdge: 2560, minEdge: 1200 }
   });
-  const PHOTO_QUALITIES = Object.freeze([0.86, 0.76, 0.66, 0.56, 0.48]);
   function photoSize(bytes) {
     const n = Number(bytes || 0);
     return n >= 1000000 ? (n / 1000000).toFixed(1) + ' MB' :
