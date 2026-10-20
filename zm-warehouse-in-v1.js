@@ -21,10 +21,12 @@
   const ROOT_ID = 'zm-warehouse-in-root';
   const PHOTO_MAX_BYTES = 500000;
   const SOURCE_CHOICES = Object.freeze([
-    'Remnant Off Saw', 'Unused Staged Slab Return', 'New Supplier Slab',
-    'Jobsite Return', 'Customer Drop-off', 'Other / Unknown'
+    'New Remnant', 'New Slab', 'Unused Piece',
+    'Field Return', 'Customer Drop-off', 'Other / Unknown'
   ]);
-  const KIND_CHOICES = Object.freeze(['Slab','Remnant','Other / Unknown']);
+  const TYPE_CHOICES = Object.freeze([
+    'Stock Slab','STOCK Rem','SO-Slab','Cosigned Slab','Stan-Rem'
+  ]);
   const PUTAWAY = Object.freeze({later:'Put Away Later',now:'Put Away Now'});
   const TEMP_RACKS = Object.freeze({
     remnant:'Remnant Cart',other:'Pending Putaway'
@@ -32,7 +34,7 @@
   const NEW_FIELDS = Object.freeze({
     warehouse_event_type:'DROP_DOWN',
     warehouse_in_source:'DROP_DOWN',
-    warehouse_piece_kind:'DROP_DOWN',
+    type:'DROP_DOWN',
     warehouse_putaway_plan:'DROP_DOWN',
     warehouse_identification_status:'DROP_DOWN',
     warehouse_observed_color:'SINGLE_LINE_TEXT',
@@ -40,12 +42,12 @@
     warehouse_in_description:'MULTI_LINE_TEXT'
   });
   const OPTIONAL_FIELDS = Object.freeze([
-    'color','thickness','finish','old_job','new_job','shape',
-    'length','width','material'
+    'color','finish','old_job','new_job','shape',
+    'length','width','material','type'
   ]);
   const MASTER_FIELDS = Object.freeze([
     '$id','color','color_combined','zmv_num','material','thickness',
-    'finish','shape','length','width','job','rack','inventory_status'
+    'finish','shape','length','width','job','rack','inventory_status','type'
   ]);
   const PROTECTED_FIELDS = Object.freeze([
     'inventory_verified','warehouse_disposition','peter_notification',
@@ -54,6 +56,7 @@
   let root = null;
   let busy = false;
   let matchedMaster = null;
+  let matchedParent = null;
   let requestId = '';
   let cachedSchema = null;
   let mobile = false;
@@ -95,6 +98,16 @@
         'For incomplete IN records, make App 15 field "'+code+'" optional. ' +
         'The existing OUT addon still validates this field.');
     }
+    // Radio buttons cannot have an empty value. Preserve App 15's familiar
+    // 3cm default for manual entries; IN explicitly sends Unknown for blanks.
+    fail(props.thickness.type === 'RADIO_BUTTON' &&
+      props.thickness.required === true &&
+      props.thickness.defaultValue === '3cm',
+      'App 15 Thickness must stay a radio button with 3cm default.');
+    for (const option of ['3cm','2cm','12mm','Other','Unknown']) {
+      fail(hasOption(props.thickness,option),
+        'Add "'+option+'" to App 15 Thickness radio options.');
+    }
     for (const [code,type] of Object.entries(NEW_FIELDS)) {
       fail(props[code] && props[code].type===type,
         'Create App 15 field "'+code+'" as '+type+'.');
@@ -120,9 +133,9 @@
       fail(hasOption(props.warehouse_in_source,choice),
         'Add "'+choice+'" to App 15 warehouse_in_source.');
     }
-    for (const choice of KIND_CHOICES) {
-      fail(hasOption(props.warehouse_piece_kind,choice),
-        'Add "'+choice+'" to App 15 warehouse_piece_kind.');
+    for (const choice of TYPE_CHOICES) {
+      fail(hasOption(props.type,choice),
+        'Add "'+choice+'" to App 15 Type (code: type).');
     }
     for (const choice of Object.values(PUTAWAY)) {
       fail(hasOption(props.warehouse_putaway_plan,choice),
@@ -208,9 +221,14 @@
         'Put Away Now needs a permanent rack, not a temporary location.');
       return txt(input.finalRack);
     }
-    return txt(input.pieceKind)==='Remnant' ||
-      txt(input.source)==='Remnant Off Saw'
+    return ['STOCK Rem','Stan-Rem'].includes(txt(input.type)) ||
+      txt(input.source)==='New Remnant'
       ? TEMP_RACKS.remnant : TEMP_RACKS.other;
+  }
+  function suggestRemnantType(parent) {
+    const sourceType = read(parent,'type');
+    return sourceType === 'Stock Slab' ? 'STOCK Rem' :
+      sourceType === 'SO-Slab' ? 'Stan-Rem' : '';
   }
   function selectedOption(input, code, props) {
     const value = txt(input[code]);
@@ -235,7 +253,7 @@
       txt(input.length) && txt(input.width) ?
       'Identified' : 'Needs Review';
   }
-  function buildEntry(input, keys, verified, master = null) {
+  function buildEntry(input, keys, verified, master = null, parent = null) {
     const props = verified.properties;
     fail(Array.isArray(keys) && keys.length >= 2,
       'Two distinct photos are required for every IN.');
@@ -243,12 +261,24 @@
     fail(txt(input.requestId).length <= 128,
       'Warehouse request ID is too long.');
     const source = normalizedSource(input);
-    const kind = txt(input.pieceKind);
-    fail(KIND_CHOICES.includes(kind),'Select Slab, Remnant or Other.');
+    const type = selectedOption(input,'type',props);
+    const thickness = selectedOption(input,'thickness',props) || 'Unknown';
+    fail(source!=='New Remnant' ||
+      !['Stock Slab','SO-Slab','Cosigned Slab'].includes(type),
+      'New Remnant Type must be STOCK Rem or Stan-Rem (or blank for review).');
+    fail(source!=='New Slab' ||
+      !['STOCK Rem','Stan-Rem'].includes(type),
+      'New Slab must use a slab Type (or stay blank for review).');
     const rack = assignedRack(input);
     const masterId = read(master,'$id');
+    const parentId = read(parent,'$id');
     fail(!txt(input.masterId) || masterId === txt(input.masterId),
       'Existing Master selection is unconfirmed. Look it up first.');
+    fail(source!=='New Remnant' || !masterId,
+      'New Remnant is a separate piece: use Parent Slab lookup, not Existing Piece Master.');
+    fail(!txt(input.parentMasterId) ||
+      (source==='New Remnant' && parentId===txt(input.parentMasterId)),
+      'Parent slab lookup is unconfirmed. Find Parent or clear the parent number.');
     const missing = input.missingLabel === true;
     fail(!missing || txt(input.labelReason),
       'Explain why the identifying label is missing.');
@@ -271,7 +301,7 @@
       warehouse_event_type:{value:'IN'},
       warehouse_request_id:{value:txt(input.requestId)},
       warehouse_in_source:{value:source},
-      warehouse_piece_kind:{value:kind},
+      thickness:{value:thickness},
       warehouse_putaway_plan:{value:txt(input.putawayPlan)},
       warehouse_identification_status:{
         value:identification({...input,length,width},masterId)
@@ -282,25 +312,32 @@
       exact_picture:{value:keys.map(fileKey=>({fileKey}))}
     };
     if (masterId) record.master_record_id={value:masterId};
+    // If an optional drop-down has a Kintone default, an omitted field
+    // would silently adopt it. Explicitly clear an unconfirmed choice.
+    if (type || txt(props.type.defaultValue))
+      record.type={value:type};
     // Color is an App 5 lookup: do NOT write arbitrary observed color text to
     // its key. Keep unknown/free-text color in warehouse_observed_color.
-    if (masterId && read(master,'color')) {
-      record.color={value:read(master,'color')};
+    const colorSource = masterId ? master :
+      source==='New Remnant' && parentId ? parent : null;
+    if (read(colorSource,'color')) {
+      record.color={value:read(colorSource,'color')};
     }
     if (txt(input.observedColor)) {
       record.warehouse_observed_color={value:txt(input.observedColor)};
     }
-    if (txt(input.parentReference)) {
-      record.warehouse_parent_reference={value:txt(input.parentReference)};
-    }
+    const parentRef = txt(input.parentReference) ||
+      (parentId ? 'Master #'+parentId : '');
+    if (parentRef) record.warehouse_parent_reference={value:parentRef};
     if (desc) record.warehouse_in_description={value:desc};
     if (txt(input.oldJob)) record.old_job={value:txt(input.oldJob)};
     if (txt(input.newJob)) record.new_job={value:txt(input.newJob)};
     if (length!=='') record.length={value:length};
     if (width!=='') record.width={value:width};
-    for (const code of ['thickness','material','finish','shape']) {
+    for (const code of ['material','finish','shape']) {
       const choice = selectedOption(input,code,props);
-      if (choice) record[code]={value:choice};
+      if (choice || txt(props[code].defaultValue))
+        record[code]={value:choice};
     }
     for (const field of PROTECTED_FIELDS) {
       fail(!(field in record),'Crew cannot submit owner-only field '+field+'.');
@@ -459,14 +496,19 @@
     if(prior)return {id:prior,existing:true};
     // Never trust stale form-schema/defaults from when the view opened.
     const verified=await schema(true);
-    let master=null;
+    let master=null,parent=null;
     if(txt(input.masterId)){
       master=await fetchMaster(input.masterId);
       fail(txt(input.masterColor)===read(master,'color'),
         'Master Color changed while recording IN. Lookup again.');
     }
+    if(txt(input.parentMasterId)){
+      parent=await fetchMaster(input.parentMasterId);
+      fail(txt(input.parentColor)===read(parent,'color'),
+        'Parent slab Color changed while recording IN. Find Parent again.');
+    }
     const recordPreview=buildEntry(input,['test1','test2'],
-      verified,master);
+      verified,master,parent);
     await validRack(recordPreview.rack.value);
     const photosToUpload=[
       {file:photos.full,prefix:'FULL_PIECE'},
@@ -499,7 +541,7 @@
         item.number,item.file);
       keys.push(await upload(item.file,filename));
     }
-    const record=buildEntry(input,keys,verified,master);
+    const record=buildEntry(input,keys,verified,master,parent);
     if(progress)progress('Recording IN in Entry Sheet…');
     try{
       const created=await api('/k/v1/record.json','POST',{
@@ -527,18 +569,20 @@
   }
   function paintOptions(form,verified){
     const props=verified.properties;
-    for(const code of ['thickness','material','finish','shape']){
+    for(const code of ['type','thickness','material','finish','shape']){
       const control=form.elements[code];
       const previous=control.value;
-      control.innerHTML=optionHtml(sortedOptions(props[code]));
+      control.innerHTML=optionHtml(sortedOptions(props[code]),
+        code==='thickness'?'Unknown (not confirmed)':undefined);
       if(sortedOptions(props[code]).includes(previous)){
         control.value=previous;
       }
     }
   }
   function readInput(form){
-    const names=['source','pieceKind','putawayPlan','finalRack','masterId',
-      'masterColor','observedColor','parentReference','oldJob','newJob',
+    const names=['source','type','putawayPlan','finalRack','masterId',
+      'masterColor','parentMasterId','parentColor','observedColor',
+      'parentReference','oldJob','newJob',
       'length','width','thickness','material','finish','shape','description',
       'labelReason'];
     const input={requestId};
@@ -548,9 +592,11 @@
   }
   function sourceLocation(form){
     const source=form.elements.source.value;
-    const kind=form.elements.pieceKind;
-    if(source==='Remnant Off Saw')kind.value='Remnant';
-    const temporary=source==='Remnant Off Saw'||kind.value==='Remnant'?
+    const type=txt(form.elements.type.value);
+    const isNewRemnant=source==='New Remnant';
+    form.querySelector('[data-in-parent-group]').hidden=!isNewRemnant;
+    form.querySelector('[data-in-existing-piece]').hidden=isNewRemnant;
+    const temporary=isNewRemnant||['STOCK Rem','Stan-Rem'].includes(type)?
       TEMP_RACKS.remnant:TEMP_RACKS.other;
     const now=form.elements.putawayPlan.value===PUTAWAY.now;
     form.querySelector('[data-in-final-rack]').hidden=!now;
@@ -580,20 +626,34 @@
       '<section><h3>1. Where did it come from?</h3>'+
       '<label>Source<select name="source" required>'+
       optionHtml(SOURCE_CHOICES,'Choose source')+'</select></label>'+
-      '<label>Piece type<select name="pieceKind" required>'+
-      optionHtml(KIND_CHOICES,'Choose piece type')+'</select></label>'+
+      '<label>Inventory Type (if known)<select name="type">'+
+      optionHtml([])+'</select></label>'+
       '<label>Originating job (if known)<input name="oldJob" maxlength="255"></label>'+
       '<label>New / receiving job (optional)<input name="newJob" maxlength="255"></label>'+
-      '<label>Parent slab reference (remnants; optional)'+
-      '<input name="parentReference" maxlength="255" placeholder="Master # or label ID"></label></section>'+
+      '</section>'+
       '<section><h3>2. Identify the piece (optional)</h3>'+
-      '<p class="zmin-help">If this exact piece exists in Master Inventory, enter its record number. '+
-      'For a new remnant, leave it unmatched and enter the <strong>parent slab</strong> above.</p>'+
-      '<div class="zmin-match"><label>Existing Master record #'+
+      '<div data-in-parent-group hidden>'+
+      '<p class="zmin-help">Find the PARENT slab for a new remnant. We will copy its '+
+      'color, material, thickness, finish and job, but NEVER link the new '+
+      'remnant to that parent as the same piece.</p>'+
+      '<div class="zmin-match"><label>Parent slab Master record #'+
+      '<input name="parentMasterId" inputmode="numeric" pattern="[0-9]*" '+
+      'placeholder="Leave blank if unknown"></label>'+
+      '<button type="button" data-in-parent-lookup>Find Parent</button></div>'+
+      '<input type="hidden" name="parentColor">'+
+      '<p class="zmin-match-summary" data-in-parent-summary>No parent linked — Needs Review</p>'+
+      '<label>Parent slab reference (optional)'+
+      '<input name="parentReference" maxlength="255" placeholder="Slab label or other identifier"></label>'+
+      '</div>'+
+      '<div data-in-existing-piece>'+
+      '<p class="zmin-help">If this EXACT piece already has a Master record, '+
+      'enter its number. Otherwise leave it unmatched.</p>'+
+      '<div class="zmin-match"><label>Existing piece Master record #'+
       '<input name="masterId" inputmode="numeric" pattern="[0-9]*" placeholder="Leave blank if new or unknown"></label>'+
       '<button type="button" data-in-lookup>Find Master</button></div>'+
       '<input type="hidden" name="masterColor">'+
       '<p class="zmin-match-summary" data-in-master>Unmatched — Needs Review</p>'+
+      '</div>'+
       '<label>Observed color / marking (optional)'+
       '<input name="observedColor" maxlength="255" placeholder="What does the label or piece say?"></label>'+
       '<div class="zmin-two">'+
@@ -652,7 +712,7 @@
         ['length','length'],['width','width'],
         ['thickness','thickness'],['finish','finish'],
         ['material','material'],['shape','shape'],
-        ['oldJob','job']]){
+        ['type','type'],['oldJob','job']]){
         const v=read(master,field);
         if(v)form.elements[name].value=v;
       }
@@ -666,9 +726,86 @@
       showStatus('Master lookup failed; confirm the ID or clear it for unmatched IN.');
     }
   }
+  async function lookupParent(form){
+    const id=txt(form.elements.parentMasterId.value);
+    matchedParent=null;
+    form.elements.parentColor.value='';
+    if(!id){
+      form.querySelector('[data-in-parent-summary]').textContent=
+        'No parent linked — new remnant will need review.';
+      showStatus('Parent unknown. You can still record this remnant.');
+      return;
+    }
+    if(form.elements.source.value!=='New Remnant'){
+      showError('Parent lookup is only for New Remnant.');
+      return;
+    }
+    showStatus('Looking up parent slab #'+id+'…');
+    try {
+      const parent=await fetchMaster(id);
+      if(!form.isConnected||form.elements.parentMasterId.value!==id||
+        form.elements.source.value!=='New Remnant')return;
+      matchedParent=parent;
+      form.elements.parentColor.value=read(parent,'color');
+      form.querySelector('[data-in-parent-summary]').textContent=
+        'Parent slab #'+id+' · '+
+        (read(parent,'color_combined')||read(parent,'color')||'Unknown color')+
+        ' · '+(read(parent,'type')||'Type unknown');
+      for(const [name,field] of [
+        ['material','material'],['thickness','thickness'],
+        ['finish','finish'],['oldJob','job']]){
+        const value=read(parent,field);
+        if(value)form.elements[name].value=value;
+      }
+      // Deliberately NOT copying parent dimensions or shape.
+      // A new remnant gets its own physical dimensions.
+      if(!txt(form.elements.observedColor.value)){
+        form.elements.observedColor.value=
+          read(parent,'color_combined')||read(parent,'color');
+      }
+      if(!txt(form.elements.parentReference.value))
+        form.elements.parentReference.value='Master #'+id;
+      const suggestion=suggestRemnantType(parent);
+      if(suggestion && form.elements.type.dataset.inManual!=='1'){
+        form.elements.type.value=suggestion;
+      }
+      sourceLocation(form);
+      showStatus(suggestion ?
+        'Inherited parent details. Suggested '+suggestion+
+        '; Type is editable if material is no longer stock.' :
+        'Inherited available parent details. Choose the remnant Type manually.');
+    }catch(error){
+      showError(txt(error.message));
+      showStatus('Parent lookup failed. Correct the number, or clear it.');
+    }
+  }
+
   function bind(form){
-    form.elements.source.addEventListener('change',()=>sourceLocation(form));
-    form.elements.pieceKind.addEventListener('change',()=>sourceLocation(form));
+    form.elements.source.addEventListener('change',()=>{
+      const newRemnant=form.elements.source.value==='New Remnant';
+      if(newRemnant){
+        matchedMaster=null;
+        form.elements.masterId.value='';
+        form.elements.masterColor.value='';
+        form.querySelector('[data-in-master]').textContent='Unmatched — Needs Review';
+      }else{
+        matchedParent=null;
+        form.elements.parentMasterId.value='';
+        form.elements.parentColor.value='';
+        form.querySelector('[data-in-parent-summary]').textContent='No parent linked';
+      }
+      if(newRemnant &&
+        ['Stock Slab','SO-Slab','Cosigned Slab'].includes(form.elements.type.value))
+        form.elements.type.value='';
+      if(form.elements.source.value==='New Slab' &&
+        ['STOCK Rem','Stan-Rem'].includes(form.elements.type.value))
+        form.elements.type.value='';
+      sourceLocation(form);
+    });
+    form.elements.type.addEventListener('change',()=>{
+      form.elements.type.dataset.inManual='1';
+      sourceLocation(form);
+    });
     form.elements.putawayPlan.addEventListener('change',()=>sourceLocation(form));
     form.elements.masterId.addEventListener('input',()=>{
       matchedMaster=null;
@@ -679,6 +816,16 @@
     form.querySelector('[data-in-lookup]').addEventListener('click',()=>{
       showError('');
       lookup(form);
+    });
+    form.elements.parentMasterId.addEventListener('input',()=>{
+      matchedParent=null;
+      form.elements.parentColor.value='';
+      form.querySelector('[data-in-parent-summary]').textContent=
+        'Parent slab number not confirmed. Tap Find Parent.';
+    });
+    form.querySelector('[data-in-parent-lookup]').addEventListener('click',()=>{
+      showError('');
+      lookupParent(form);
     });
     form.elements.missingLabel.addEventListener('change',()=>{
       const missing=form.elements.missingLabel.checked;
@@ -707,7 +854,7 @@
       try{
         // A fresh schema and rack existence check run again in submit().
         buildEntry(input,['check1','check2'],await schema(),
-          matchedMaster);
+          matchedMaster,matchedParent);
         fail(distinctFiles(photos.full,photos.label),
           'Take two different required photos.');
       }catch(error){showError(txt(error.message));return;}
@@ -752,6 +899,7 @@
   function render(){
     if(!root)return;
     matchedMaster=null;
+    matchedParent=null;
     root.innerHTML=makeForm();
     const form=root.querySelector('[data-in-form]');
     bind(form);
@@ -780,6 +928,7 @@
   // Exposed for isolated Kintone mock tests. No public write tokens.
   window.ZM_WAREHOUSE_IN_V1=Object.freeze({
     validateSchema,buildEntry,assignedRack,photoFilename,optimizePhoto,
+    suggestRemnantType,
     distinctFiles,submit,fetchMaster,validRack,findRequest
   });
 })();

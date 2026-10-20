@@ -18,8 +18,8 @@ assert.equal(Object.isFrozen(defaults.window.ZM_WAREHOUSE_IN_CONFIG),true);
 const options = (...labels)=>Object.fromEntries(labels.map((label,i)=>[
   'opt'+i,{label}
 ]));
-const SOURCES = ['Remnant Off Saw','Unused Staged Slab Return',
-  'New Supplier Slab','Jobsite Return','Customer Drop-off','Other / Unknown'];
+const SOURCES = ['New Remnant','New Slab','Unused Piece',
+  'Field Return','Customer Drop-off','Other / Unknown'];
 const props={};
 for(const code of ['color','thickness','finish','old_job','new_job',
   'shape','length','width','material','rack']) {
@@ -29,13 +29,13 @@ props.color.lookup={relatedApp:{app:5},relatedKeyField:'color_name'};
 props.rack.lookup={relatedApp:{app:7},relatedKeyField:'rack'};
 props.inventory_status={type:'RADIO_BUTTON',required:true,
   options:options('In','Out')};
-props.thickness={type:'RADIO_BUTTON',required:false,
-  options:options('2cm','3cm')};
+props.thickness={type:'RADIO_BUTTON',required:true,defaultValue:'3cm',
+  options:options('3cm','2cm','12mm','Other','Unknown')};
 props.material={type:'DROP_DOWN',required:false,
   options:options('Quartz','Granite','Quartzite','Dolomite')};
 props.finish={type:'DROP_DOWN',required:false,
   options:options('Polished','Honed','Brushed')};
-props.shape={type:'DROP_DOWN',required:false,
+props.shape={type:'DROP_DOWN',required:false,defaultValue:'Rectangle',
   options:options('Rectangle','Left Hand L','Right Hand L')};
 props.length={type:'NUMBER',required:false};
 props.width={type:'NUMBER',required:false};
@@ -54,8 +54,8 @@ props.peter_notification={type:'USER_SELECT',required:false,
 props.warehouse_event_type={type:'DROP_DOWN',
   options:options('IN','PUTAWAY')};
 props.warehouse_in_source={type:'DROP_DOWN',options:options(...SOURCES)};
-props.warehouse_piece_kind={type:'DROP_DOWN',
-  options:options('Slab','Remnant','Other / Unknown')};
+props.type={type:'DROP_DOWN',required:false,
+  options:options('Stock Slab','STOCK Rem','SO-Slab','Cosigned Slab','Stan-Rem')};
 props.warehouse_putaway_plan={type:'DROP_DOWN',
   options:options('Put Away Later','Put Away Now')};
 props.warehouse_identification_status={type:'DROP_DOWN',
@@ -69,7 +69,7 @@ function masterFixture(extra={}){
     '$id':'8765',color:'Blue Dunes',color_combined:'Blue Dunes V99',
     zmv_num:'V99',material:'Quartz',thickness:'3cm',finish:'Polished',
     shape:'Rectangle',length:'120',width:'60',job:'Test Job',
-    rack:'Z-5A',inventory_status:'In',...extra
+    rack:'Z-5A',inventory_status:'In',type:'Stock Slab',...extra
   };
   return Object.fromEntries(Object.entries(values).map(([key,value])=>
     [key,{value}]));
@@ -171,8 +171,9 @@ assert.deepEqual(Array.from(handlers[0].names),
 
 const unmatched={
   requestId:'IN-unmatched-1',source:'Other / Unknown',
-  pieceKind:'Other / Unknown',putawayPlan:'Put Away Later',
-  masterId:'',masterColor:'',observedColor:'Mysterious gray with red mark',
+  type:'',putawayPlan:'Put Away Later',
+  masterId:'',masterColor:'',parentMasterId:'',parentColor:'',
+  observedColor:'Mysterious gray with red mark',
   parentReference:'',oldJob:'',newJob:'',length:'',width:'',
   thickness:'',material:'',finish:'',shape:'',
   missingLabel:false,labelReason:'',description:'Customer did not know the type.'
@@ -199,19 +200,101 @@ const extra=smallPhoto('extra.jpg');
     'Mysterious gray with red mark');
   assert.equal(unknown.rack.value,'Pending Putaway');
   assert.ok(!('color' in unknown),'Unknown color must not fake App 5 lookup.');
-  for(const code of ['master_record_id','thickness','finish','material',
-    'shape','length','width','old_job','new_job']){
+  assert.equal(unknown.thickness.value,'Unknown',
+    'IN must never silently inherit the radio default 3cm for an unknown piece');
+  assert.equal(props.thickness.defaultValue,'3cm',
+    'Keep 3cm for ordinary manual App 15 records');
+  assert.equal(props.shape.defaultValue,'Rectangle',
+    'Keep Rectangle for ordinary manual App 15 records');
+  assert.equal(unknown.shape.value,'',
+    'IN must explicitly clear default Rectangle for an unknown piece');
+  for(const code of ['master_record_id','finish','material',
+    'length','width','old_job','new_job']){
     assert.ok(!(code in unknown),'Unknown '+code+' should stay blank.');
   }
   const remnant=tool.buildEntry({...unmatched,
-    source:'Remnant Off Saw',pieceKind:'Remnant',
+    source:'New Remnant',type:'STOCK Rem',
     parentReference:'Parent Slab 12222'
   },['first','second'],schema);
   assert.equal(remnant.rack.value,'Remnant Cart');
   assert.equal(remnant.warehouse_parent_reference.value,'Parent Slab 12222');
+  const newSlab=tool.buildEntry({...unmatched,
+    source:'New Slab',type:'Stock Slab'
+  },['first','second'],schema);
+  assert.equal(newSlab.warehouse_in_source.value,'New Slab');
+  assert.equal(newSlab.rack.value,'Pending Putaway');
+  const fieldReturn=tool.buildEntry({...unmatched,
+    source:'Field Return',type:'Stan-Rem'
+  },['first','second'],schema);
+  assert.equal(fieldReturn.rack.value,'Remnant Cart',
+    'Field Return may be a remnant, determined by its piece type');
+  const unused=tool.buildEntry({...unmatched,
+    source:'Unused Piece',type:''
+  },['first','second'],schema);
+  assert.equal(unused.rack.value,'Pending Putaway');
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Remnant',type:'Stock Slab'
+  },['first','second'],schema),/New Remnant Type must be/);
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Slab',type:'Stan-Rem'
+  },['first','second'],schema),/New Slab must use a slab Type/);
   assert.ok(!('parent_slab_id' in remnant));
+  assert.equal(remnant.type.value,'STOCK Rem');
+  assert.ok(!('master_record_id' in remnant),
+    'New remnant has no child Master yet; never link parent as child');
+  assert.equal(tool.suggestRemnantType(currentMaster),'STOCK Rem');
+  assert.equal(tool.suggestRemnantType(masterFixture({type:'SO-Slab'})),
+    'Stan-Rem');
+  assert.equal(tool.suggestRemnantType(masterFixture({type:'Cosigned Slab'})),
+    '', 'Unspecified parent types require a manual choice');
+  const fromParent=tool.buildEntry({...unmatched,
+    requestId:'IN-new-rem-parent',
+    source:'New Remnant',type:'STOCK Rem',
+    parentMasterId:'8765',parentColor:'Blue Dunes',
+    observedColor:'Blue Dunes V99',
+    oldJob:'Test Job',material:'Quartz',thickness:'3cm',finish:'Polished',
+    length:'29',width:'18'
+  },['first','second'],schema,null,currentMaster);
+  assert.equal(fromParent.color.value,'Blue Dunes',
+    'New remnant copies an actual existing Color lookup');
+  assert.equal(fromParent.warehouse_parent_reference.value,'Master #8765');
+  assert.equal(fromParent.old_job.value,'Test Job');
+  assert.equal(fromParent.material.value,'Quartz');
+  assert.equal(fromParent.thickness.value,'3cm',
+    'The identified parent supplies actual thickness');
+  assert.equal(fromParent.type.value,'STOCK Rem');
+  assert.equal(fromParent.length.value,29);
+  assert.equal(fromParent.width.value,18);
+  assert.equal(fromParent.shape.value,'',
+    'Parent slab Rectangle must not leak into the new remnant shape');
+  assert.ok(!('master_record_id' in fromParent),
+    'Parent slab ID must NOT populate new remnant master_record_id');
+  const discontinued=tool.buildEntry({...unmatched,
+    source:'New Remnant',type:'Stan-Rem',
+    parentMasterId:'8765',parentColor:'Blue Dunes',
+    length:'30',width:'25'
+  },['first','second'],schema,null,currentMaster);
+  assert.equal(discontinued.type.value,'Stan-Rem',
+    'Allow manual override for no-longer-stock stone');
+  assert.equal(discontinued.thickness.value,'Unknown',
+    'Unconfirmed remnant thickness must never become 3cm by default');
+  for(const value of ['12mm','Other','2cm','3cm']){
+    const alternate=tool.buildEntry({...unmatched,
+      thickness:value
+    },['first','second'],schema);
+    assert.equal(alternate.thickness.value,value,
+      'IN must preserve a crew-chosen thickness '+value);
+  }
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Remnant',type:'STOCK Rem',
+    parentMasterId:'8765',parentColor:'Blue Dunes'
+  },['first','second'],schema),/Parent slab lookup is unconfirmed/);
+  assert.throws(()=>tool.buildEntry({...unmatched,
+    source:'New Remnant',type:'STOCK Rem',
+    masterId:'8765',masterColor:'Blue Dunes'
+  },['first','second'],schema,currentMaster),/New Remnant is a separate piece/);
   const now=tool.buildEntry({...unmatched,putawayPlan:'Put Away Now',
-    finalRack:'Z-5A',source:'Customer Drop-off',pieceKind:'Slab'
+    finalRack:'Z-5A',source:'Customer Drop-off',type:'Stock Slab'
   },['first','second'],schema);
   assert.equal(now.rack.value,'Z-5A');
   assert.equal(now.warehouse_putaway_plan.value,'Put Away Now');
@@ -233,8 +316,8 @@ const extra=smallPhoto('extra.jpg');
   assert.equal(alt.warehouse_label_note.value,
     'No sticker; photographed etched edge');
 
-  const known={...unmatched,source:'Unused Staged Slab Return',
-    pieceKind:'Slab',masterId:'8765',masterColor:'Blue Dunes',
+  const known={...unmatched,source:'Unused Piece',
+    type:'Stock Slab',masterId:'8765',masterColor:'Blue Dunes',
     material:'Quartz',thickness:'3cm',finish:'Polished',
     shape:'Rectangle',length:'120',width:'60',oldJob:'Test Job',
     putawayPlan:'Put Away Now',finalRack:'Z-5A'};
@@ -242,11 +325,33 @@ const extra=smallPhoto('extra.jpg');
     schema,currentMaster);
   assert.equal(existing.master_record_id.value,'8765');
   assert.equal(existing.color.value,'Blue Dunes');
+  assert.equal(existing.type.value,'Stock Slab');
   assert.equal(existing.warehouse_identification_status.value,'Identified');
   assert.equal(existing.rack.value,'Z-5A');
   assert.throws(()=>tool.buildEntry({...known,masterId:'8766'},
     ['first','second'],schema,currentMaster),/unconfirmed/);
 
+  assert.ok(!js.includes('warehouse_piece_kind'),
+    'Do not require an extra generic warehouse piece-kind field');
+  const oldThicknessDefault=props.thickness.defaultValue;
+  props.thickness.defaultValue='Unknown';
+  assert.throws(()=>tool.validateSchema(props),/3cm default/);
+  props.thickness.defaultValue=oldThicknessDefault;
+  const oldThicknessOptions=props.thickness.options;
+  props.thickness.options=options('2cm','3cm');
+  assert.throws(()=>tool.validateSchema(props),/Add "12mm"/);
+  props.thickness.options=oldThicknessOptions;
+  const unknownMaterialDefault=props.material.defaultValue;
+  props.material.defaultValue='Quartz';
+  const guardedMaterial=tool.buildEntry(unmatched,['one','two'],schema);
+  assert.equal(guardedMaterial.material.value,'',
+    'Unknown material must explicitly override any optional Kintone default');
+  props.material.defaultValue=unknownMaterialDefault;
+  const oldTypeRequired=props.type.required;
+  props.type.required=true;
+  assert.throws(()=>tool.validateSchema(props),
+    /make App 15 field "type" optional/);
+  props.type.required=oldTypeRequired;
   const original=props.color.required;
   props.color.required=true;
   assert.throws(()=>tool.validateSchema(props),/make App 15 field "color" optional/);
