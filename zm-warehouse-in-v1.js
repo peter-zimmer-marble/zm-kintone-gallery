@@ -24,7 +24,9 @@
     'New Remnant', 'New Slab', 'Unused Piece',
     'Field Return', 'Customer Drop-off', 'Other / Unknown'
   ]);
-  const KIND_CHOICES = Object.freeze(['Slab','Remnant','Other / Unknown']);
+  const TYPE_CHOICES = Object.freeze([
+    'Stock Slab','STOCK Rem','SO-Slab','Cosigned Slab','Stan-Rem'
+  ]);
   const PUTAWAY = Object.freeze({later:'Put Away Later',now:'Put Away Now'});
   const TEMP_RACKS = Object.freeze({
     remnant:'Remnant Cart',other:'Pending Putaway'
@@ -32,7 +34,7 @@
   const NEW_FIELDS = Object.freeze({
     warehouse_event_type:'DROP_DOWN',
     warehouse_in_source:'DROP_DOWN',
-    warehouse_piece_kind:'DROP_DOWN',
+    type:'DROP_DOWN',
     warehouse_putaway_plan:'DROP_DOWN',
     warehouse_identification_status:'DROP_DOWN',
     warehouse_observed_color:'SINGLE_LINE_TEXT',
@@ -41,11 +43,11 @@
   });
   const OPTIONAL_FIELDS = Object.freeze([
     'color','thickness','finish','old_job','new_job','shape',
-    'length','width','material'
+    'length','width','material','type'
   ]);
   const MASTER_FIELDS = Object.freeze([
     '$id','color','color_combined','zmv_num','material','thickness',
-    'finish','shape','length','width','job','rack','inventory_status'
+    'finish','shape','length','width','job','rack','inventory_status','type'
   ]);
   const PROTECTED_FIELDS = Object.freeze([
     'inventory_verified','warehouse_disposition','peter_notification',
@@ -54,6 +56,7 @@
   let root = null;
   let busy = false;
   let matchedMaster = null;
+  let matchedParent = null;
   let requestId = '';
   let cachedSchema = null;
   let mobile = false;
@@ -120,9 +123,9 @@
       fail(hasOption(props.warehouse_in_source,choice),
         'Add "'+choice+'" to App 15 warehouse_in_source.');
     }
-    for (const choice of KIND_CHOICES) {
-      fail(hasOption(props.warehouse_piece_kind,choice),
-        'Add "'+choice+'" to App 15 warehouse_piece_kind.');
+    for (const choice of TYPE_CHOICES) {
+      fail(hasOption(props.type,choice),
+        'Add "'+choice+'" to App 15 Type (code: type).');
     }
     for (const choice of Object.values(PUTAWAY)) {
       fail(hasOption(props.warehouse_putaway_plan,choice),
@@ -208,9 +211,14 @@
         'Put Away Now needs a permanent rack, not a temporary location.');
       return txt(input.finalRack);
     }
-    return txt(input.pieceKind)==='Remnant' ||
+    return ['STOCK Rem','Stan-Rem'].includes(txt(input.type)) ||
       txt(input.source)==='New Remnant'
       ? TEMP_RACKS.remnant : TEMP_RACKS.other;
+  }
+  function suggestRemnantType(parent) {
+    const sourceType = read(parent,'type');
+    return sourceType === 'Stock Slab' ? 'STOCK Rem' :
+      sourceType === 'SO-Slab' ? 'Stan-Rem' : '';
   }
   function selectedOption(input, code, props) {
     const value = txt(input[code]);
@@ -235,7 +243,7 @@
       txt(input.length) && txt(input.width) ?
       'Identified' : 'Needs Review';
   }
-  function buildEntry(input, keys, verified, master = null) {
+  function buildEntry(input, keys, verified, master = null, parent = null) {
     const props = verified.properties;
     fail(Array.isArray(keys) && keys.length >= 2,
       'Two distinct photos are required for every IN.');
@@ -243,16 +251,23 @@
     fail(txt(input.requestId).length <= 128,
       'Warehouse request ID is too long.');
     const source = normalizedSource(input);
-    const kind = txt(input.pieceKind);
-    fail(KIND_CHOICES.includes(kind),'Select Slab, Remnant or Other.');
-    fail(source!=='New Remnant' || kind==='Remnant',
-      'New Remnant must be identified as a Remnant.');
-    fail(source!=='New Slab' || kind==='Slab',
-      'New Slab must be identified as a Slab.');
+    const type = selectedOption(input,'type',props);
+    fail(source!=='New Remnant' ||
+      !['Stock Slab','SO-Slab','Cosigned Slab'].includes(type),
+      'New Remnant Type must be STOCK Rem or Stan-Rem (or blank for review).');
+    fail(source!=='New Slab' ||
+      !['STOCK Rem','Stan-Rem'].includes(type),
+      'New Slab must use a slab Type (or stay blank for review).');
     const rack = assignedRack(input);
     const masterId = read(master,'$id');
+    const parentId = read(parent,'$id');
     fail(!txt(input.masterId) || masterId === txt(input.masterId),
       'Existing Master selection is unconfirmed. Look it up first.');
+    fail(source!=='New Remnant' || !masterId,
+      'New Remnant is a separate piece: use Parent Slab lookup, not Existing Piece Master.');
+    fail(!txt(input.parentMasterId) ||
+      (source==='New Remnant' && parentId===txt(input.parentMasterId)),
+      'Parent slab lookup is unconfirmed. Find Parent or clear the parent number.');
     const missing = input.missingLabel === true;
     fail(!missing || txt(input.labelReason),
       'Explain why the identifying label is missing.');
@@ -275,7 +290,6 @@
       warehouse_event_type:{value:'IN'},
       warehouse_request_id:{value:txt(input.requestId)},
       warehouse_in_source:{value:source},
-      warehouse_piece_kind:{value:kind},
       warehouse_putaway_plan:{value:txt(input.putawayPlan)},
       warehouse_identification_status:{
         value:identification({...input,length,width},masterId)
@@ -286,17 +300,20 @@
       exact_picture:{value:keys.map(fileKey=>({fileKey}))}
     };
     if (masterId) record.master_record_id={value:masterId};
+    if (type) record.type={value:type};
     // Color is an App 5 lookup: do NOT write arbitrary observed color text to
     // its key. Keep unknown/free-text color in warehouse_observed_color.
-    if (masterId && read(master,'color')) {
-      record.color={value:read(master,'color')};
+    const colorSource = masterId ? master :
+      source==='New Remnant' && parentId ? parent : null;
+    if (read(colorSource,'color')) {
+      record.color={value:read(colorSource,'color')};
     }
     if (txt(input.observedColor)) {
       record.warehouse_observed_color={value:txt(input.observedColor)};
     }
-    if (txt(input.parentReference)) {
-      record.warehouse_parent_reference={value:txt(input.parentReference)};
-    }
+    const parentRef = txt(input.parentReference) ||
+      (parentId ? 'Master #'+parentId : '');
+    if (parentRef) record.warehouse_parent_reference={value:parentRef};
     if (desc) record.warehouse_in_description={value:desc};
     if (txt(input.oldJob)) record.old_job={value:txt(input.oldJob)};
     if (txt(input.newJob)) record.new_job={value:txt(input.newJob)};
@@ -531,7 +548,7 @@
   }
   function paintOptions(form,verified){
     const props=verified.properties;
-    for(const code of ['thickness','material','finish','shape']){
+    for(const code of ['type','thickness','material','finish','shape']){
       const control=form.elements[code];
       const previous=control.value;
       control.innerHTML=optionHtml(sortedOptions(props[code]));
@@ -541,8 +558,9 @@
     }
   }
   function readInput(form){
-    const names=['source','pieceKind','putawayPlan','finalRack','masterId',
-      'masterColor','observedColor','parentReference','oldJob','newJob',
+    const names=['source','type','putawayPlan','finalRack','masterId',
+      'masterColor','parentMasterId','parentColor','observedColor',
+      'parentReference','oldJob','newJob',
       'length','width','thickness','material','finish','shape','description',
       'labelReason'];
     const input={requestId};
@@ -552,10 +570,11 @@
   }
   function sourceLocation(form){
     const source=form.elements.source.value;
-    const kind=form.elements.pieceKind;
-    if(source==='New Remnant')kind.value='Remnant';
-    if(source==='New Slab')kind.value='Slab';
-    const temporary=source==='New Remnant'||kind.value==='Remnant'?
+    const type=txt(form.elements.type.value);
+    const isNewRemnant=source==='New Remnant';
+    form.querySelector('[data-in-parent-group]').hidden=!isNewRemnant;
+    form.querySelector('[data-in-existing-piece]').hidden=isNewRemnant;
+    const temporary=isNewRemnant||['STOCK Rem','Stan-Rem'].includes(type)?
       TEMP_RACKS.remnant:TEMP_RACKS.other;
     const now=form.elements.putawayPlan.value===PUTAWAY.now;
     form.querySelector('[data-in-final-rack]').hidden=!now;
@@ -585,8 +604,8 @@
       '<section><h3>1. Where did it come from?</h3>'+
       '<label>Source<select name="source" required>'+
       optionHtml(SOURCE_CHOICES,'Choose source')+'</select></label>'+
-      '<label>Piece type<select name="pieceKind" required>'+
-      optionHtml(KIND_CHOICES,'Choose piece type')+'</select></label>'+
+      '<label>Inventory Type (if known)<select name="type">'+
+      optionHtml([])+'</select></label>'+
       '<label>Originating job (if known)<input name="oldJob" maxlength="255"></label>'+
       '<label>New / receiving job (optional)<input name="newJob" maxlength="255"></label>'+
       '<label>Parent slab reference (remnants; optional)'+
