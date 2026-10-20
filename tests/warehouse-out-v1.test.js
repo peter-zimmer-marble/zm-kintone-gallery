@@ -195,6 +195,8 @@ async function fakeFetch(url, options) {
     item[0] === '__REQUEST_TOKEN__' && item[1] === 'test-csrf-token'));
   const image = options.body.items.find(item => item[0] === 'file');
   assert.ok(image, 'Kintone file field required');
+  assert.ok(image[1].size <= 500000,
+    'Kintone must never receive an oversized movement photo');
   assert.match(image[2],
     /^(FULL_PIECE|IDENTIFYING_LABEL|ALTERNATIVE_ID|ADDITIONAL)_/);
   const fileKey = 'verified-file-key-' + (++uploadCount);
