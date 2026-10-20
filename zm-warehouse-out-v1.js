@@ -346,6 +346,53 @@
     return records.length ? readValue(records[0], '$id') : '';
   }
 
+  // Match Visual Search's "Color - L x W in - Record #.jpg" convention.
+  // IN/OUT and photo purpose are suffixes; App 15 entry IDs do not exist
+  // until AFTER these photos are uploaded.
+  function safeMovementFilenamePart(value, maximum = 90) {
+    const raw = str(value);
+    const normalized = typeof raw.normalize === 'function' ?
+      raw.normalize('NFKC') : raw;
+    const cleaned = normalized.replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+      .replace(/\s+/g, ' ').replace(/^[. ]+|[. ]+$/g, '')
+      .slice(0, maximum).replace(/[. ]+$/g, '');
+    return cleaned || 'Unknown';
+  }
+  function movementPhotoFilename(master, prefix, sequence, file, direction = 'OUT') {
+    const movement = txt(direction).toUpperCase();
+    assert(movement === 'IN' || movement === 'OUT',
+      'Movement photo filename requires IN or OUT.');
+    const kind = prefix === 'FULL_PIECE' ? 'Full Piece' :
+      prefix === 'IDENTIFYING_LABEL' ? 'Label' :
+      prefix === 'ALTERNATIVE_ID' ? 'Alternative ID' :
+      prefix === 'ADDITIONAL' ? 'Additional ' + (
+        Number.isSafeInteger(sequence) && sequence > 0 ? sequence : 1
+      ) : '';
+    assert(kind, 'Unknown movement photo type.');
+    const mimeExtensions = {
+      'image/jpeg':'jpg', 'image/jpg':'jpg', 'image/png':'png',
+      'image/webp':'webp', 'image/heic':'heic', 'image/heif':'heif',
+      'image/gif':'gif', 'image/bmp':'bmp', 'image/avif':'avif',
+      'image/tiff':'tif'
+    };
+    const mime = str(file && file.type).toLowerCase();
+    const match = str(file && file.name).match(/\.([a-z0-9]{2,5})$/i);
+    const ext = mimeExtensions[mime] ||
+      (match ? match[1].toLowerCase() : 'jpg');
+    const color = safeMovementFilenamePart(
+      readValue(master, 'color_combined') ||
+      [readValue(master, 'color'), readValue(master, 'zmv_num')]
+        .filter(Boolean).join(' ') || '(Color not specified)');
+    const length = safeMovementFilenamePart(
+      readValue(master, 'length') || 'Unknown', 24);
+    const width = safeMovementFilenamePart(
+      readValue(master, 'width') || 'Unknown', 24);
+    const recordId = safeMovementFilenamePart(
+      readValue(master, '$id') || 'Unmatched', 24);
+    return color + ' - ' + length + ' x ' + width + ' in - Record ' +
+      recordId + ' - ' + movement + ' - ' + kind + '.' + ext;
+  }
+
   // Keep EVERY stored movement photo at or below 500,000 bytes (500 KB).
   // Kintone's native mobile file chooser has its own optional size reduction,
   // but this custom UI cannot depend on that native behavior.
@@ -354,7 +401,6 @@
     full: { maxEdge: 2048, minEdge: 900 },
     label: { maxEdge: 2560, minEdge: 1200 }
   });
-  const PHOTO_QUALITIES = Object.freeze([0.86, 0.76, 0.66, 0.56, 0.48]);
   function photoSize(bytes) {
     const n = Number(bytes || 0);
     return n >= 1000000 ? (n / 1000000).toFixed(1) + ' MB' :
@@ -376,7 +422,6 @@
       'Please select a valid photo for ' + prefix + '.');
     assert(Number.isFinite(Number(file.size)) && Number(file.size) > 0,
       'The selected photo is empty or has an invalid file size.');
-    // Already-optimized images need no conversion and retain their metadata.
     if (Number(file.size) <= PHOTO_MAX_BYTES) return file;
     const failureMessage = photoTooLargeMessage(prefix);
     if (typeof Image === 'undefined' || typeof document === 'undefined' ||
@@ -405,8 +450,11 @@
         typeof canvas.toBlob === 'function', 'Canvas compression unsupported.');
       const profile = photoProfile(prefix);
       let longestEdge = Math.min(profile.maxEdge, Math.max(w, h));
-      const minimumEdge = Math.min(profile.minEdge, longestEdge);
-      for (let attempt = 0; attempt < 9; attempt++) {
+      const minEdge = Math.min(profile.minEdge, longestEdge);
+      // One normal-quality encode per dimension, not 5 quality retries.
+      // If oversized, jump directly to a size predicted from encoded bytes.
+      // Only try lower quality when close to the limit or at minimum size.
+      for (let attempt = 0; attempt < 5; attempt++) {
         const scale = longestEdge / Math.max(w, h);
         const width = Math.max(1, Math.round(w * scale));
         const height = Math.max(1, Math.round(h * scale));
@@ -414,31 +462,52 @@
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         assert(ctx, 'Photo drawing unavailable.');
-        // Keep transparent source backgrounds white rather than black.
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(image, 0, 0, width, height);
-        for (const quality of PHOTO_QUALITIES) {
-          const blob = await new Promise(resolve =>
-            canvas.toBlob(resolve, 'image/jpeg', quality));
-          if (!blob || blob.type !== 'image/jpeg' || !blob.size) continue;
-          if (blob.size > PHOTO_MAX_BYTES) continue;
+
+        const encode = quality => new Promise(resolve =>
+          canvas.toBlob(resolve, 'image/jpeg', quality));
+        const finish = blob => {
           const base = txt(file.name || 'photo').replace(/\.[^.]+$/, '');
           const name = (base || 'photo') + '_500kb.jpg';
-          const result = typeof File === 'function'
-            ? new File([blob], name, { type:'image/jpeg',
-              lastModified:Number(file.lastModified) || Date.now() })
-            : blob;
-          assert(result.size <= PHOTO_MAX_BYTES,
-            'Compressed photo size exceeded limit.');
-          return result;
+          const output = typeof File === 'function'
+            ? new File([blob], name, {
+              type:'image/jpeg', lastModified:Number(file.lastModified) || Date.now()
+            }) : blob;
+          assert(output.size <= PHOTO_MAX_BYTES,
+            'Compressed photo size exceeded the 500 KB limit.');
+          return output;
+        };
+
+        const primary = await encode(0.76);
+        assert(primary && primary.type === 'image/jpeg' && primary.size,
+          'JPEG encoding is unavailable.');
+        if (primary.size <= PHOTO_MAX_BYTES) return finish(primary);
+        let measured = primary;
+        if (primary.size <= 680000 || longestEdge <= minEdge) {
+          const lowerQuality = await encode(0.62);
+          if (lowerQuality && lowerQuality.type === 'image/jpeg' &&
+              lowerQuality.size) {
+            if (lowerQuality.size <= PHOTO_MAX_BYTES) return finish(lowerQuality);
+            measured = lowerQuality;
+          }
+          if (longestEdge <= minEdge) {
+            const lastTry = await encode(0.49);
+            if (lastTry && lastTry.type === 'image/jpeg' &&
+                lastTry.size && lastTry.size <= PHOTO_MAX_BYTES)
+              return finish(lastTry);
+            break;
+          }
         }
-        if (longestEdge <= minimumEdge) break;
-        longestEdge = Math.max(minimumEdge, Math.floor(longestEdge * 0.82));
+        if (longestEdge <= minEdge) break;
+        const predicted = Math.sqrt(465000 / measured.size) * 0.96;
+        const factor = Math.max(0.5, Math.min(0.87, predicted));
+        longestEdge = Math.max(minEdge, Math.floor(longestEdge * factor));
       }
       throw new Error(failureMessage);
     } catch (_) {
-      // Never fall back to a multi-megabyte original: storage cap is mandatory.
+      // Even when the phone cannot encode a photo, never upload >500 KB.
       throw new Error(failureMessage);
     } finally {
       if (canvas) { canvas.width = 0; canvas.height = 0; }
@@ -446,16 +515,16 @@
     }
   }
 
-  async function uploadPhoto(file, name) {
+  async function uploadPhoto(file, filename) {
     assert(file && /^image\//i.test(str(file.type)),
-      'Please choose an image for ' + name + '.');
+      'Please choose an image for ' + filename + '.');
     assert(Number(file.size) > 0 && Number(file.size) <= PHOTO_MAX_BYTES,
       'Upload blocked: every photo must be 500 KB or less.');
     const token = kintone.getRequestToken();
     assert(token, 'Kintone session token unavailable. Sign in again.');
     const data = new FormData();
     data.append('__REQUEST_TOKEN__', token);
-    data.append('file', file, name + '_' + (file.name || 'photo.jpg'));
+    data.append('file', file, filename);
     const response = await fetch(kintone.api.url('/k/v1/file.json', true), {
       method: 'POST',
       credentials: 'same-origin',
@@ -510,8 +579,9 @@
       { file: photos.label,
         prefix: input.missingLabel ? 'ALTERNATIVE_ID' : 'IDENTIFYING_LABEL' }
     ];
+    let extraNumber = 0;
     for (const file of (photos.extra || [])) {
-      files.push({ file, prefix: 'ADDITIONAL' });
+      files.push({ file, prefix: 'ADDITIONAL', sequence: ++extraNumber });
     }
     // Preprocess ALL photos before uploading ANYTHING: a failed oversized
     // optional photo must not leave earlier temporary Kintone file uploads.
@@ -529,7 +599,8 @@
         'Photo size exceeds the 500 KB maximum.');
       uploadedBytes += Number(outgoing.size);
       if (outgoing !== original) optimizedCount++;
-      uploadFiles.push({file:outgoing, prefix:files[i].prefix});
+      uploadFiles.push({file:outgoing, prefix:files[i].prefix,
+        sequence:files[i].sequence || 0});
     }
     const keys = [];
     for (let i = 0; i < uploadFiles.length; i++) {
@@ -538,7 +609,9 @@
         statusUpdate('Uploading photo ' + (i + 1) + ' of ' +
           uploadFiles.length + ' (' + photoSize(item.file.size) + ')…');
       }
-      keys.push(await uploadPhoto(item.file, item.prefix));
+      const filename = movementPhotoFilename(latest, item.prefix,
+        item.sequence, item.file, 'OUT');
+      keys.push(await uploadPhoto(item.file, filename));
     }
     const photoStats = { originalBytes, uploadedBytes, optimizedCount };
     const entry = buildEntry(latest, input, keys, verifiedSchema, requestId);
@@ -871,6 +944,7 @@
   window.ZM_WAREHOUSE_OUT_DRAFT = Object.freeze({
     validateSchema, verifyAllowedMasterValues, buildEntry,
     pendingForIds, findSubmittedRequest, submit, distinctFiles, optimizePhoto,
+    movementPhotoFilename,
     openOut, scan
   });
 })();

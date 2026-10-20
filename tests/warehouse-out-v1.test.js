@@ -113,6 +113,7 @@ let pendingEntries = [];
 let entryRecords = [];
 let nextId = 5001;
 let uploadCount = 0;
+const uploadedNames = [];
 let apiReadEnabled = true;
 let currentMaster = makeMaster();
 const previousCalls = () => calls.length;
@@ -198,7 +199,8 @@ async function fakeFetch(url, options) {
   assert.ok(image[1].size <= 500000,
     'Kintone must never receive an oversized movement photo');
   assert.match(image[2],
-    /^(FULL_PIECE|IDENTIFYING_LABEL|ALTERNATIVE_ID|ADDITIONAL)_/);
+    /^.+ - [^/\\]+ x [^/\\]+ in - Record [^/\\]+ - OUT - (Full Piece|Label|Alternative ID|Additional [1-9][0-9]*)\.[a-z0-9]+$/);
+  uploadedNames.push(image[2]);
   const fileKey = 'verified-file-key-' + (++uploadCount);
   return { ok: true, status: 200, async json() { return { fileKey }; } };
 }
@@ -397,6 +399,11 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(done.id, '5001');
   assert.equal(done.existing, false);
   assert.equal(uploadCount, 3);
+  assert.deepEqual(uploadedNames.slice(0,3), [
+    'Blue Dunes V1 - 122 x 62 in - Record 123 - OUT - Full Piece.jpg',
+    'Blue Dunes V1 - 122 x 62 in - Record 123 - OUT - Label.jpg',
+    'Blue Dunes V1 - 122 x 62 in - Record 123 - OUT - Additional 1.jpg'
+  ], 'Uploaded App 15 filenames must match Visual Search + OUT + purpose');
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].recipient, 'peter-validated');
   assert.equal(entryRecords.length, 1);
@@ -588,10 +595,32 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
     assert.equal(context.window.ZM_WAREHOUSE_OUT_DRAFT,undefined);
   }
 
+  const photoFilename = mod.movementPhotoFilename;
+  assert.equal(photoFilename(makeMaster(),'ALTERNATIVE_ID',0,
+    {name:'source.jpg',type:'image/jpeg'},'OUT'),
+    'Blue Dunes V1 - 122 x 62 in - Record 123 - OUT - Alternative ID.jpg');
+  assert.equal(photoFilename(makeMaster(),'ADDITIONAL',2,
+    {name:'sample.png',type:'image/png'},'OUT'),
+    'Blue Dunes V1 - 122 x 62 in - Record 123 - OUT - Additional 2.png');
+  assert.equal(photoFilename(makeMaster(),'FULL_PIECE',0,
+    {name:'sample.heic',type:'image/heic'},'IN'),
+    'Blue Dunes V1 - 122 x 62 in - Record 123 - IN - Full Piece.heic');
+  assert.equal(photoFilename(makeMaster({
+    color_combined:'  Bianco / Cream: V1  ', '$id':'8765'
+  }),'IDENTIFYING_LABEL',0,{name:'img.jpeg',type:'image/jpeg'},'OUT'),
+    'Bianco - Cream- V1 - 122 x 62 in - Record 8765 - OUT - Label.jpg');
+  const sanitized = photoFilename(makeMaster({
+    color_combined:'A/B:*?<>|"^', '$id':'8765'
+  }), 'FULL_PIECE',0,{name:'a.jpg',type:'image/jpeg'},'OUT');
+  assert.ok(!/[<>:"/\\|?*\x00-\x1F]/.test(sanitized),
+    'Filename must be safe for Windows downloads');
+  assert.throws(()=>photoFilename(makeMaster(),'FULL_PIECE',0,
+    {name:'a.jpg',type:'image/jpeg'},'RETURN'),/IN or OUT/);
+
   // Enforce <=500,000 bytes; pass through already-small mobile-optimized
   // files, preserve extra label detail, and reject unsupported oversized shots.
   const photoSizes = [], revoked = [];
-  let createCount = 0, whiteBackgroundCount = 0;
+  let createCount = 0, whiteBackgroundCount = 0, jpegEncodeCount = 0;
   let brokenCanvas = false, complexityMultiplier = 1;
   const fakeCanvas = {
     width:0,height:0,
@@ -603,6 +632,7 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
       };
     },
     toBlob(callback,format,quality) {
+      jpegEncodeCount++;
       if (brokenCanvas) return callback(null);
       assert.equal(format,'image/jpeg');
       const pixels = fakeCanvas.width * fakeCanvas.height;
@@ -647,7 +677,10 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.equal(typeof optimize,'function');
   const phoneShot = {name:'mobile-camera.heic',size:9*1024*1024,
     type:'image/heic',lastModified:4567};
+  const beforeFullEncodes=jpegEncodeCount;
   const fullOptimized = await optimize(phoneShot,'FULL_PIECE');
+  assert.ok(jpegEncodeCount-beforeFullEncodes <= 3,
+    'Routine photo compression should need only a few JPEG encodes');
   assert.equal(fullOptimized.name,'mobile-camera_500kb.jpg');
   assert.equal(fullOptimized.type,'image/jpeg');
   assert.equal(fullOptimized.lastModified,4567);
@@ -656,7 +689,10 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   assert.ok(whiteBackgroundCount > 0);
   assert.equal(revoked.length,1,'Free temporary photo URL');
   const labelStart=photoSizes.length;
+  const beforeLabelEncodes=jpegEncodeCount;
   const labelOptimized = await optimize(phoneShot,'IDENTIFYING_LABEL');
+  assert.ok(jpegEncodeCount-beforeLabelEncodes <= 3,
+    'Label optimization should use adaptive resizing rather than quality loops');
   assert.ok(labelOptimized.size <= 500000,'Label photo must be <= 500 KB');
   assert.deepEqual(photoSizes[labelStart],[2560,1920],
     'Start with extra pixels for fine text on a label');
