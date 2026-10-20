@@ -9,8 +9,8 @@ Status: PREVIEW-ONLY. No Master App 6, OUT, Visual Search, staging, or live Kint
 - Keep all photos at 500,000 bytes (500 KB) or less, with Visual Search-style names and an IN suffix.
 - Leave unknown color, material, dimensions, shape, thickness, finish, job, and Master ID truly blank. Do NOT invent App 5 lookup keys or other values.
 - Save freeform label/color observations separately from the Color lookup field.
-- A brand-new remnant is its own unmatched IN entry; its parent slab can be referenced without pretending the parent is the remnant.
-- IN Source uses six shop-friendly labels: New Remnant, New Slab, Unused Piece, Field Return, Customer Drop-off, and Other / Unknown. New Remnant automatically selects piece type Remnant, New Slab selects Slab, and the other four sources can be either type.
+- A brand-new remnant is its own unmatched IN entry. An optional Parent Slab lookup (by exact Master record number) inherits color, material, thickness, finish, and originating job. It NEVER copies parent dimensions, shape, or parent Master record ID into the new remnant's master_record_id. If parent Type is Stock Slab, suggest STOCK Rem; if SO-Slab, suggest Stan-Rem; for other types, leave manual choice. The suggested Type is always editable, including to reclassify no-longer-stock material.
+- IN Source uses six shop-friendly labels: New Remnant, New Slab, Unused Piece, Field Return, Customer Drop-off, and Other / Unknown. Inventory Type uses the same five categories as Master Inventory (not an additional generic Slab/Remnant field).
 - Put Away Later is the default: Remnant Cart for remnants, Pending Putaway for other items; Put Away Now needs a real final rack.
 - Each IN creates one App 15 Entry Sheet record with Inventory Status=In and identification state Needs Review or Identified. App 6 remains unchanged until owner reconciliation; Inventory Verified=No and Peter Notification default preserved.
 - A separate Awaiting Putaway workflow and PUTAWAY event journal are next-phase work, NOT implemented in this initial IN form.
@@ -28,6 +28,7 @@ All of the following must become non-required. Otherwise Kintone rejects an inco
 - length
 - width
 - material
+- type (new field; same categories as Master, not required for unknown pieces)
 
 Rack may stay Required because all IN records use a verified temporary or permanent Rack App 7 value. Keep inventory_status required. Do NOT change move_complete, App 6 Master, or any historical record. Confirm existing Warehouse OUT remains functional; it performs its own strict Master-data checks.
 
@@ -37,7 +38,7 @@ Rack may stay Required because all IN records use a verified temporary or perman
 |---|---|---|
 | warehouse_event_type | Drop-down | IN; PUTAWAY (reserved for second phase; existing OUT events leave blank) |
 | warehouse_in_source | Drop-down | New Remnant; New Slab; Unused Piece; Field Return; Customer Drop-off; Other / Unknown |
-| warehouse_piece_kind | Drop-down | Slab; Remnant; Other / Unknown |
+| type | Drop-down | Stock Slab; STOCK Rem; SO-Slab; Cosigned Slab; Stan-Rem (exact Master Inventory labels) |
 | warehouse_putaway_plan | Drop-down | Put Away Later; Put Away Now |
 | warehouse_identification_status | Drop-down | Needs Review; Identified |
 | warehouse_observed_color | Text (one line) | Free-text label/color observation, NOT an App 5 lookup |
@@ -84,7 +85,7 @@ Do not install these links into App 6. They are for App 15 only. Do not install 
 1. Preview the IN form on a phone and PC with the employee account.
 2. Unmatched test: photos + source + temporary location. All other data blank; must be Needs Review and not linked to any Master.
 3. Matched test: enter the exact piece's Master record ID and tap Find Master. Master is read-only; values can be captured on the IN entry.
-4. New remnant: no new piece Master exists; record the original parent reference in its own text field and use Remnant Cart.
+4. New remnant: enter the PARENT Master record number in the dedicated Find Parent lookup and confirm inheritance (Color, Material, Thickness, Finish, Job). The NEW remnant must remain unmatched to a Master child record, and its own dimensions/shape must stay separate. Test editing STOCK Rem to Stan-Rem for stone no longer in stock. If no parent is known, allow manual description and Type.
 5. Put Away Now: require final real rack (not Remnant Cart or Pending Putaway); verify it is in App 7.
 6. Check 500 KB max per attachment, filename suffix IN, employee-created Peter bell notification, Inventory Verified=No, Active disposition, two photos, and zero App 6 writes.
 7. Void dummy entries with no real material movement using your established cleanup process.
