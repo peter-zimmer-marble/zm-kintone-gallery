@@ -9,6 +9,21 @@ const vm = require('node:vm');
 const script = fs.readFileSync('zm-warehouse-out-v1.js', 'utf8');
 new vm.Script(script, { filename: 'zm-warehouse-out-v1.js' });
 
+// Separate explicitly enabled production test config. This is not the
+// previous employee/record-limited preview mode.
+const liveConfigSource = fs.readFileSync(
+  'zm-warehouse-out-live-config-v1.js', 'utf8');
+new vm.Script(liveConfigSource, {
+  filename: 'zm-warehouse-out-live-config-v1.js'
+});
+const liveConfigContext = {window:{}};
+vm.runInNewContext(liveConfigSource,liveConfigContext);
+const liveConfig = liveConfigContext.window.ZM_WAREHOUSE_OUT_CONFIG;
+assert.equal(liveConfig.mode,'live');
+assert.equal(liveConfig.submissionsEnabled,true);
+assert.equal(liveConfig.enabled,true);
+assert.equal(Object.isFrozen(liveConfig),true);
+
 // The publishable preview configuration is deliberately frozen with
 // writes disabled for employee zmproduction, Master #8160 only.
 const previewConfigSource = fs.readFileSync(
@@ -512,6 +527,41 @@ assert.ok(mod, 'Draft test API should be exposed in enabled mode');
   await assert.rejects(noWrite.submit(makeMaster({'$id':'8160'}), {
     requestId:'preview-only-test'
   }, {}), /Preview only/);
+
+  // Live testing removes the temporary employee + Master restrictions.
+  // A signed-in owner account may use a different staged record.
+  const liveRegistered = [];
+  const liveEnv = {
+    window:liveConfigContext.window,
+    kintone:{
+      getLoginUser(){return {code:'warehouse-owner'};},
+      events:{on(names){liveRegistered.push(names);}}
+    }
+  };
+  vm.runInNewContext(script,liveEnv);
+  assert.equal(liveRegistered.length,1);
+  const liveMod = liveEnv.window.ZM_WAREHOUSE_OUT_DRAFT;
+  assert.ok(liveMod);
+  const liveEntry = liveMod.buildEntry(makeMaster({'$id':'8765'}),
+    base,['photo-one','photo-two'],schema,'live-8765');
+  assert.equal(liveEntry.master_record_id.value,'8765');
+  const anotherLiveEntry = liveMod.buildEntry(makeMaster({'$id':'9999'}),
+    base,['photo-one','photo-two'],schema,'live-9999');
+  assert.equal(anotherLiveEntry.master_record_id.value,'9999');
+  // Live mode still needs an explicit write-enable value; no accidental
+  // activation with mode:'live' and submissionsEnabled:false.
+  const noWriteRegistered=[];
+  vm.runInNewContext(script,{
+    window:{ZM_WAREHOUSE_OUT_CONFIG:{
+      enabled:true,ownerValidatedPermissions:true,mode:'live',
+      submissionsEnabled:false
+    }},
+    kintone:{
+      getLoginUser(){return {code:'warehouse-owner'};},
+      events:{on(names){noWriteRegistered.push(names);}}
+    }
+  });
+  assert.equal(noWriteRegistered.length,0);
 
   // With the opt-in flag missing, addon is inert even if script is installed.
   const disabledRegistrations = [];
