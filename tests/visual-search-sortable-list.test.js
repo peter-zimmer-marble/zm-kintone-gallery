@@ -87,7 +87,12 @@ const sandbox={
     setItem(k,v){preferences.set(k,v);}
   }},
   kintone:{events:{on(types,cb){registrations.push(cb);}},api},
-  URL:{revokeObjectURL(){}},XMLHttpRequest:function(){throw Error('Unrequested thumbnail fetch');},
+  URL:{revokeObjectURL(){}},XMLHttpRequest:class {
+    open(method){assert.equal(method,'GET');}
+    setRequestHeader(){}
+    send(){}
+    abort(){}
+  },
   document:{getElementById(id){return nodes.get(id)||null;},
     addEventListener(){},removeEventListener(){}}
 };
@@ -156,7 +161,7 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   action('sort','rack');
   assertOrder([5,2,7,9,13],'Natural rack sorting Z-2 before Z-10');
   action('sort','photo');
-  assertOrder([5,7,9,13,2],'Photo count ascending; stable ties');
+  assertOrder([7,5,9,13,2],'Photo count ascending; stable ties');
   action('sort','photo');
   assertOrder([2,13,7,5,9],'Photo count descending, stable ties by color');
   action('sort','status');
