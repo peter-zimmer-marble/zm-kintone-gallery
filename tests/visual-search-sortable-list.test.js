@@ -104,7 +104,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function send(name,target,capture=false) {
   const handlers=(listeners.get(name)||[]).filter(item=>item.capture===capture);
   assert.ok(handlers.length>0, 'Handler for '+name);
-  for(const h of handlers)h.cb({target});
+  for(const h of handlers)h.cb({target,preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}});
 }
 function action(name,key) {
   const target={dataset:{visualAction:name,visualSort:key}};
