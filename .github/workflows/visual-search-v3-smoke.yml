@@ -12,6 +12,7 @@ on:
       - 'tests/visual-search-v3.test.js'
       - 'tests/visual-search-shared.test.js'
       - 'tests/visual-search-photo-details.test.js'
+      - 'tests/visual-search-sortable-list.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
@@ -39,3 +40,5 @@ jobs:
         run: node tests/visual-search-shared.test.js
       - name: Verify enlarged-photo detail parity
         run: node tests/visual-search-photo-details.test.js
+      - name: Test sortable list columns and photo interactions
+        run: node tests/visual-search-sortable-list.test.js
