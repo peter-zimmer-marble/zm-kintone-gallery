@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.0 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.1 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -428,4 +428,95 @@
   #zm-visual-search-root .zmwm-visual-lightbox-status .zmwm-visual-status {
     font-size:9px;padding:5px 7px;
   }
+}
+
+/* v3.1: optional compact rows. Shared detail markup preserves full field parity. */
+#zm-visual-search-root .zmwm-visual-results-heading {
+  display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin:7px 0 13px;
+}
+#zm-visual-search-root .zmwm-visual-results-heading .zmwm-visual-count {margin:0;}
+#zm-visual-search-root .zmwm-visual-layout-toggle {
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer;
+  font-size:12px;font-weight:800;color:#45634f;padding:7px 11px;
+  background:#fff;border:1px solid #cad9ce;
+}
+#zm-visual-search-root .zmwm-visual-layout-toggle.is-active {
+  background:#e7f1e8;border-color:#88af90;color:#285c3e;
+}
+#zm-visual-search-root .zmwm-visual-layout-toggle input {width:16px;height:16px;margin:0;accent-color:#31764d;}
+#zm-visual-search-root .zmwm-visual-list-heading {display:contents;}
+#zm-visual-search-root .zmwm-visual-list-status {display:none;}
+#zm-visual-search-root .zmwm-visual-photo-count-short {display:none;}
+#zm-visual-search-root .zmwm-visual-grid.is-list {display:flex;flex-direction:column;gap:8px;}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-card {
+  display:grid;grid-template-columns:112px minmax(0,1fr);min-width:0;align-items:stretch;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo {
+  height:100%;min-height:108px;aspect-ratio:auto;width:112px;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo-action {
+  border-right:1px solid #e0e7de;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo-count {
+  bottom:4px;left:4px;padding:3px 5px;font-size:9px;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo-count-full {display:none;}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo-count-short {display:inline;}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo .zmwm-visual-status {display:none;}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-link {display:block;min-width:0;}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-card-details {
+  display:grid;grid-template-columns:minmax(145px,1.1fr) minmax(175px,1.6fr)
+    minmax(140px,1.15fr);gap:10px 16px;align-items:start;padding:11px 14px;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-list-heading {
+  display:flex;flex-direction:column;gap:6px;min-width:0;grid-column:1;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-list-status {display:block;}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-list-status .zmwm-visual-status {
+  position:static;display:inline-flex;box-shadow:none;padding:4px 7px;font-size:10px;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-color {
+  font-size:15px;line-height:1.25;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-classifications {
+  grid-column:2;grid-row:1;align-content:start;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-size {
+  grid-column:3;grid-row:1;font-size:13px;white-space:normal;
+  overflow-wrap:anywhere;overflow-x:visible;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-geometry {
+  grid-column:3;grid-row:2;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-job {
+  grid-column:2;grid-row:auto;min-width:0;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-note {
+  grid-column:3;grid-row:auto;min-width:0;
+}
+#zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-card-meta {
+  grid-column:1;grid-row:auto;margin:0;padding:0;
+}
+@media(max-width:850px) {
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-card-details {
+    grid-template-columns:minmax(120px,1fr) minmax(0,1.5fr);gap:8px 12px;
+  }
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-classifications {grid-column:2;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-size {grid-column:2;grid-row:auto;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-geometry {grid-column:2;grid-row:auto;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-job,
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-note {grid-column:1 / -1;}
+}
+@media(max-width:520px) {
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-card {grid-template-columns:84px minmax(0,1fr);}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-photo {width:84px;min-height:100px;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-card-details {
+    display:flex;flex-direction:column;gap:7px;padding:9px;
+  }
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-list-heading {gap:4px;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-color {font-size:14px;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-piece-type,
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-material,
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-rack {font-size:9px;padding:3px 5px;}
+  #zm-visual-search-root .zmwm-visual-grid.is-list .zmwm-visual-no-photo {font-size:10px;padding:4px;text-align:center;}
 }

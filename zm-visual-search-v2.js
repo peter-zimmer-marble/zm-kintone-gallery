@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.0 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.1 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -73,6 +73,16 @@
   // physical maps, but has its own image-first, read-only user interface.
   // It does not change any warehouse-map layout or write to Kintone.
   const VISUAL_PAGE_SIZE = 32;
+  // Save only the display preference; inventory records and image blobs are never persisted.
+  const VISUAL_LIST_PREFERENCE_KEY = 'zmwm-visual-search-list-view';
+  function readVisualListPreference() {
+    try { return window.localStorage.getItem(VISUAL_LIST_PREFERENCE_KEY) === 'true'; }
+    catch (_error) { return false; }
+  }
+  function saveVisualListPreference(enabled) {
+    try { window.localStorage.setItem(VISUAL_LIST_PREFERENCE_KEY,enabled ? 'true' : 'false'); }
+    catch (_error) { /* Private browsing may disable preference storage. */ }
+  }
   // Strict record-data allowlist: keep operational fields only. Never request
   // pricing, costs, margins, supplier information or unrelated inventory fields.
   // Job, material and In/Out Notes are displayed solely in this authenticated
@@ -85,7 +95,7 @@
   ]);
   const visualState = {
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
-    sale:'', minLength:'', minWidth:'', photosOnly:false, shown:VISUAL_PAGE_SIZE,
+    sale:'', minLength:'', minWidth:'', photosOnly:false, listView:false, shown:VISUAL_PAGE_SIZE,
     loading:false, error:'', updatedAt:null, materialAvailable:true, notesAvailable:true,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
@@ -230,8 +240,11 @@
     const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
     const statusBadge = visualStatusMarkup(sale);
     const countBadge = '<span class="zmwm-visual-photo-count">' +
-      (images.length > 1 ? images.length + ' photos · Enlarge' : 'Enlarge photo') +
-      '</span>';
+      '<span class="zmwm-visual-photo-count-full">' +
+        (images.length > 1 ? images.length + ' photos · Enlarge' : 'Enlarge photo') +
+      '</span><span class="zmwm-visual-photo-count-short">' +
+        images.length + ' photo' + (images.length === 1 ? '' : 's') +
+      '</span></span>';
     const photo = primary ?
       '<button type="button" class="zmwm-visual-photo zmwm-visual-photo-action"' +
         ' data-visual-action="open-photo" data-visual-id="' + esc(id) + '"' +
@@ -250,12 +263,14 @@
       (visualStatusLabel(sale) ? ', ' + esc(visualStatusLabel(sale)) : '') +
       '. Open Kintone record ' + esc(id) + '">' +
       '<div class="zmwm-visual-card-details">' +
-        '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
+        '<div class="zmwm-visual-list-heading">' +
+          '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
+          '<div class="zmwm-visual-list-status">' + statusBadge + '</div></div>' +
         visualDetailMarkup(record) +
       '</div></a></article>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.0">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.1">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
@@ -409,10 +424,15 @@
     }
     const results = visualMatchesSorted();
     const visible = results.slice(0,visualState.shown);
-    container.innerHTML = '<div class="zmwm-visual-count">' + results.length.toLocaleString() +
+    container.innerHTML = '<div class="zmwm-visual-results-heading">' +
+      '<div class="zmwm-visual-count">' + results.length.toLocaleString() +
       ' matching ' + (results.length === 1 ? 'piece' : 'pieces') +
       ' <span>· Showing ' + visible.length.toLocaleString() + '</span></div>' +
-      (results.length ? '<div class="zmwm-visual-grid">' + visible.map(visualCard).join('') + '</div>' :
+      '<label class="zmwm-visual-layout-toggle' + (visualState.listView ? ' is-active' : '') + '">' +
+        '<input id="zmwm-visual-list-view" type="checkbox"' +
+          (visualState.listView ? ' checked' : '') + '><span>List view</span></label></div>' +
+      (results.length ? '<div class="zmwm-visual-grid' +
+        (visualState.listView ? ' is-list' : '') + '">' + visible.map(visualCard).join('') + '</div>' :
         '<div class="zmwm-visual-empty">No pieces match those filters.</div>') +
       (visible.length < results.length ? '<div class="zmwm-visual-more-wrap"><button type="button" ' +
         'data-visual-action="more">Show more pieces</button></div>' : '');
@@ -820,6 +840,7 @@
     visualState.materials.clear();
     visualState.pieceTypes.clear();
     visualState.photosOnly = false;
+    visualState.listView = readVisualListPreference();
     visualState.shown = VISUAL_PAGE_SIZE;
     root.innerHTML = visualShell();
     const ui = root.querySelector('#zmwm-visual-root');
@@ -858,6 +879,12 @@
         if (event.target.checked) selected.add(event.target.value);
         else selected.delete(event.target.value);
         updateVisualFilterSummaries();
+      } else if (event.target.id === 'zmwm-visual-list-view') {
+        visualState.listView = event.target.checked;
+        saveVisualListPreference(visualState.listView);
+        // Only change presentation: preserve filters, result count and pagination.
+        renderVisualResults();
+        return;
       } else if (event.target.id === 'zmwm-visual-sale') {
         visualState.sale = event.target.value;
       } else if (event.target.id === 'zmwm-visual-photos-only') {
