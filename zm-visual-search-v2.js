@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.1 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.2 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -95,7 +95,7 @@
   ]);
   const visualState = {
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
-    sale:'', minLength:'', minWidth:'', photosOnly:false, listView:false, shown:VISUAL_PAGE_SIZE,
+    sale:'', minLength:'', minWidth:'', photosOnly:false, listView:false, sortKey:'color', sortDirection:'asc', shown:VISUAL_PAGE_SIZE,
     loading:false, error:'', updatedAt:null, materialAvailable:true, notesAvailable:true,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
@@ -186,26 +186,102 @@
     ].map(value => str(value).toLocaleLowerCase()).join(' ');
     return terms.every(term => haystack.includes(term));
   }
+
+  // All list columns sort on underlying Kintone values, never on rendered HTML.
+  // Gallery mode deliberately retains its original alphabetical ordering.
+  const VISUAL_TABLE_COLUMNS = Object.freeze([
+    {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
+    {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
+    {key:'rack',label:'Rack'}, {key:'length',label:'Length (in)'},
+    {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
+    {key:'status',label:'Status'}, {key:'job',label:'Job'},
+    {key:'notes',label:'In / Out Notes'}, {key:'id',label:'Record #'}
+  ]);
+  const VISUAL_NUMERIC_SORTS = new Set(['photo','length','width','id']);
+  const visualSortCollator = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
+  function visualSortValue(record,key) {
+    switch(key) {
+      case 'photo': return visualImages(record).length;
+      case 'color': return getColorCombined(record);
+      case 'type': return getPieceType(record);
+      case 'material': return visualState.materialAvailable ? getMaterial(record) : '';
+      case 'rack': return getRack(record);
+      case 'length':
+      case 'width': {
+        const value = toText(field(record,key));
+        return value ? visualNumericDimension(value) : NaN;
+      }
+      case 'shape': return toText(field(record,'shape'));
+      case 'status': {
+        const sale = getSale(record);
+        return sale === 'Avl' ? 'Available' : sale === 'Hold' ? 'Hold' :
+          sale === 'SOLD' ? 'Sold' : sale;
+      }
+      case 'job': return toText(field(record,'job'));
+      case 'notes': return visualState.notesAvailable ? getNotes(record) : '';
+      case 'id': return num(getId(record));
+      default: return getColorCombined(record);
+    }
+  }
+  function visualCompareSortValues(left,right,numeric) {
+    const missing = value => value == null || (typeof value === 'number' && !Number.isFinite(value)) ||
+      (typeof value === 'string' && !value.trim());
+    const aMissing = missing(left), bMissing = missing(right);
+    if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+    return numeric ? left - right : visualSortCollator.compare(str(left),str(right));
+  }
   function visualMatchesSorted() {
-    return visualState.records.filter(visualMatches).sort((a,b) =>
-      getColorCombined(a).localeCompare(getColorCombined(b),undefined,{sensitivity:'base'}) ||
-      num(getId(a)) - num(getId(b)));
+    const results = visualState.records.filter(visualMatches);
+    if (!visualState.listView) {
+      return results.sort((a,b) =>
+        getColorCombined(a).localeCompare(getColorCombined(b),undefined,{sensitivity:'base'}) ||
+        num(getId(a)) - num(getId(b)));
+    }
+    const key = visualState.sortKey;
+    const numeric = VISUAL_NUMERIC_SORTS.has(key);
+    const direction = visualState.sortDirection === 'desc' ? -1 : 1;
+    return results.sort((a,b) => {
+      const primary = visualCompareSortValues(
+        visualSortValue(a,key),visualSortValue(b,key),numeric);
+      if (primary) {
+        // Keep unassigned fields last in both directions.
+        const left = visualSortValue(a,key), right = visualSortValue(b,key);
+        const missing = value => value == null ||
+          (typeof value === 'number' && !Number.isFinite(value)) ||
+          (typeof value === 'string' && !value.trim());
+        return missing(left) || missing(right) ? primary : primary * direction;
+      }
+      return visualSortCollator.compare(getColorCombined(a),getColorCombined(b)) ||
+        num(getId(a)) - num(getId(b));
+    });
   }
   // The same markup is used in cards and in the enlarged-photo detail pane,
   // ensuring the piece-type colors, material, rack, dimensions, job and notes
   // are never missing or visually downgraded in the viewer.
+
+  function visualJobMarkup(record) {
+    const job = toText(field(record,'job'));
+    if (!job) return '';
+    const sale = getSale(record);
+    const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
+    const allocationLabel = sale === 'SOLD' ? 'SOLD TO / JOB' :
+      sale === 'Hold' ? 'ON HOLD FOR / JOB' : 'JOB';
+    return '<div class="zmwm-visual-job' + cardStatus + '">' +
+      '<span class="zmwm-visual-job-label">' + allocationLabel + '</span>' +
+      '<span class="zmwm-visual-job-value">' + esc(job) + '</span></div>';
+  }
+  function visualNoteMarkup(record) {
+    const note = visualState.notesAvailable ? getNotes(record) : '';
+    return note ? '<div class="zmwm-visual-note">' +
+      '<span class="zmwm-visual-note-label">IN / OUT NOTES</span>' +
+      '<p>' + esc(note) + '</p></div>' : '';
+  }
   function visualDetailMarkup(record) {
     const id = getId(record);
     const geometry = visualGeometry(record);
     const type = getPieceType(record) || 'Type not set';
     const material = visualState.materialAvailable ? getMaterial(record) : '';
     const rack = toText(field(record,'rack')) || 'Location not set';
-    const sale = getSale(record);
-    const job = toText(field(record,'job'));
-    const note = visualState.notesAvailable ? getNotes(record) : '';
-    const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
-    const allocationLabel = sale === 'SOLD' ? 'SOLD TO / JOB' :
-      sale === 'Hold' ? 'ON HOLD FOR / JOB' : 'JOB';
     return '<div class="zmwm-visual-classifications">' +
         '<span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
           '">' + esc(type) + '</span>' +
@@ -219,33 +295,27 @@
         '<span class="zmwm-visual-shape">' + esc(geometry.shape) + '</span>' +
         (geometry.extras ? '<span class="zmwm-visual-extras">' +
           esc(geometry.extras) + '</span>' : '') + '</div>' : '') +
-      (job ? '<div class="zmwm-visual-job' + cardStatus + '">' +
-        '<span class="zmwm-visual-job-label">' + allocationLabel + '</span>' +
-        '<span class="zmwm-visual-job-value">' + esc(job) + '</span></div>' : '') +
-      (note ? '<div class="zmwm-visual-note">' +
-        '<span class="zmwm-visual-note-label">IN / OUT NOTES</span>' +
-        '<p>' + esc(note) + '</p></div>' : '') +
+      visualJobMarkup(record) +
+      visualNoteMarkup(record) +
       '<div class="zmwm-visual-card-meta"><span>Record #' + esc(id) + '</span></div>';
   }
-  function visualCard(record) {
+
+  // This exact photo-button HTML is shared by gallery cards and table cells,
+  // so both launch the same authenticated enlarged-photo viewer.
+  function visualPhotoMarkup(record) {
     const id = getId(record);
     const name = getColorCombined(record);
-    const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
     const images = visualImages(record);
     const primary = images[0] ? images[0].key : '';
     const fallback = images[1] ? images[1].key : '';
-    const geometry = visualGeometry(record);
-    const type = getPieceType(record) || 'Type not set';
-    const sale = getSale(record);
-    const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
-    const statusBadge = visualStatusMarkup(sale);
+    const statusBadge = visualStatusMarkup(getSale(record));
     const countBadge = '<span class="zmwm-visual-photo-count">' +
       '<span class="zmwm-visual-photo-count-full">' +
         (images.length > 1 ? images.length + ' photos · Enlarge' : 'Enlarge photo') +
       '</span><span class="zmwm-visual-photo-count-short">' +
         images.length + ' photo' + (images.length === 1 ? '' : 's') +
       '</span></span>';
-    const photo = primary ?
+    return primary ?
       '<button type="button" class="zmwm-visual-photo zmwm-visual-photo-action"' +
         ' data-visual-action="open-photo" data-visual-id="' + esc(id) + '"' +
         ' data-visual-photo="' + esc(primary) + '"' +
@@ -256,6 +326,17 @@
         statusBadge + countBadge + '</button>' :
       '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
         statusBadge + '</div>';
+  }
+  function visualCard(record) {
+    const id = getId(record);
+    const name = getColorCombined(record);
+    const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
+    const geometry = visualGeometry(record);
+    const type = getPieceType(record) || 'Type not set';
+    const sale = getSale(record);
+    const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
+    const statusBadge = visualStatusMarkup(sale);
+    const photo = visualPhotoMarkup(record);
     return '<article class="zmwm-visual-card' + cardStatus + '">' + photo +
       '<a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) +
@@ -269,8 +350,71 @@
         visualDetailMarkup(record) +
       '</div></a></article>';
   }
+
+  function visualTableHeader(column) {
+    const selected = visualState.sortKey === column.key;
+    const ascending = visualState.sortDirection === 'asc';
+    const nextDirection = selected && ascending ? 'descending' : 'ascending';
+    const ariaSort = selected ? (ascending ? 'ascending' : 'descending') : 'none';
+    const arrow = selected ? (ascending ? '▲' : '▼') : '↕';
+    return '<th scope="col" aria-sort="' + ariaSort + '">' +
+      '<button type="button" class="zmwm-visual-table-sort' + (selected ? ' is-sorted' : '') +
+      '" data-visual-action="sort" data-visual-sort="' + esc(column.key) + '"' +
+      ' aria-label="Sort by ' + esc(column.label) + ', ' + nextDirection + '">' +
+      esc(column.label) + '<span aria-hidden="true" class="zmwm-visual-sort-arrow">' +
+      arrow + '</span></button></th>';
+  }
+  function visualTableRow(record) {
+    const id = getId(record);
+    const name = getColorCombined(record);
+    const url = '/k/' + SETTINGS.INVENTORY_APP_ID + '/show#record=' + encodeURIComponent(id);
+    const sale = getSale(record);
+    const type = getPieceType(record) || 'Type not set';
+    const material = visualState.materialAvailable ? getMaterial(record) : '';
+    const rack = toText(field(record,'rack')) || 'Location not set';
+    const shape = toText(field(record,'shape'));
+    const geometry = visualGeometry(record);
+    const extras = visualState.extraDimensionFields.filter(dim =>
+      toText(field(record,dim.code)) !== '').map(dim =>
+      (dim.code === 'length_2' ? 'L2' : 'W2') + ': ' + toText(field(record,dim.code)) + ' in');
+    const extraLabel = extras.length ? extras.join(' · ') : geometry.extras;
+    const linkAttrs = ' href="' + esc(url) + '" target="_blank" rel="noopener noreferrer"';
+    return '<tr class="zmwm-visual-table-row' +
+      (sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '') + '">' +
+      '<td class="zmwm-visual-table-photo-cell">' + visualPhotoMarkup(record) + '</td>' +
+      '<td class="zmwm-visual-table-color-cell"><a class="zmwm-visual-table-record-link"' +
+        linkAttrs + '>' + esc(name) + '</a></td>' +
+      '<td><span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
+        '">' + esc(type) + '</span></td>' +
+      '<td>' + (material ? '<span class="zmwm-visual-material">' + esc(material) +
+        '</span>' : '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
+      '<td><span class="zmwm-visual-rack">' + esc(rack) + '</span></td>' +
+      '<td class="zmwm-visual-table-number">' +
+        esc(toText(field(record,'length')) || '—') + '</td>' +
+      '<td class="zmwm-visual-table-number">' +
+        esc(toText(field(record,'width')) || '—') + '</td>' +
+      '<td><span class="zmwm-visual-table-shape">' + esc(shape || '—') + '</span>' +
+        (extraLabel ? '<span class="zmwm-visual-table-extra">' + esc(extraLabel) +
+        '</span>' : '') + '</td>' +
+      '<td class="zmwm-visual-table-status-cell">' +
+        (visualStatusMarkup(sale) || '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
+      '<td>' + (visualJobMarkup(record) || '<span class="zmwm-visual-table-blank">—</span>') +
+        '</td>' +
+      '<td>' + (visualNoteMarkup(record) || '<span class="zmwm-visual-table-blank">—</span>') +
+        '</td>' +
+      '<td><a class="zmwm-visual-table-id-link"' + linkAttrs + '>' +
+        esc(id) + '</a></td></tr>';
+  }
+  function visualTable(records) {
+    return '<div class="zmwm-visual-table-scroll" role="region" tabindex="0"' +
+      ' aria-label="Inventory list. Scroll horizontally for more columns.">' +
+      '<table class="zmwm-visual-table">' +
+      '<thead><tr>' + VISUAL_TABLE_COLUMNS.map(visualTableHeader).join('') +
+      '</tr></thead><tbody>' + records.map(visualTableRow).join('') +
+      '</tbody></table></div>';
+  }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.1">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.2">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
@@ -431,8 +575,8 @@
       '<label class="zmwm-visual-layout-toggle' + (visualState.listView ? ' is-active' : '') + '">' +
         '<input id="zmwm-visual-list-view" type="checkbox"' +
           (visualState.listView ? ' checked' : '') + '><span>List view</span></label></div>' +
-      (results.length ? '<div class="zmwm-visual-grid' +
-        (visualState.listView ? ' is-list' : '') + '">' + visible.map(visualCard).join('') + '</div>' :
+      (results.length ? (visualState.listView ? visualTable(visible) :
+        '<div class="zmwm-visual-grid">' + visible.map(visualCard).join('') + '</div>') :
         '<div class="zmwm-visual-empty">No pieces match those filters.</div>') +
       (visible.length < results.length ? '<div class="zmwm-visual-more-wrap"><button type="button" ' +
         'data-visual-action="more">Show more pieces</button></div>' : '');
@@ -841,6 +985,8 @@
     visualState.pieceTypes.clear();
     visualState.photosOnly = false;
     visualState.listView = readVisualListPreference();
+    visualState.sortKey = 'color';
+    visualState.sortDirection = 'asc';
     visualState.shown = VISUAL_PAGE_SIZE;
     root.innerHTML = visualShell();
     const ui = root.querySelector('#zmwm-visual-root');
@@ -921,6 +1067,19 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
+      if (action === 'sort' && visualState.listView) {
+        const column = VISUAL_TABLE_COLUMNS.find(item => item.key === button.dataset.visualSort);
+        if (column) {
+          visualState.sortDirection = visualState.sortKey === column.key &&
+            visualState.sortDirection === 'asc' ? 'desc' : 'asc';
+          visualState.sortKey = column.key;
+          renderVisualResults();
+          // Recreated table headers should keep keyboard focus after sorting.
+          const replacement = ui.querySelector(
+            '.zmwm-visual-table-sort[data-visual-sort="' + column.key + '"]');
+          if (replacement && replacement.focus) replacement.focus({preventScroll:true});
+        }
+      }
       if (action === 'refresh') loadVisualSearch();
       if (action === 'reset') resetVisualFilters();
       if (action === 'more') {
