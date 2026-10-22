@@ -13,6 +13,7 @@ on:
       - 'tests/visual-search-shared.test.js'
       - 'tests/visual-search-photo-details.test.js'
       - 'tests/visual-search-sortable-list.test.js'
+      - 'tests/visual-search-out-history.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
@@ -42,3 +43,5 @@ jobs:
         run: node tests/visual-search-photo-details.test.js
       - name: Test sortable list columns and photo interactions
         run: node tests/visual-search-sortable-list.test.js
+      - name: Test Out history and default In-only inventory
+        run: node tests/visual-search-out-history.test.js
