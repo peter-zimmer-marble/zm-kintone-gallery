@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.2 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.3 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -581,5 +581,103 @@
     padding:5px 10px;background:#f5f8f3;
     color:#769180;font-size:10px;font-weight:700;
     border-top:1px solid #e2eae2;
+  }
+}
+
+/* v3.3: historical inventory remains invisible by default; explicit Out search
+   receives a red warning in every gallery/list/photo presentation. */
+#zm-visual-search-root .zmwm-visual-inventory-filter {
+  min-width:165px;flex:1.15 1 165px;
+}
+#zm-visual-search-root .zmwm-visual-inventory-badge {
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:27px;max-width:100%;padding:5px 9px;
+  line-height:1.2;font-size:11px;font-weight:950;letter-spacing:.65px;
+  border:1px solid #b7d1ba;white-space:normal;
+}
+#zm-visual-search-root .zmwm-visual-inventory-badge.is-in {
+  color:#246c3e;background:#e6f2e8;border-color:#b1d3b8;
+}
+#zm-visual-search-root .zmwm-visual-inventory-badge.is-out {
+  color:#fff;background:#a32929;border-color:#7b1717;
+  box-shadow:0 1px 3px rgba(95,20,15,.2);
+}
+#zm-visual-search-root .zmwm-visual-out-notice {
+  display:block;margin:0;padding:9px 10px;
+  color:#8a151a;background:#ffe9e4;border:2px solid #bb3b36;
+  font-size:12px;line-height:1.3;font-weight:950;
+  letter-spacing:.55px;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-card.is-out,
+#zm-visual-search-root .zmwm-visual-card.is-out:hover {
+  border:3px solid #b3312e;box-shadow:0 1px 0 rgba(110,22,22,.2);
+}
+#zm-visual-search-root .zmwm-visual-card.is-out .zmwm-visual-card-details {
+  background:#fff9f6;
+}
+#zm-visual-search-root .zmwm-visual-out-overlay {
+  position:absolute;top:6px;left:6px;z-index:5;
+  background:#a32929;color:#fff;border:2px solid #fff;
+  box-shadow:0 1px 8px rgba(55,11,11,.35);
+  padding:6px 10px;font-size:13px;font-weight:950;
+  letter-spacing:.9px;line-height:1.1;pointer-events:none;
+}
+#zm-visual-search-root .zmwm-visual-photo-action:hover .zmwm-visual-out-overlay {
+  background:#811a1b;
+}
+#zm-visual-search-root .zmwm-visual-lightbox-inventory {
+  display:inline-flex;align-items:center;min-height:28px;
+  max-width:100%;
+}
+#zm-visual-search-root .zmwm-visual-lightbox-panel.is-out {
+  border:3px solid #a32929;
+}
+#zm-visual-search-root .zmwm-visual-lightbox-panel.is-out .zmwm-visual-lightbox-header {
+  border-bottom:3px solid #be4540;background:#fff3ef;
+}
+#zm-visual-search-root .zmwm-visual-table {
+  min-width:1680px;
+}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(1) {width:110px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(2) {width:175px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(3) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(4) {width:135px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(5) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(6) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(7),
+#zm-visual-search-root .zmwm-visual-table th:nth-child(8) {width:91px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(9) {width:160px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(10) {width:107px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(11) {width:165px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(12) {width:205px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(13) {width:90px;}
+#zm-visual-search-root .zmwm-visual-table tbody tr.is-out td,
+#zm-visual-search-root .zmwm-visual-table tbody tr.is-out:nth-child(even) td {
+  background:#fff0ea;
+  border-bottom-color:#f1c4b7;
+}
+#zm-visual-search-root .zmwm-visual-table tbody tr.is-out:hover td {
+  background:#ffe5da;
+}
+#zm-visual-search-root .zmwm-visual-table-row.is-out td:first-child {
+  box-shadow:inset 5px 0 #a32929;
+}
+#zm-visual-search-root .zmwm-visual-table-inventory-cell .zmwm-visual-inventory-badge {
+  font-size:11px;padding:6px 10px;
+}
+#zm-visual-search-root .zmwm-visual-table-out-caption {
+  display:block;max-width:100%;margin-top:7px;
+  color:#991f20;font-size:10.5px;letter-spacing:.28px;
+  line-height:1.25;font-weight:950;
+}
+#zm-visual-search-root .zmwm-visual-table .zmwm-visual-out-overlay {
+  top:3px;left:3px;padding:4px 6px;font-size:10px;
+}
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-inventory-filter {flex-basis:100%;min-width:0;}
+  #zm-visual-search-root .zmwm-visual-out-overlay {font-size:11px;padding:4px 6px;}
+  #zm-visual-search-root .zmwm-visual-out-notice {font-size:11px;padding:7px 8px;}
+  #zm-visual-search-root .zmwm-visual-lightbox-inventory .zmwm-visual-inventory-badge {
+    font-size:10px;padding:4px 6px;
   }
 }
