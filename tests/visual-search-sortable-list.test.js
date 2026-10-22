@@ -126,10 +126,10 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
   assert.match(html(),/class="zmwm-visual-table-scroll"/);
   assert.match(html(),/<table class="zmwm-visual-table">/);
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,12);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,13);
   assert.match(html(),/aria-sort="ascending"/);
   assertOrder([7,2,13,5,9],'Default list sort: Color ascending');
-  for(const heading of ['Photos','Color','Piece Type','Material','Rack','Length (in)',
+  for(const heading of ['Photos','Color','In / Out','Piece Type','Material','Rack','Length (in)',
     'Width (in)','Shape / Extra','Status','Job','In / Out Notes','Record #'])
     assert.ok(html().includes('Sort by '+heading),'Sortable header: '+heading);
   assert.match(html(),/data-visual-id="2" data-visual-photo="photo-b1"/);
@@ -216,6 +216,6 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   assert.equal(calls.at(-1).fields.includes('cost'),false);
   assert.match(css,/\.zmwm-visual-table-scroll/);
   assert.match(css,/\.zmwm-visual-table-sort/);
-  console.log('Sortable list view: 12 columns, numeric and text sorting, statuses, photos, '+
+  console.log('Sortable list view: 13 columns, numeric and text sorting, statuses, photos, '+
     'escaping, filters, pagination, preference, modal and gallery parity passed.');
 })().catch(err=>{console.error(err);process.exitCode=1;});
