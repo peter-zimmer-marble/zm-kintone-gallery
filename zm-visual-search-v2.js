@@ -465,6 +465,12 @@
           '<div class="zmwm-visual-multi-options" id="zmwm-visual-type-options">' +
             '<div class="zmwm-visual-filter-empty">Loading piece types…</div></div>' +
         '</details></div>' +
+      '<label class="zmwm-visual-field zmwm-visual-inventory-filter"><span>IN / OUT STATUS</span>' +
+        '<select id="zmwm-visual-inventory-scope" aria-label="Inventory status">' +
+          '<option value="in" selected>In only (default)</option>' +
+          '<option value="all">In + Out</option>' +
+          '<option value="out">Out only</option>' +
+        '</select></label>' +
       '<label class="zmwm-visual-field"><span>AVAILABILITY</span><select id="zmwm-visual-sale">' +
       '<option value="">All statuses</option><option value="Avl">Available</option>' +
       '<option value="Hold">Hold</option><option value="SOLD">Sold</option></select></label>' +
@@ -491,6 +497,7 @@
                   '<span class="zmwm-visual-lightbox-record-hint">Open inventory record ↗</span>' +
                 '</a>' +
                 '<span class="zmwm-visual-lightbox-status" id="zmwm-visual-lightbox-status"></span>' +
+                '<span class="zmwm-visual-lightbox-inventory" id="zmwm-visual-lightbox-inventory"></span>' +
               '</div>' +
               '<p id="zmwm-visual-lightbox-meta"></p>' +
             '</div>' +
@@ -520,11 +527,12 @@
             '</aside>' +
           '</div>' +
         '</section></div>' +
-      '<footer class="zmwm-visual-footer">Inventory currently marked In in Kintone. ' +
-      'Photos and dimensions are sourced from the existing records; nothing is edited here.</footer>' +
+      '<footer class="zmwm-visual-footer">Shows pieces marked In by default. ' +
+      'Use the In / Out Status filter to find historical Out pieces and photos. ' +
+      'Nothing is edited here.</footer>' +
       mapSignature() + '</main>';
   }
-  // Options come from current "In" records. Show exact Kintone piece-type
+  // Options come from the currently selected In/Out scope. Show exact Kintone piece-type
   // values rather than collapsing Stock/SO/Consigned or remnant distinctions.
   function visualChoiceHTML(code, filter, selected) {
     const counts = new Map();
@@ -571,12 +579,18 @@
     const node = document.getElementById('zmwm-visual-feedback');
     if (!node) return;
     if (visualState.loading) {
-      node.textContent = 'Loading current Kintone inventory…';
+      node.textContent = visualState.inventoryScope === 'out' ?
+        'Loading historical Out pieces from Kintone…' :
+        visualState.inventoryScope === 'all' ?
+          'Loading In + Out inventory from Kintone…' :
+          'Loading current Kintone inventory…';
     } else if (visualState.error) {
       node.textContent = 'Could not load inventory: ' + visualState.error;
     } else {
       node.textContent = 'LIVE KINTONE DATA · ' + visualState.records.length.toLocaleString() +
-        ' pieces in shop · Refreshed ' + (visualState.updatedAt ?
+        (visualState.inventoryScope === 'out' ? ' pieces marked Out' :
+          visualState.inventoryScope === 'all' ? ' pieces (In + Out)' : ' pieces in shop') +
+        ' · Refreshed ' + (visualState.updatedAt ?
           visualState.updatedAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '—') +
         (!visualState.notesAvailable ? ' · In/Out Notes unavailable (Kintone permissions).' : '') +
         (!visualState.materialAvailable ? ' · Material filter unavailable (Kintone permissions).' : '');
@@ -614,6 +628,7 @@
   function fillVisualSlot(slot, url) {
     if (!slot) return;
     const badge = slot.querySelector('.zmwm-visual-status');
+    const outOverlay = slot.querySelector('.zmwm-visual-out-overlay');
     const count = slot.querySelector('.zmwm-visual-photo-count');
     slot.textContent = '';
     const image = document.createElement('img');
@@ -622,6 +637,7 @@
     image.loading = 'lazy';
     slot.appendChild(image);
     if (badge) slot.appendChild(badge);
+    if (outOverlay) slot.appendChild(outOverlay);
     if (count) slot.appendChild(count);
   }
   function markVisualPhotoFailure(key) {
@@ -640,6 +656,7 @@
         requestVisualPhoto(alternate);
       } else {
         const badge = slot.querySelector('.zmwm-visual-status');
+        const outOverlay = slot.querySelector('.zmwm-visual-out-overlay');
         const count = slot.querySelector('.zmwm-visual-photo-count');
         slot.textContent = '';
         const textNode = document.createElement('span');
@@ -647,6 +664,7 @@
         textNode.textContent = 'Photo unavailable';
         slot.appendChild(textNode);
         if (badge) slot.appendChild(badge);
+        if (outOverlay) slot.appendChild(outOverlay);
         if (count) slot.appendChild(count);
         delete slot.dataset.visualPhoto;
       }
@@ -761,6 +779,7 @@
     const recordLink = root.querySelector('#zmwm-visual-lightbox-record-link');
     const details = root.querySelector('#zmwm-visual-lightbox-details');
     const status = root.querySelector('#zmwm-visual-lightbox-status');
+    const inventoryStatus = root.querySelector('#zmwm-visual-lightbox-inventory');
     const stage = root.querySelector('#zmwm-visual-lightbox-image');
     const caption = root.querySelector('#zmwm-visual-lightbox-caption');
     const download = root.querySelector('[data-visual-action="download-photo"]');
@@ -770,15 +789,19 @@
     if (!title || !meta || !details || !status || !stage || !caption || !download || !thumbnails) return;
     const name = getColorCombined(current.record);
     title.textContent = name;
-    meta.textContent = 'Record #' + getId(current.record);
+    meta.textContent = 'Record #' + getId(current.record) +
+      (isVisualOut(current.record) ? ' · OUT OF INVENTORY' : '');
     // Match the card's colored piece-type, material, rack, measurements,
     // job allocation and staff notes while retaining the large photo.
     details.innerHTML = visualDetailMarkup(current.record);
     status.innerHTML = visualStatusMarkup(getSale(current.record));
+    if (inventoryStatus) inventoryStatus.innerHTML = isVisualOut(current.record) ?
+      '<span class="zmwm-visual-inventory-badge is-out">OUT — NOT IN INVENTORY</span>' : '';
     const panel = root.querySelector('.zmwm-visual-lightbox-panel');
     if (panel) {
       panel.classList.toggle('is-sold',getSale(current.record) === 'SOLD');
       panel.classList.toggle('is-hold',getSale(current.record) === 'Hold');
+      panel.classList.toggle('is-out',isVisualOut(current.record));
     }
     if (recordLink) recordLink.href = '/k/' + SETTINGS.INVENTORY_APP_ID +
       '/show#record=' + encodeURIComponent(getId(current.record));
@@ -880,12 +903,14 @@
 
   // Keyset pagination avoids Kintone's 10,000-record offset limit. All reads
   // are GETs from the inventory app; no cursor resources or writes are created.
-  async function fetchVisualRecords() {
+  async function fetchVisualRecords(scope) {
+    const inventoryCondition = VISUAL_SCOPE_CONDITIONS[scope] ||
+      VISUAL_SCOPE_CONDITIONS.in;
     async function getRecords(fields) {
       const records = [];
       let last = 0;
       for (let page=0;page<80;page++) {
-        const cond = 'inventory_status in ("In")' + (last ? ' and $id > ' + last : '');
+        const cond = inventoryCondition + (last ? ' and $id > ' + last : '');
         const data = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,fields,
           cond + ' order by $id asc limit ' + SETTINGS.PAGE_SIZE);
         const batch = Array.isArray(data.records) ? data.records : [];
@@ -909,7 +934,7 @@
       const probe = async fields => {
         try {
           await readOnlyApi(SETTINGS.INVENTORY_APP_ID,['$id',...fields],
-            'inventory_status in ("In") order by $id asc limit 1');
+            inventoryCondition + ' order by $id asc limit 1');
           return true;
         } catch (error) { return false; }
       };
@@ -942,7 +967,7 @@
       visualState.materialAvailable = true;
       visualState.notesAvailable = true;
       if (token !== visualState.token || !visualState.active) return;
-      const records = await fetchVisualRecords();
+      const records = await fetchVisualRecords(visualState.inventoryScope);
       if (token !== visualState.token || !visualState.active) return;
       visualState.records = records;
       visualState.updatedAt = new Date();
@@ -965,6 +990,8 @@
     visualState.materials.clear();
     visualState.pieceTypes.clear();
     visualState.photosOnly = false;
+    const restoreInOnly = visualState.inventoryScope !== 'in';
+    visualState.inventoryScope = 'in';
     visualState.shown = VISUAL_PAGE_SIZE;
     const root = document.getElementById('zmwm-visual-root');
     if (!root) return;
@@ -974,8 +1001,13 @@
     }
     const checkbox = root.querySelector('#zmwm-visual-photos-only');
     if (checkbox) checkbox.checked = false;
-    renderVisualFilterChoices();
-    renderVisualResults();
+    const statusSelect = root.querySelector('#zmwm-visual-inventory-scope');
+    if (statusSelect) statusSelect.value = 'in';
+    if (restoreInOnly) loadVisualSearch();
+    else {
+      renderVisualFilterChoices();
+      renderVisualResults();
+    }
   }
   function stopVisualSearch() {
     closeVisualLightbox(false);
@@ -1013,6 +1045,7 @@
     visualState.materials.clear();
     visualState.pieceTypes.clear();
     visualState.photosOnly = false;
+    visualState.inventoryScope = 'in'; // Never persist Out visibility across visits.
     visualState.listView = readVisualListPreference();
     visualState.sortKey = 'color';
     visualState.sortDirection = 'asc';
@@ -1059,6 +1092,15 @@
         saveVisualListPreference(visualState.listView);
         // Only change presentation: preserve filters, result count and pagination.
         renderVisualResults();
+        return;
+      } else if (event.target.id === 'zmwm-visual-inventory-scope') {
+        const scope = event.target.value;
+        if (!Object.prototype.hasOwnProperty.call(VISUAL_SCOPE_CONDITIONS,scope)) return;
+        if (visualState.inventoryScope !== scope) {
+          visualState.inventoryScope = scope;
+          visualState.shown = VISUAL_PAGE_SIZE;
+          loadVisualSearch();
+        }
         return;
       } else if (event.target.id === 'zmwm-visual-sale') {
         visualState.sale = event.target.value;
