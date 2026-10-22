@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.2 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.3 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -22,6 +22,24 @@
   const getColor = r => toText(field(r,'color_combined')) ||
     [field(r,'color'),field(r,'zmv_num')].map(toText).filter(Boolean).join(' ');
   const getSale = r => toText(field(r,'sale_status'));
+  const getInventoryStatus = r => toText(field(r,'inventory_status'));
+  const isVisualOut = r => getInventoryStatus(r).toLowerCase() === 'out';
+  // These fixed values are the only valid conditions for the inventory query.
+  const VISUAL_SCOPE_CONDITIONS = Object.freeze({
+    in:'inventory_status in ("In")',
+    all:'inventory_status in ("In","Out")',
+    out:'inventory_status in ("Out")'
+  });
+  function visualInventoryBadgeMarkup(record) {
+    const status = getInventoryStatus(record);
+    if (isVisualOut(record)) return '<span class="zmwm-visual-inventory-badge is-out">OUT</span>';
+    if (status.toLowerCase() === 'in') return '<span class="zmwm-visual-inventory-badge is-in">IN</span>';
+    return '<span class="zmwm-visual-table-blank">—</span>';
+  }
+  function visualOutNotice(record) {
+    return isVisualOut(record) ?
+      '<div class="zmwm-visual-out-notice">OUT — NOT CURRENTLY IN INVENTORY</div>' : '';
+  }
   const getMaterial = r => toText(field(r,'material'));
   const getPieceType = r => toText(field(r,'type'));
   const getNotes = r => toText(field(r,'in_out_note'));
@@ -87,15 +105,15 @@
   // pricing, costs, margins, supplier information or unrelated inventory fields.
   // Job, material and In/Out Notes are displayed solely in this authenticated
   // internal view; Kintone itself enforces field and record permissions.
-  // inventory_status is used only in the query (not returned to the browser).
+  // inventory_status is included to distinguish historical Out pieces.
   const VISUAL_FIELDS = Object.freeze([
     '$id', 'color', 'color_combined', 'zmv_num',
-    'type', 'length', 'width', 'shape', 'rack', 'sale_status',
+    'type', 'length', 'width', 'shape', 'rack', 'sale_status', 'inventory_status',
     'exact_picture', 'example_picture', 'job'
   ]);
   const visualState = {
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
-    sale:'', minLength:'', minWidth:'', photosOnly:false, listView:false, sortKey:'color', sortDirection:'asc', shown:VISUAL_PAGE_SIZE,
+    sale:'', inventoryScope:'in', minLength:'', minWidth:'', photosOnly:false, listView:false, sortKey:'color', sortDirection:'asc', shown:VISUAL_PAGE_SIZE,
     loading:false, error:'', updatedAt:null, materialAvailable:true, notesAvailable:true,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
@@ -182,7 +200,7 @@
     const haystack = [
       getId(record), getColor(record), getRack(record), getMaterial(record),
       getPieceType(record), field(record,'color'), field(record,'zmv_num'),
-      field(record,'shape'), field(record,'job')
+      field(record,'shape'), field(record,'job'), getInventoryStatus(record)
     ].map(value => str(value).toLocaleLowerCase()).join(' ');
     return terms.every(term => haystack.includes(term));
   }
@@ -191,7 +209,7 @@
   // Gallery mode deliberately retains its original alphabetical ordering.
   const VISUAL_TABLE_COLUMNS = Object.freeze([
     {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
-    {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
+    {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
     {key:'rack',label:'Rack'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
     {key:'status',label:'Status'}, {key:'job',label:'Job'},
@@ -203,6 +221,7 @@
     switch(key) {
       case 'photo': return visualImages(record).length;
       case 'color': return getColorCombined(record);
+      case 'inventory': return getInventoryStatus(record);
       case 'type': return getPieceType(record);
       case 'material': return visualState.materialAvailable ? getMaterial(record) : '';
       case 'rack': return getRack(record);
@@ -282,7 +301,8 @@
     const type = getPieceType(record) || 'Type not set';
     const material = visualState.materialAvailable ? getMaterial(record) : '';
     const rack = toText(field(record,'rack')) || 'Location not set';
-    return '<div class="zmwm-visual-classifications">' +
+    return visualOutNotice(record) +
+      '<div class="zmwm-visual-classifications">' +
         '<span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
           '">' + esc(type) + '</span>' +
         (material ? '<span class="zmwm-visual-material">' + esc(material) + '</span>' : '') +
@@ -309,6 +329,8 @@
     const primary = images[0] ? images[0].key : '';
     const fallback = images[1] ? images[1].key : '';
     const statusBadge = visualStatusMarkup(getSale(record));
+    const outOverlay = isVisualOut(record) ?
+      '<span class="zmwm-visual-out-overlay">OUT</span>' : '';
     const countBadge = '<span class="zmwm-visual-photo-count">' +
       '<span class="zmwm-visual-photo-count-full">' +
         (images.length > 1 ? images.length + ' photos · Enlarge' : 'Enlarge photo') +
@@ -323,9 +345,9 @@
         ' aria-label="Enlarge ' + images.length + ' photo' + (images.length === 1 ? '' : 's') +
         ' of ' + esc(name) + '">' +
         '<span class="zmwm-visual-photo-pending">Photo loading…</span>' +
-        statusBadge + countBadge + '</button>' :
+        statusBadge + outOverlay + countBadge + '</button>' :
       '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
-        statusBadge + '</div>';
+        statusBadge + outOverlay + '</div>';
   }
   function visualCard(record) {
     const id = getId(record);
@@ -337,11 +359,13 @@
     const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
     const statusBadge = visualStatusMarkup(sale);
     const photo = visualPhotoMarkup(record);
-    return '<article class="zmwm-visual-card' + cardStatus + '">' + photo +
+    return '<article class="zmwm-visual-card' + cardStatus +
+      (isVisualOut(record) ? ' is-out' : '') + '">' + photo +
       '<a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) +
       ', ' + esc(type) + ', ' + esc(geometry.display) +
       (visualStatusLabel(sale) ? ', ' + esc(visualStatusLabel(sale)) : '') +
+      (isVisualOut(record) ? ', OUT OF INVENTORY' : '') +
       '. Open Kintone record ' + esc(id) + '">' +
       '<div class="zmwm-visual-card-details">' +
         '<div class="zmwm-visual-list-heading">' +
@@ -380,10 +404,15 @@
     const extraLabel = extras.length ? extras.join(' · ') : geometry.extras;
     const linkAttrs = ' href="' + esc(url) + '" target="_blank" rel="noopener noreferrer"';
     return '<tr class="zmwm-visual-table-row' +
-      (sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '') + '">' +
+      (sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '') +
+      (isVisualOut(record) ? ' is-out' : '') + '">' +
       '<td class="zmwm-visual-table-photo-cell">' + visualPhotoMarkup(record) + '</td>' +
       '<td class="zmwm-visual-table-color-cell"><a class="zmwm-visual-table-record-link"' +
-        linkAttrs + '>' + esc(name) + '</a></td>' +
+        linkAttrs + '>' + esc(name) + '</a>' +
+        (isVisualOut(record) ? '<span class="zmwm-visual-table-out-caption">OUT OF INVENTORY</span>' : '') +
+        '</td>' +
+      '<td class="zmwm-visual-table-inventory-cell">' +
+        visualInventoryBadgeMarkup(record) + '</td>' +
       '<td><span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
         '">' + esc(type) + '</span></td>' +
       '<td>' + (material ? '<span class="zmwm-visual-material">' + esc(material) +
@@ -414,7 +443,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.2">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.3">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
