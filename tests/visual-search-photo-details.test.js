@@ -35,7 +35,8 @@ elems.set('zmwm-visual-lightbox',modal);
 subs.get('[data-visual-action="close-photo"].zmwm-visual-lightbox-close').focus=()=>{};
 const record=(id,type,material,sale,rack,note,pictures)=>Object.fromEntries(
  Object.entries({$id:String(id),color_combined:'Stone '+id,color:'Stone '+id,zmv_num:'',
-  type,material,sale_status:sale,rack,job:'Herman & Family',in_out_note:note,
+  type,material,sale_status:sale,rack,lot_num:id===2?'LOT-42<&>':'',
+  job:'Herman & Family',in_out_note:note,
   length:'124',width:'62',shape:'Rectangle',length_2:'',width_2:'',
   exact_picture:pictures,example_picture:[]}).map(([k,v])=>[k,{value:v}]));
 const records=[
@@ -88,6 +89,7 @@ const piece=(html,type,cls)=>assert.ok(
  const adjacent='class="zmwm-visual-material">Marble</span>'+
    '<span class="zmwm-visual-rack">Rack: Z-5A</span>';
  assert.ok(html.includes(adjacent),'Rack must sit right of material at same prominence');
+ assert.match(html,/Lot #: LOT-42&lt;&amp;&gt;/,'Card must display escaped lot number');
  assert.match(parent.innerHTML,/class="zmwm-visual-lightbox-content"/);
  assert.match(parent.innerHTML,/id="zmwm-visual-lightbox-details"/);
  const button={dataset:{visualId:'2'},isConnected:true,focus(){}};
@@ -101,6 +103,8 @@ const piece=(html,type,cls)=>assert.ok(
  const details=subs.get('#zmwm-visual-lightbox-details').innerHTML;
  piece(details,'SO-Slab','type-so-slab');
  assert.ok(details.includes(adjacent));
+ assert.match(details,/Lot #: LOT-42&lt;&amp;&gt;/,'Photo viewer must show escaped lot number');
+ assert.doesNotMatch(details,/LOT-42<&>/);
  assert.match(details,/124 × 62 in/);
  assert.match(details,/SOLD TO \/ JOB/);
  assert.match(details,/Herman &amp; Family/);
@@ -122,5 +126,6 @@ const piece=(html,type,cls)=>assert.ok(
   assert.ok(css.includes('.zmwm-visual-piece-type.'+cls),'No CSS for '+cls);
  assert.match(css,/\.zmwm-visual-lightbox-info/);
  assert.match(css,/\.zmwm-visual-rack/);
+ assert.match(css,/\.zmwm-visual-lot/);
  console.log('Photo viewer: colored type, adjacent rack, status, dimensions, job, notes, photos and close passed.');
 })().catch(err=>{console.error(err);process.exitCode=1;});
