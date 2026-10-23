@@ -53,7 +53,7 @@ function piece(id,name,inventoryStatus,sale,material,job,note,pics=[]) {
     inventory_status:inventoryStatus,sale_status:sale,
     type:'Stock Slab',material,rack:'Z-2A',
     length:String(id*10),width:'62',shape:'Rectangle',job,in_out_note:note,
-    length_2:'',width_2:'',
+    length_2:'',width_2:'',lot_num:inventoryStatus === 'Out' ? 'HIST-'+id : 'CURRENT-'+id,
     exact_picture:pics.map(key=>({fileKey:key,name:key+'.jpg',contentType:'image/jpeg'})),
     example_picture:[]
   };
@@ -159,8 +159,10 @@ function listIds(){
   // Sortable list: explicit In/Out column plus warning near color, while
   // existing sale-status display remains separate.
   dispatch('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,13);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,14);
   assert.match(html(),/data-visual-sort="inventory"/);
+  assert.match(html(),/data-visual-sort="lot"/);
+  assert.match(html(),/Lot #: HIST-2/);
   assert.match(html(),/OUT OF INVENTORY/);
   assert.match(html(),/class="zmwm-visual-inventory-badge is-out">OUT<\/span>/);
   assert.match(html(),/class="zmwm-visual-inventory-badge is-in">IN<\/span>/);
@@ -180,16 +182,21 @@ function listIds(){
   assert.match(subs.get('#zmwm-visual-lightbox-meta').textContent,/OUT OF INVENTORY/);
   assert.match(subs.get('#zmwm-visual-lightbox-inventory').innerHTML,/OUT — NOT IN INVENTORY/);
   assert.match(subs.get('#zmwm-visual-lightbox-details').innerHTML,/OUT — NOT CURRENTLY IN INVENTORY/);
+  assert.match(subs.get('#zmwm-visual-lightbox-details').innerHTML,/Lot #: HIST-2/);
   assert.equal(subs.get('.zmwm-visual-lightbox-panel').classList.flags.get('is-out'),true);
   click('close-photo');
   assert.equal(popup.hidden,true);
 
-  // Out-only query can be filtered using the existing name/job filters.
+  // Out-only query can be filtered using the existing lot, name and job filters.
   selectScope('out');
   await tick();
   assert.match(calls.at(-1).query,/inventory_status in \("Out"\)/);
   assert.equal(count(),2);
   assert.deepEqual(listIds(),[2,4]);
+  dispatch('input',{id:'zmwm-visual-search',value:'hist-2'});
+  assert.equal(count(),1,'Out records remain searchable by historical lot');
+  assert.deepEqual(listIds(),[2]);
+  dispatch('input',{id:'zmwm-visual-search',value:''});
   dispatch('input',{id:'zmwm-visual-search',value:'Old Kitchen'});
   assert.equal(count(),1);
   assert.deepEqual(listIds(),[4]);
