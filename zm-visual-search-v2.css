@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.3 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.4 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -680,4 +680,36 @@
   #zm-visual-search-root .zmwm-visual-lightbox-inventory .zmwm-visual-inventory-badge {
     font-size:10px;padding:4px 6px;
   }
+}
+
+/* v3.4: matching lot details in cards, photo modal and sortable list. */
+#zm-visual-search-root .zmwm-visual-lot {
+  display:inline-flex;align-items:center;max-width:100%;
+  padding:5px 8px;font-size:10.5px;font-weight:850;line-height:1.3;
+  color:#365168;background:#eef3f7;border:1px solid #cedce8;
+  overflow-wrap:anywhere;white-space:normal;
+}
+#zm-visual-search-root .zmwm-visual-table .zmwm-visual-lot {
+  font-size:10px;padding:4px 6px;
+}
+#zm-visual-search-root .zmwm-visual-table-lot {
+  font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-table {min-width:1800px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(1) {width:110px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(2) {width:175px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(3) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(4) {width:135px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(5) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(6) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(7) {width:125px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(8),
+#zm-visual-search-root .zmwm-visual-table th:nth-child(9) {width:91px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(10) {width:160px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(11) {width:107px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(12) {width:165px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(13) {width:205px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(14) {width:90px;}
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-lot {padding:4px 6px;font-size:9px;}
 }
