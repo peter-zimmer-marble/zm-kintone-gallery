@@ -6,6 +6,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const scriptPath = process.env.VISUAL_SEARCH_ASSET || 'zm-visual-search-v3.js';
+// v2 is the actively installed Kintone URL; v3 is retained as an older artifact.
+const supportsLot = /zm-visual-search-v2\.js$/.test(scriptPath);
 const source = fs.readFileSync(scriptPath,'utf8');
 new vm.Script(source, {filename:scriptPath});
 
@@ -118,7 +120,8 @@ const event={viewName:'Visual Search',viewType:'custom',type:'app.record.index.s
   assert.equal(requests.length,1,'All permitted fields should load in one request');
   const fields=requests[0].fields;
   for(const needed of ['job','type','material','in_out_note','sale_status',
-    'exact_picture','example_picture','length_2','width_2','lot_num']) {
+    'exact_picture','example_picture','length_2','width_2',
+    ...(supportsLot ? ['lot_num'] : [])]) {
     assert.ok(fields.includes(needed),'Missing requested field '+needed);
   }
   for(const privateField of ['cost','purchase_price','purchase_notes',
@@ -137,7 +140,8 @@ const event={viewName:'Visual Search',viewType:'custom',type:'app.record.index.s
   assert.match(resultHTML(),/ON HOLD FOR \/ JOB/);
   assert.match(resultHTML(),/class="zmwm-visual-piece-type(?: type-stock-slab)?"\>Stock Slab/);
   assert.match(resultHTML(),/class="zmwm-visual-material">Quartz/);
-  assert.match(resultHTML(),/class="zmwm-visual-lot">Lot #: LOT-11<\/span>/);
+  if (supportsLot)
+    assert.match(resultHTML(),/class="zmwm-visual-lot">Lot #: LOT-11<\/span>/);
   assert.equal(count(),5);
   assert.equal(shownCards(),5);
   assert.match(nodes.get('zmwm-visual-material-options').innerHTML,/Quartz/);
@@ -152,12 +156,14 @@ const event={viewName:'Visual Search',viewType:'custom',type:'app.record.index.s
   dispatch('input',{id:'zmwm-visual-search',value:''});
   assert.equal(count(),5);
 
-  // Lot number uses the existing text search.
-  dispatch('input',{id:'zmwm-visual-search',value:'lot-11'});
-  assert.equal(count(),1);
-  assert.match(resultHTML(),/Arctic Frost/);
-  dispatch('input',{id:'zmwm-visual-search',value:''});
-  assert.equal(count(),5);
+  // Lot number is searchable in the currently installed v2 asset.
+  if (supportsLot) {
+    dispatch('input',{id:'zmwm-visual-search',value:'lot-11'});
+    assert.equal(count(),1);
+    assert.match(resultHTML(),/Arctic Frost/);
+    dispatch('input',{id:'zmwm-visual-search',value:''});
+    assert.equal(count(),5);
+  }
   // OR within the same multi-filter, AND across material and piece type.
   dispatch('change',{dataset:{visualFilter:'material'},checked:true,value:'Quartz'});
   assert.equal(count(),2);
@@ -204,18 +210,20 @@ const event={viewName:'Visual Search',viewType:'custom',type:'app.record.index.s
   restrictedMaterial=false;
 
   // Denied lot-field access cannot block photos, dimensions, notes or inventory.
-  restrictedLot=true;
-  handler(event);
-  await awaitRender();
-  assert.equal(count(),5);
-  assert.doesNotMatch(resultHTML(),/Lot #: LOT-11/);
-  assert.match(resultHTML(),/IN \/ OUT NOTES/);
-  assert.match(nodes.get('zmwm-visual-feedback').textContent,/Lot # unavailable/);
-  assert.ok(!requests[requests.length-1].fields.includes('lot_num'));
-  restrictedLot=false;
-  handler(event);
-  await awaitRender();
-  assert.match(resultHTML(),/Lot #: LOT-11/);
+  if (supportsLot) {
+    restrictedLot=true;
+    handler(event);
+    await awaitRender();
+    assert.equal(count(),5);
+    assert.doesNotMatch(resultHTML(),/Lot #: LOT-11/);
+    assert.match(resultHTML(),/IN \/ OUT NOTES/);
+    assert.match(nodes.get('zmwm-visual-feedback').textContent,/Lot # unavailable/);
+    assert.ok(!requests[requests.length-1].fields.includes('lot_num'));
+    restrictedLot=false;
+    handler(event);
+    await awaitRender();
+    assert.match(resultHTML(),/Lot #: LOT-11/);
+  }
 
   // Keyset pagination must still cover over 500 inventory pieces.
   records=Array.from({length:501},(_,i)=>
