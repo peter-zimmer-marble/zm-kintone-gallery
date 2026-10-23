@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.3 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.4 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -41,6 +41,8 @@
       '<div class="zmwm-visual-out-notice">OUT — NOT CURRENTLY IN INVENTORY</div>' : '';
   }
   const getMaterial = r => toText(field(r,'material'));
+  // This field is already used by the authenticated warehouse gallery in App 6.
+  const getLot = r => toText(field(r,'lot_num'));
   const getPieceType = r => toText(field(r,'type'));
   const getNotes = r => toText(field(r,'in_out_note'));
   // Kintone Type is a specific inventory classification, not only Slab/Rem.
@@ -115,6 +117,7 @@
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
     sale:'', inventoryScope:'in', minLength:'', minWidth:'', photosOnly:false, listView:false, sortKey:'color', sortDirection:'asc', shown:VISUAL_PAGE_SIZE,
     loading:false, error:'', updatedAt:null, materialAvailable:true, notesAvailable:true,
+    lotAvailable:true,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
     touchStartX:null, extraDimensionFields:[]
@@ -200,7 +203,8 @@
     const haystack = [
       getId(record), getColor(record), getRack(record), getMaterial(record),
       getPieceType(record), field(record,'color'), field(record,'zmv_num'),
-      field(record,'shape'), field(record,'job'), getInventoryStatus(record)
+      field(record,'shape'), field(record,'job'), getInventoryStatus(record),
+      visualState.lotAvailable ? getLot(record) : ''
     ].map(value => str(value).toLocaleLowerCase()).join(' ');
     return terms.every(term => haystack.includes(term));
   }
@@ -210,7 +214,7 @@
   const VISUAL_TABLE_COLUMNS = Object.freeze([
     {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
-    {key:'rack',label:'Rack'}, {key:'length',label:'Length (in)'},
+    {key:'rack',label:'Rack'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
     {key:'status',label:'Status'}, {key:'job',label:'Job'},
     {key:'notes',label:'In / Out Notes'}, {key:'id',label:'Record #'}
@@ -225,6 +229,7 @@
       case 'type': return getPieceType(record);
       case 'material': return visualState.materialAvailable ? getMaterial(record) : '';
       case 'rack': return getRack(record);
+      case 'lot': return visualState.lotAvailable ? getLot(record) : '';
       case 'length':
       case 'width': {
         const value = toText(field(record,key));
@@ -301,12 +306,14 @@
     const type = getPieceType(record) || 'Type not set';
     const material = visualState.materialAvailable ? getMaterial(record) : '';
     const rack = toText(field(record,'rack')) || 'Location not set';
+    const lot = visualState.lotAvailable ? getLot(record) : '';
     return visualOutNotice(record) +
       '<div class="zmwm-visual-classifications">' +
         '<span class="zmwm-visual-piece-type ' + visualPieceTypeClass(type) +
           '">' + esc(type) + '</span>' +
         (material ? '<span class="zmwm-visual-material">' + esc(material) + '</span>' : '') +
         '<span class="zmwm-visual-rack">Rack: ' + esc(rack) + '</span>' +
+        (lot ? '<span class="zmwm-visual-lot">Lot #: ' + esc(lot) + '</span>' : '') +
       '</div>' +
       '<div class="zmwm-visual-size' + (geometry.lCode ? ' zmwm-visual-size-l' : '') +
         '"' + (geometry.lCode ? ' title="' + esc(geometry.display) + '"' : '') +
@@ -396,6 +403,7 @@
     const type = getPieceType(record) || 'Type not set';
     const material = visualState.materialAvailable ? getMaterial(record) : '';
     const rack = toText(field(record,'rack')) || 'Location not set';
+    const lot = visualState.lotAvailable ? getLot(record) : '';
     const shape = toText(field(record,'shape'));
     const geometry = visualGeometry(record);
     const extras = visualState.extraDimensionFields.filter(dim =>
@@ -418,6 +426,9 @@
       '<td>' + (material ? '<span class="zmwm-visual-material">' + esc(material) +
         '</span>' : '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
       '<td><span class="zmwm-visual-rack">' + esc(rack) + '</span></td>' +
+      '<td class="zmwm-visual-table-lot">' +
+        (lot ? '<span class="zmwm-visual-lot">Lot #: ' + esc(lot) + '</span>' :
+          '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
       '<td class="zmwm-visual-table-number">' +
         esc(toText(field(record,'length')) || '—') + '</td>' +
       '<td class="zmwm-visual-table-number">' +
@@ -443,14 +454,14 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.3">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.4">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
       '<button type="button" data-visual-action="refresh">↻ Refresh</button></div></header>' +
       '<div class="zmwm-visual-toolbar" role="search" aria-label="Photo inventory filters">' +
       '<label class="zmwm-visual-field zmwm-visual-search-field"><span>SEARCH</span>' +
-      '<input id="zmwm-visual-search" type="search" placeholder="Color, job, record #, rack…" autocomplete="off"></label>' +
+      '<input id="zmwm-visual-search" type="search" placeholder="Color, lot #, job, record #, rack…" autocomplete="off"></label>' +
       '<div class="zmwm-visual-field zmwm-visual-multifield"><span>MATERIAL TYPE</span>' +
         '<details class="zmwm-visual-multi" id="zmwm-visual-material-filter">' +
           '<summary><span id="zmwm-visual-material-summary">All materials</span>' +
@@ -593,7 +604,8 @@
         ' · Refreshed ' + (visualState.updatedAt ?
           visualState.updatedAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '—') +
         (!visualState.notesAvailable ? ' · In/Out Notes unavailable (Kintone permissions).' : '') +
-        (!visualState.materialAvailable ? ' · Material filter unavailable (Kintone permissions).' : '');
+        (!visualState.materialAvailable ? ' · Material filter unavailable (Kintone permissions).' : '') +
+        (!visualState.lotAvailable ? ' · Lot # unavailable (Kintone permissions).' : '');
     }
   }
   function renderVisualResults() {
@@ -924,12 +936,12 @@
       throw new Error('Too many records for this view. Narrow the query before retrying.');
     }
     const dimensions = VISUAL_EXTRA_DIMENSION_FIELDS.map(dim => dim.code);
-    const optional = ['material','in_out_note',...dimensions];
+    const optional = ['material','in_out_note','lot_num',...dimensions];
     try {
       return await getRecords([...VISUAL_FIELDS,...optional]);
     } catch (initialError) {
       // Field-level permissions differ among Kintone users. Probe only the
-      // three explicit optional groups, with no inventory data exported,
+      // four explicit optional groups, with no inventory data exported,
       // then retry without fields that the signed-in user cannot access.
       const probe = async fields => {
         try {
@@ -938,16 +950,18 @@
           return true;
         } catch (error) { return false; }
       };
-      const [materialOK,notesOK,dimensionsOK] = await Promise.all([
-        probe(['material']),probe(['in_out_note']),probe(dimensions)
+      const [materialOK,notesOK,dimensionsOK,lotOK] = await Promise.all([
+        probe(['material']),probe(['in_out_note']),probe(dimensions),probe(['lot_num'])
       ]);
       visualState.materialAvailable = materialOK;
       visualState.notesAvailable = notesOK;
+      visualState.lotAvailable = lotOK;
       visualState.extraDimensionFields = dimensionsOK ?
         VISUAL_EXTRA_DIMENSION_FIELDS : [];
       const allowed = [
         ...(materialOK ? ['material'] : []),
         ...(notesOK ? ['in_out_note'] : []),
+        ...(lotOK ? ['lot_num'] : []),
         ...(dimensionsOK ? dimensions : [])
       ];
       return getRecords([...VISUAL_FIELDS,...allowed]);
@@ -966,6 +980,7 @@
       visualState.extraDimensionFields = VISUAL_EXTRA_DIMENSION_FIELDS;
       visualState.materialAvailable = true;
       visualState.notesAvailable = true;
+      visualState.lotAvailable = true;
       if (token !== visualState.token || !visualState.active) return;
       const records = await fetchVisualRecords(visualState.inventoryScope);
       if (token !== visualState.token || !visualState.active) return;
