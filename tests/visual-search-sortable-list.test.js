@@ -49,7 +49,7 @@ function piece(id,color,length,width,rack,material,type,sale,job,note,shape,phot
   const data = {
     $id:String(id),color_combined:color,color,zmv_num:'',
     length,width,rack,material,type,sale_status:sale,job,in_out_note:note,shape,
-    length_2:extras.length_2||'',width_2:extras.width_2||'',
+    length_2:extras.length_2||'',width_2:extras.width_2||'',lot_num:'',
     exact_picture:photos.map((key,i)=>({fileKey:key,name:key+'.jpg',contentType:'image/jpeg'})),
     example_picture:[]
   };
@@ -67,6 +67,11 @@ let records=[
   piece(5,'Delta',13,60,'Z-1A','Quartz','Cosigned Slab','Hold','Davis Bath',
     'Use the back entrance','Right Hand L',[])
 ];
+// Lot values cover natural numeric order, ties and missing values.
+for(const [id,lot] of [[13,'LOT-10'],[2,'LOT-2'],[7,'LOT-1'],[5,'LOT-2']]) {
+  const record=records.find(r=>Number(r.$id.value)===id);
+  record.lot_num.value=lot;
+}
 const calls=[];let getCount=0;
 async function api(url,method,query) {
   assert.equal(method,'GET','The inventory view must remain read-only');
@@ -126,10 +131,10 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
   assert.match(html(),/class="zmwm-visual-table-scroll"/);
   assert.match(html(),/<table class="zmwm-visual-table">/);
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,13);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,14);
   assert.match(html(),/aria-sort="ascending"/);
   assertOrder([7,2,13,5,9],'Default list sort: Color ascending');
-  for(const heading of ['Photos','Color','In / Out','Piece Type','Material','Rack','Length (in)',
+  for(const heading of ['Photos','Color','In / Out','Piece Type','Material','Rack','Lot #','Length (in)',
     'Width (in)','Shape / Extra','Status','Job','In / Out Notes','Record #'])
     assert.ok(html().includes('Sort by '+heading),'Sortable header: '+heading);
   assert.match(html(),/data-visual-id="2" data-visual-photo="photo-b1"/);
@@ -145,6 +150,7 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   assert.match(html(),/A &amp; B/);
   assert.match(html(),/type-stock-slab/);
   assert.match(html(),/type-standard-rem/);
+  assert.match(html(),/class="zmwm-visual-lot">Lot #: LOT-2<\/span>/);
   assert.match(html(),/class="zmwm-visual-status sold">SOLD<\/span>/);
   assert.match(html(),/class="zmwm-visual-status hold">ON HOLD<\/span>/);
 
@@ -160,6 +166,10 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   assertOrder([2,5,7,9,13],'Record # numeric');
   action('sort','rack');
   assertOrder([5,2,7,9,13],'Natural rack sorting Z-2 before Z-10');
+  action('sort','lot');
+  assertOrder([7,2,5,13,9],'Lot numbers sorted naturally; blanks last');
+  action('sort','lot');
+  assertOrder([13,2,5,7,9],'Lot descending with blanks last');
   action('sort','photo');
   assertOrder([7,5,9,13,2],'Photo count ascending; stable ties');
   action('sort','photo');
@@ -171,6 +181,11 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   action('sort','job');
   assert.equal(rowIds().at(-1),9,'Empty jobs last');
 
+  // Search by lot works with the same search field as color, job or rack.
+  send('input',{id:'zmwm-visual-search',value:'lot-10'});
+  assertOrder([13],'Lot number is searchable');
+  send('input',{id:'zmwm-visual-search',value:''});
+  assert.equal(rowIds().length,5);
   // Filter and sort work together and still preserve gallery/list preference.
   send('change',{dataset:{visualFilter:'material'},checked:true,value:'Quartz'});
   assert.deepEqual(rowIds().sort((a,b)=>a-b),[2,5,7]);
@@ -192,6 +207,8 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
     true);
   assert.equal(modal.hidden,false);
   assert.equal(subs.get('#zmwm-visual-lightbox-title').textContent,'Bravo');
+  assert.match(subs.get('#zmwm-visual-lightbox-details').innerHTML,
+    /Lot #: LOT-2/);
   assert.match(subs.get('#zmwm-visual-lightbox-details').innerHTML,
     /LHL/);
 
@@ -216,6 +233,6 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   assert.equal(calls.at(-1).fields.includes('cost'),false);
   assert.match(css,/\.zmwm-visual-table-scroll/);
   assert.match(css,/\.zmwm-visual-table-sort/);
-  console.log('Sortable list view: 13 columns, numeric and text sorting, statuses, photos, '+
+  console.log('Sortable list view: 14 columns, lot searching/sorting, numeric and text sorting, statuses, photos, '+
     'escaping, filters, pagination, preference, modal and gallery parity passed.');
 })().catch(err=>{console.error(err);process.exitCode=1;});
