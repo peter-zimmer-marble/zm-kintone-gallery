@@ -1299,6 +1299,9 @@
         '<button type="button" data-visual-action="refresh">Try again</button></div>';
       return;
     }
+    const tableBefore = container.querySelector &&
+      container.querySelector('.zmwm-visual-table-scroll');
+    const oldHorizontalScroll = tableBefore ? tableBefore.scrollLeft : 0;
     const results = visualMatchesSorted();
     const visible = results.slice(0,visualState.shown);
     renderVisualBasket();
@@ -1314,6 +1317,9 @@
         '<div class="zmwm-visual-empty">No pieces match those filters.</div>') +
       (visible.length < results.length ? '<div class="zmwm-visual-more-wrap"><button type="button" ' +
         'data-visual-action="more">Show more pieces</button></div>' : '');
+    const tableAfter = container.querySelector &&
+      container.querySelector('.zmwm-visual-table-scroll');
+    if (tableAfter) tableAfter.scrollLeft = oldHorizontalScroll;
     prepareVisualPhotos();
     // Only displayed rows are evaluated (batch <= 100), never every inventory
     // record. Until confirmed by Kintone, every staging control is hidden.
