@@ -246,7 +246,8 @@ async function reopen(){
   send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
   action('save-staging',4);await flush();
   assert.equal(writes.length,1);
-  assert.equal(controls(4),'','Revoked permission must remove control');
+  assert.doesNotMatch(html(),/data-visual-stage-id="4"/,
+    'Revoked permission must remove control after DOM re-render');
   assert.match(html(),/no longer permits editing/);
 
   // Load an editor with a staging value that changed after list fetch.
