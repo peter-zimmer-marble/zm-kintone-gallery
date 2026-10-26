@@ -27,6 +27,12 @@ ui.addEventListener=(type,fn,capture)=>{
   listeners.set(type,items);
 };
 ui.querySelector=selector=>nodes.get(selector.slice(1))||null;
+// Verify an in-place checkbox update highlights cards without reloading photos.
+const testCard=makeNode();
+const testCheckbox={dataset:{visualSelectId:'1'},checked:false,
+  closest(selector){return selector==='.zmwm-visual-card'?testCard:null;}};
+ui.querySelectorAll=selector=>selector==='input[data-visual-select-id]'?
+  [testCheckbox]:[];
 nodes.set('zmwm-visual-root',ui);
 const app=makeNode();
 app.querySelector=sel=>sel==='#zmwm-visual-root'?ui:null;
@@ -57,7 +63,7 @@ function makeRecord(id,name,type,status,photo){
   return Object.fromEntries(Object.entries(values).map(([k,v])=>[k,{value:v}]));
 }
 const allRecords=[
-  ...[1,2,3,4].map(id=>makeRecord(id,'Remnant Option '+id,'STOCK Rem','In',true)),
+  ...[1,2,3,4].map(id=>makeRecord(id,'Remnant Option '+id,'STOCK Rem','In',id!==2)),
   ...[5,6,7].map(id=>makeRecord(id,'Slab Option '+id,'Stock Slab','In',true)),
   makeRecord(8,'Historical Slab 8','SO-Slab','Out',true)
 ];
@@ -159,22 +165,64 @@ function recordIds(html){
   assert.match(calls[0].query,/inventory_status in \("In"\)/);
   assert.equal(recordIds(html()).length,0,'Default gallery is preserved');
   assert.match(basket(),/0 pieces selected/);
+  assert.match(basket(),/Check pieces in Gallery or List view/);
+  assert.equal((html().match(/<article class="zmwm-visual-card/g)||[]).length,7);
+  assert.equal((html().match(/data-visual-select-id="/g)||[]).length,7);
+  assert.match(html(),/class="zmwm-visual-gallery-media"/);
+  assert.match(html(),/class="zmwm-visual-card-select"/);
+  // The checkbox label sits outside both the image button and record link.
+  assert.match(html(),
+    /data-visual-photo="photo-1"[\s\S]*?<\/button><label class="zmwm-visual-card-select"[\s\S]*?<\/label><\/div><a class="zmwm-visual-link"/);
+  // A remnant without photos is still selectable.
+  assert.match(html(),
+    /No photo available[\s\S]*?data-visual-select-id="2"/);
 
+  // Clicking the selection label cannot be mistaken for a photo click.
+  send('click',{closest(){return null;}},true);
+  assert.equal(modal.hidden,true);
+  select(1);
+  assert.match(basket(),/1 piece selected/);
+  assert.equal(testCheckbox.checked,true);
+  assert.equal(testCard.classList.flags.get('is-selected'),true);
+  select(1,false);
+  assert.equal(testCheckbox.checked,false);
+  assert.equal(testCard.classList.flags.get('is-selected'),false);
+  select(1,true);
+
+  search('Remnant');
+  assert.equal((html().match(/<article class="zmwm-visual-card/g)||[]).length,4);
+  assert.match(html(),/class="zmwm-visual-card is-selected"/);
+  assert.match(html(),/data-visual-select-id="1" checked/);
+  select(2); // No-photo remnant via Gallery.
+  assert.match(basket(),/2 pieces selected/);
+
+  // Switch to List view; selection state carries across layouts.
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
   assert.equal((html().match(/<th scope="col"/g)||[]).length,15);
   assert.match(html(),/class="zmwm-visual-table-select-header"/);
-  assert.match(html(),/data-visual-select-id="1"/);
-  assert.equal(recordIds(html()).length,7);
-
-  search('Remnant');
+  assert.match(html(),/data-visual-select-id="1" checked/);
+  assert.match(html(),/data-visual-select-id="2" checked/);
   assert.equal(recordIds(html()).length,4);
-  for(const id of [1,2,3,4])select(id);
+  for(const id of [3,4])select(id);
   assert.match(basket(),/4 pieces selected/);
   assert.match(basket(),/Remnant Option 1/);
 
+  // A second search can be selected from Gallery without losing the first four.
   search('Slab');
   assert.equal(recordIds(html()).length,3);
-  for(const id of [5,6,7])select(id);
+  send('change',{id:'zmwm-visual-list-view',checked:false,dataset:{}});
+  assert.equal((html().match(/<article class="zmwm-visual-card/g)||[]).length,3);
+  select(5);
+  select(6);
+  assert.match(basket(),/6 pieces selected/);
+  search('Slab'); // Re-render checks for the currently visible selected slabs.
+  assert.match(html(),/data-visual-select-id="5" checked/);
+  assert.match(html(),/data-visual-select-id="6" checked/);
+  assert.equal((html().match(/class="zmwm-visual-card is-selected"/g)||[]).length,2);
+  send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
+  assert.match(html(),/data-visual-select-id="5" checked/);
+  assert.match(html(),/data-visual-select-id="6" checked/);
+  select(7);
   assert.match(basket(),/7 pieces selected/);
   assert.match(basket(),/Remnant Option 1/);
   assert.match(basket(),/Slab Option 7/);
@@ -197,9 +245,25 @@ function recordIds(html){
   setScope('all');await tick();
   assert.equal(recordIds(html()).length,8);
   assert.match(basket(),/7 pieces selected/);
+  // The prominent OUT label and gallery checkbox coexist on the same card.
+  send('change',{id:'zmwm-visual-list-view',checked:false,dataset:{}});
+  assert.match(html(),/class="zmwm-visual-card is-out"/);
+  assert.match(html(),/class="zmwm-visual-out-overlay">OUT<\/span>/);
   select(8);
   assert.match(basket(),/8 pieces selected/);
   assert.match(basket(),/Historical Slab 8/);
+  search('Historical');
+  assert.match(html(),/class="zmwm-visual-card is-out is-selected"/);
+  assert.match(html(),/data-visual-select-id="8" checked/);
+  search('');
+  // The gallery still opens an enlarged photo even when its item is selected.
+  const galleryPhoto={dataset:{visualId:'8'},isConnected:true,focus(){}};
+  send('click',{closest:s=>s.startsWith('.zmwm-visual-photo-action')?
+    galleryPhoto:null},true);
+  assert.equal(modal.hidden,false);
+  assert.equal(sub.get('#zmwm-visual-lightbox-title').textContent,'Historical Slab 8');
+  action('close-photo');
+  send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
   action('copy-group');await tick();
   const link=clipboardValues.at(-1);
   assert.match(link,/#zmgroup=1.2.3.4.5.6.7.8/);
@@ -259,8 +323,10 @@ function recordIds(html){
   assert.equal(recordIds(html()).length,7);
 
   for(const token of ['.zmwm-visual-basket','.zmwm-visual-group-chip',
-    '.zmwm-visual-table-select-cell','.zmwm-visual-shared-banner'])
+    '.zmwm-visual-table-select-cell','.zmwm-visual-shared-banner',
+    '.zmwm-visual-gallery-media','.zmwm-visual-card-select',
+    '.zmwm-visual-card.is-selected'])
     assert.ok(css.includes(token),'Missing group UI styles: '+token);
-  console.log('Group sharing: across searches/statuses, copy link, named group, '+
+  console.log('Group sharing: Gallery and List selection, across searches/statuses, copy link, named group, '+
     'exact-ID GET, missing records, photo viewer, return, clear, invalid links passed.');
 })().catch(err=>{console.error(err);process.exitCode=1;});
