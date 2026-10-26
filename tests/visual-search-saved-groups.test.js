@@ -66,6 +66,7 @@ const records=[
 const getCalls=[],store=new Map(),clipboard=[],confirmationPrompts=[];
 let loginUser='operator-1',storageDisabled=false,confirmNext=true;
 async function api(url,method,data){
+  if (String(url).includes('/records/acl/evaluate.json')) return {rights:[]};
   assert.equal(method,'GET','Saving/deleting a group cannot write Kintone records');
   assert.equal(data.app,6);
   getCalls.push(data);
