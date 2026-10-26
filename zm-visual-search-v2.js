@@ -371,6 +371,240 @@
       '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
         statusBadge + outOverlay + '</div>';
   }
+
+  // Staging is display-only until Kintone explicitly grants BOTH record edit
+  // and staging_status field edit for this exact record. Never infer rights from
+  // username, admin status, staging value, or ability to read a record.
+  function visualStageActionsMarkup(record) {
+    const id = getId(record);
+    if (visualState.stageRights.get(id) !== true || !visualState.stageSettings) return '';
+    if (visualState.stageSavingId === id)
+      return '<span class="zmwm-visual-stage-busy" role="status">Saving…</span>';
+    if (visualState.stageEditId !== id)
+      return '<button type="button" class="zmwm-visual-stage-change"' +
+        ' data-visual-action="edit-staging" data-visual-stage-id="' + esc(id) +
+        '">Change</button>';
+    const current = getStage(record);
+    const choices = visualState.stageSettings.choices;
+    const optionalBlank = !visualState.stageSettings.required ?
+      '<option value=""' + (!visualState.stageDraft ? ' selected' : '') +
+        '>Not staged</option>' : '';
+    const options = choices.map(value =>
+      '<option value="' + esc(value) + '"' +
+        (value === visualState.stageDraft ? ' selected' : '') +
+        '>' + esc(value) + '</option>').join('');
+    return '<span class="zmwm-visual-stage-editor">' +
+      '<select data-visual-stage-choice="' + esc(id) + '"' +
+        ' aria-label="Staging status for ' + esc(getColorCombined(record)) + '">' +
+        optionalBlank + options + '</select>' +
+      '<button type="button" data-visual-action="save-staging"' +
+        ' data-visual-stage-id="' + esc(id) + '">Save</button>' +
+      '<button type="button" class="zmwm-visual-stage-cancel"' +
+        ' data-visual-action="cancel-staging"' +
+        ' data-visual-stage-id="' + esc(id) + '">Cancel</button>' +
+      '</span>';
+  }
+  function visualStageMarkup(record) {
+    if (!visualState.stageFieldAvailable) return '';
+    const id = getId(record);
+    const stage = getStage(record);
+    const message = visualState.stageMessages.get(id) || '';
+    return '<div class="zmwm-visual-staging" data-visual-staging-record="' + esc(id) + '">' +
+      '<span class="zmwm-visual-stage-label">STAGING</span>' +
+      '<strong class="zmwm-visual-stage-value" data-visual-stage-value>' +
+        esc(stage || 'Not staged') + '</strong>' +
+      '<span class="zmwm-visual-stage-actions" data-visual-stage-actions>' +
+        visualStageActionsMarkup(record) + '</span>' +
+      '<span class="zmwm-visual-stage-feedback" data-visual-stage-feedback' +
+        ' role="status" aria-live="polite">' + esc(message) + '</span>' +
+      '</div>';
+  }
+  function visualRefreshStageControls() {
+    if (!visualState.active) return;
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('[data-visual-staging-record]').forEach(host => {
+      const record = visualState.records.find(r =>
+        getId(r) === str(host.dataset.visualStagingRecord));
+      if (!record) return;
+      const status = host.querySelector('[data-visual-stage-value]');
+      const actions = host.querySelector('[data-visual-stage-actions]');
+      const note = host.querySelector('[data-visual-stage-feedback]');
+      if (status) status.textContent = getStage(record) || 'Not staged';
+      if (actions) actions.innerHTML = visualStageActionsMarkup(record);
+      if (note) note.textContent = visualState.stageMessages.get(getId(record)) || '';
+    });
+  }
+  function visualParseStagePermissions(response,ids) {
+    const entries = Array.isArray(response && response.rights) ? response.rights : [];
+    const known = new Map();
+    for (const entry of entries) {
+      const id = visualNormalizeGroupId(entry && entry.id);
+      if (!id || !ids.includes(id)) continue;
+      const right = entry && entry.fields && entry.fields.staging_status;
+      known.set(id,entry.record && entry.record.editable === true &&
+        right && right.viewable === true && right.editable === true);
+    }
+    // Fail closed: missing fields/records have no permission.
+    return new Map(ids.map(id => [id,known.get(id) === true]));
+  }
+  async function visualEvaluateStagePermissions(ids) {
+    const values = ids.map(visualNormalizeGroupId).filter(Boolean);
+    if (!values.length || values.length > 100) return new Map();
+    const response = await kintone.api(
+      kintone.api.url('/k/v1/records/acl/evaluate.json',true),'GET',
+      {app:SETTINGS.INVENTORY_APP_ID,ids:values.map(Number)});
+    return visualParseStagePermissions(response,values);
+  }
+  async function visualLoadStageSettings() {
+    if (visualState.stageSettings || visualState.stageSettingsPending ||
+        visualState.stageSettingsUnavailable || !visualState.active) return;
+    const token = visualState.token;
+    visualState.stageSettingsPending = true;
+    try {
+      const form = await kintone.api(
+        kintone.api.url('/k/v1/app/form/fields.json',true),'GET',
+        {app:SETTINGS.INVENTORY_APP_ID});
+      if (!visualState.active || token !== visualState.token) return;
+      const property = form && form.properties && form.properties.staging_status;
+      if (!property || !['DROP_DOWN','RADIO_BUTTON'].includes(property.type) ||
+          !property.options || typeof property.options !== 'object')
+        throw new Error('Staging is not a supported choice field');
+      const choices = Object.entries(property.options)
+        .filter(([value]) => typeof value === 'string' && value !== '')
+        .sort((a,b) => Number(a[1].index) - Number(b[1].index))
+        .map(([value]) => value);
+      if (!choices.length) throw new Error('Staging has no configured options');
+      visualState.stageSettings = {
+        required:property.required === true,choices
+      };
+    } catch (_error) {
+      if (visualState.active && token === visualState.token) {
+        // Never make up allowed values or show edit controls if form metadata
+        // cannot be read or field type unexpectedly changes.
+        visualState.stageSettingsUnavailable = true;
+      }
+    } finally {
+      if (visualState.active && token === visualState.token) {
+        visualState.stageSettingsPending = false;
+        visualRefreshStageControls();
+      }
+    }
+  }
+  function visualRequestStagePermissions(records) {
+    if (!visualState.active || visualState.loading ||
+        !visualState.stageFieldAvailable || !records || !records.length) return;
+    const ids = [...new Set(records.map(getId).map(visualNormalizeGroupId)
+      .filter(id => id && !visualState.stageRights.has(id) &&
+        !visualState.stageRightsPending.has(id)))];
+    if (!ids.length) return;
+    const token = visualState.token;
+    for(let start=0;start<ids.length;start+=100) {
+      const batch = ids.slice(start,start+100);
+      batch.forEach(id => visualState.stageRightsPending.add(id));
+      visualEvaluateStagePermissions(batch).then(rights => {
+        if (!visualState.active || token !== visualState.token) return;
+        for (const id of batch)
+          visualState.stageRights.set(id,rights.get(id) === true);
+        if (batch.some(id => rights.get(id) === true))
+          visualLoadStageSettings();
+        visualRefreshStageControls();
+      }).catch(() => {
+        if (!visualState.active || token !== visualState.token) return;
+        // A failed permission check never exposes edit controls.
+        for (const id of batch) visualState.stageRights.set(id,false);
+      }).finally(() => {
+        if (!visualState.active || token !== visualState.token) return;
+        batch.forEach(id => visualState.stageRightsPending.delete(id));
+      });
+    }
+  }
+  function visualEditStage(id) {
+    const record = visualState.records.find(r => getId(r) === id);
+    if (!record || visualState.stageSavingId ||
+        visualState.stageRights.get(id) !== true || !visualState.stageSettings) return;
+    visualState.stageEditId = id;
+    visualState.stageDraft = getStage(record);
+    visualState.stageMessages.delete(id);
+    visualRefreshStageControls();
+  }
+  function visualCancelStage(id) {
+    if (visualState.stageSavingId || visualState.stageEditId !== id) return;
+    visualState.stageEditId = '';
+    visualState.stageDraft = '';
+    visualRefreshStageControls();
+  }
+  async function visualSaveStage(id) {
+    if (!visualState.active || visualState.stageSavingId ||
+        visualState.stageEditId !== id || visualState.stageRights.get(id) !== true ||
+        !visualState.stageSettings || !visualState.stageFieldAvailable) return;
+    const record = visualState.records.find(r => getId(r) === id);
+    if (!record) return;
+    const choice = visualState.stageDraft;
+    const allowed = visualState.stageSettings.choices.includes(choice) ||
+      (choice === '' && !visualState.stageSettings.required);
+    if (!allowed) {
+      visualState.stageMessages.set(id,'Choose a valid staging status.');
+      visualRefreshStageControls();
+      return;
+    }
+    if (choice === getStage(record)) {
+      visualCancelStage(id);
+      return;
+    }
+    visualState.stageSavingId = id;
+    visualState.stageMessages.delete(id);
+    visualRefreshStageControls();
+    const token = visualState.token;
+    try {
+      // Permissions are checked again immediately before attempting to write.
+      const rights = await visualEvaluateStagePermissions([id]);
+      if (!visualState.active || token !== visualState.token) return;
+      if (rights.get(id) !== true) {
+        visualState.stageRights.set(id,false);
+        visualState.stageEditId = '';
+        throw new Error('Kintone no longer permits editing staging for this piece.');
+      }
+      const result = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,
+        ['$id','$revision','staging_status'],
+        '$id = "' + id + '" limit 1');
+      if (!visualState.active || token !== visualState.token) return;
+      const latest = result && Array.isArray(result.records) ? result.records[0] : null;
+      if (!latest || getId(latest) !== id)
+        throw new Error('The inventory record could not be loaded. No changes were made.');
+      const latestRevision = toText(field(latest,'$revision'));
+      if (!/^\d+$/.test(latestRevision))
+        throw new Error('Could not verify the record revision. No changes were made.');
+      if (getStage(latest) !== getStage(record)) {
+        if (!record.staging_status) record.staging_status = {value:getStage(latest)};
+        else record.staging_status.value = getStage(latest);
+        visualState.stageEditId = '';
+        throw new Error('Staging changed since this page loaded. Review the new value and try again.');
+      }
+      // Exactly one field is written. Revision checking prevents overwriting a
+      // concurrent Kintone update between the last read and this save.
+      await kintone.api(kintone.api.url('/k/v1/record.json',true),'PUT',{
+        app:SETTINGS.INVENTORY_APP_ID,id,
+        revision:latestRevision,
+        record:{staging_status:{value:choice}}
+      });
+      if (!visualState.active || token !== visualState.token) return;
+      if (!record.staging_status) record.staging_status = {value:choice};
+      else record.staging_status.value = choice;
+      visualState.stageEditId = '';
+      visualState.stageDraft = '';
+      visualState.stageMessages.set(id,'Saved: ' + (choice || 'Not staged'));
+    } catch (error) {
+      if (!visualState.active || token !== visualState.token) return;
+      visualState.stageMessages.set(id,describeError(error));
+    } finally {
+      if (visualState.active && token === visualState.token) {
+        visualState.stageSavingId = '';
+        renderVisualResults();
+        if (visualState.lightbox) renderVisualLightbox();
+      }
+    }
+  }
   function visualCard(record) {
     const id = getId(record);
     const name = getColorCombined(record);
