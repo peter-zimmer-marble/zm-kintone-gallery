@@ -15,6 +15,7 @@ on:
       - 'tests/visual-search-sortable-list.test.js'
       - 'tests/visual-search-out-history.test.js'
       - 'tests/visual-search-share-group.test.js'
+      - 'tests/visual-search-saved-groups.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
@@ -48,3 +49,5 @@ jobs:
         run: node tests/visual-search-out-history.test.js
       - name: Test internal shareable inventory groups
         run: node tests/visual-search-share-group.test.js
+      - name: Test browser-local saved group persistence and deletion
+        run: node tests/visual-search-saved-groups.test.js
