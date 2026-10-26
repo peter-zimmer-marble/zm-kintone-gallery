@@ -14,6 +14,7 @@ on:
       - 'tests/visual-search-photo-details.test.js'
       - 'tests/visual-search-sortable-list.test.js'
       - 'tests/visual-search-out-history.test.js'
+      - 'tests/visual-search-share-group.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
@@ -45,3 +46,5 @@ jobs:
         run: node tests/visual-search-sortable-list.test.js
       - name: Test Out history and default In-only inventory
         run: node tests/visual-search-out-history.test.js
+      - name: Test internal shareable inventory groups
+        run: node tests/visual-search-share-group.test.js
