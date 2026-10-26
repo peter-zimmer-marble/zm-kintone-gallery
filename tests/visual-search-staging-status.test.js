@@ -87,7 +87,7 @@ let records=[
  piece(4,'No Staging Set','')
 ];
 const calls=[],writes=[],aclCalls=[];
-const canEdit=new Set(['2','4']);
+const canEdit=new Set(['2','3','4']);
 let canViewStage=true, formFailure=false, forcePutError=false;
 let formCalls=0;
 function cloneRecord(record,fields){
@@ -126,7 +126,8 @@ async function api(url,method,request){
    assert.equal(request.id,'2','Only explicitly authorized row may be written');
    assert.deepEqual(Object.keys(request.record),['staging_status'],
      'Never update unrelated fields');
-   assert.equal(request.revision,'1');
+   assert.equal(request.revision,
+     records.find(r=>r.$id.value===request.id).$revision.value);
    if(forcePutError)throw Error('Revision conflict: another user changed this record');
    const found=records.find(r=>r.$id.value===request.id);
    found.staging_status.value=request.record.staging_status.value;
@@ -235,6 +236,16 @@ async function reopen(){
   assert.ok(aclCalls.length>=2,'Rights checked again immediately before saving');
   assert.ok(calls.at(-1).fields.includes('$revision'));
   assert.match(html(),/View Staging/);
+
+  // Concurrent revision conflict after the final read must fail cleanly.
+  forcePutError=true;
+  action('edit-staging',2);
+  send('change',{dataset:{visualStageChoice:'2'},value:'RTS'});
+  action('save-staging',2);await flush();
+  assert.equal(writes.length,1,'Failed PUT must not be reported as saved');
+  assert.equal(records[1].staging_status.value,'View Staging');
+  assert.match(html(),/Revision conflict/);
+  forcePutError=false;
 
   // Cancel and unchanged selections never issue writes.
   action('edit-staging',4);action('cancel-staging',4);
