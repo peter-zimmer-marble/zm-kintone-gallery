@@ -48,6 +48,10 @@ The **standalone ZM Inventory App 6 Visual Search** can now create a temporary s
 
 Regression coverage: `tests/visual-search-saved-groups.test.js` validates saving, reopening after leaving the view, named updates, user isolation, delete confirmations, copied links, historical Out pieces, HTML escaping, cross-tab changes and storage errors. Live Kintone browser testing is still required.
 
+## Color-coded staging status (2026-10-26)
+
+The existing staging status remains labeled in text and now uses the same color scheme in **Gallery cards, the sortable List column, and enlarged-photo details**: **RTS = amber**, **View Staging = blue**, **blank / Not staged = gray**. Any additional field option uses a **teal** badge rather than being mislabeled or silently omitted. A narrow colored accent highlights the staging section without changing the separate SOLD, HOLD, or OUT warning styles. The color reflects the **saved** field value, not a draft dropdown choice; after an authorized successful Save, the badge changes to the new color immediately. This is a presentation-only change: no new API permissions or record writes.
+
 ## Update staging status from Visual Search (2026-10-26)
 
 The **standalone App 6 Visual Search** displays the existing `staging_status` field when the logged-in user has permission to read it, in the gallery, sortable list column and enlarged photo details. The actual values come from the existing inventory record. The warehouse staging pilot uses `RTS` and `View Staging`; edit options are **fetched from the Kintone form** instead of hardcoding just those two.
