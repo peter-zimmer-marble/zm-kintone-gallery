@@ -155,6 +155,9 @@ function stored(){
 }
 async function reopen(){
   handler({viewName:'Gallery A',viewType:'custom'});
+  // In a browser root.innerHTML creates a fresh UI node; mocked addEventListener
+  // callbacks on our reused test node must be cleared between simulated visits.
+  listeners.clear();
   handler(event);
   await tick();
 }
