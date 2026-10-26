@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.4 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.5 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -93,6 +93,8 @@
   // physical maps, but has its own image-first, read-only user interface.
   // It does not change any warehouse-map layout or write to Kintone.
   const VISUAL_PAGE_SIZE = 32;
+  const VISUAL_MAX_GROUP_PIECES = 75;
+  const VISUAL_MAX_GROUP_TITLE = 80;
   // Save only the display preference; inventory records and image blobs are never persisted.
   const VISUAL_LIST_PREFERENCE_KEY = 'zmwm-visual-search-list-view';
   function readVisualListPreference() {
@@ -120,7 +122,11 @@
     lotAvailable:true,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
-    touchStartX:null, extraDimensionFields:[]
+    touchStartX:null, extraDimensionFields:[],
+    // Selection is tab-local only. Shared URLs contain IDs and optional title,
+    // never protected inventory records, images, prices or account credentials.
+    selectedIds:new Set(), selectedRecords:new Map(), groupName:'',
+    groupViewIds:null, viewId:'', groupError:'', basketMessage:''
   };
   const visualDimension = value => toText(value) || '?';
   const visualNumericDimension = value => {
@@ -212,7 +218,7 @@
   // All list columns sort on underlying Kintone values, never on rendered HTML.
   // Gallery mode deliberately retains its original alphabetical ordering.
   const VISUAL_TABLE_COLUMNS = Object.freeze([
-    {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
+    {key:'select',label:'Select'}, {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
     {key:'rack',label:'Rack'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
@@ -383,6 +389,10 @@
   }
 
   function visualTableHeader(column) {
+    if (column.key === 'select') {
+      return '<th scope="col" class="zmwm-visual-table-select-header">' +
+        '<span>Select</span></th>';
+    }
     const selected = visualState.sortKey === column.key;
     const ascending = visualState.sortDirection === 'asc';
     const nextDirection = selected && ascending ? 'descending' : 'ascending';
@@ -414,6 +424,11 @@
     return '<tr class="zmwm-visual-table-row' +
       (sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '') +
       (isVisualOut(record) ? ' is-out' : '') + '">' +
+      '<td class="zmwm-visual-table-select-cell"><label title="Add to shareable group">' +
+        '<input type="checkbox" data-visual-select-id="' + esc(id) + '"' +
+          (visualState.selectedIds.has(id) ? ' checked' : '') +
+          ' aria-label="Add ' + esc(name) + ' to group">' +
+        '</label></td>' +
       '<td class="zmwm-visual-table-photo-cell">' + visualPhotoMarkup(record) + '</td>' +
       '<td class="zmwm-visual-table-color-cell"><a class="zmwm-visual-table-record-link"' +
         linkAttrs + '>' + esc(name) + '</a>' +
@@ -454,7 +469,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.4">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.5">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
@@ -493,6 +508,8 @@
       '<span>Photos only</span></label>' +
       '<button class="zmwm-visual-reset" type="button" data-visual-action="reset">Reset</button></div>' +
       '<div id="zmwm-visual-feedback" class="zmwm-visual-feedback" role="status" aria-live="polite"></div>' +
+      '<div id="zmwm-visual-group-banner"></div>' +
+      '<div id="zmwm-visual-basket"></div>' +
       '<div id="zmwm-visual-results"></div>' +
       '<div id="zmwm-visual-lightbox" class="zmwm-visual-lightbox" role="dialog"' +
         ' aria-modal="true" aria-label="Inventory photo viewer" hidden>' +
@@ -599,7 +616,8 @@
       node.textContent = 'Could not load inventory: ' + visualState.error;
     } else {
       node.textContent = 'LIVE KINTONE DATA · ' + visualState.records.length.toLocaleString() +
-        (visualState.inventoryScope === 'out' ? ' pieces marked Out' :
+        (visualState.groupViewIds ? ' pieces in shared group' :
+         visualState.inventoryScope === 'out' ? ' pieces marked Out' :
           visualState.inventoryScope === 'all' ? ' pieces (In + Out)' : ' pieces in shop') +
         ' · Refreshed ' + (visualState.updatedAt ?
           visualState.updatedAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '—') +
@@ -623,6 +641,7 @@
     }
     const results = visualMatchesSorted();
     const visible = results.slice(0,visualState.shown);
+    renderVisualBasket();
     container.innerHTML = '<div class="zmwm-visual-results-heading">' +
       '<div class="zmwm-visual-count">' + results.length.toLocaleString() +
       ' matching ' + (results.length === 1 ? 'piece' : 'pieces') +
