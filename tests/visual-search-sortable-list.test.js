@@ -131,7 +131,7 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
   assert.match(html(),/class="zmwm-visual-table-scroll"/);
   assert.match(html(),/<table class="zmwm-visual-table">/);
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,14);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,15);
   assert.match(html(),/aria-sort="ascending"/);
   assertOrder([7,2,13,5,9],'Default list sort: Color ascending');
   for(const heading of ['Photos','Color','In / Out','Piece Type','Material','Rack','Lot #','Length (in)',
