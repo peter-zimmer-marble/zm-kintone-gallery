@@ -1315,6 +1315,9 @@
       (visible.length < results.length ? '<div class="zmwm-visual-more-wrap"><button type="button" ' +
         'data-visual-action="more">Show more pieces</button></div>' : '');
     prepareVisualPhotos();
+    // Only displayed rows are evaluated (batch <= 100), never every inventory
+    // record. Until confirmed by Kintone, every staging control is hidden.
+    visualRequestStagePermissions(visible);
   }
   function fillVisualSlot(slot, url) {
     if (!slot) return;
@@ -1485,6 +1488,9 @@
     // Match the card's colored piece-type, material, rack, measurements,
     // job allocation and staff notes while retaining the large photo.
     details.innerHTML = visualDetailMarkup(current.record);
+    const stageInfo = root.querySelector('#zmwm-visual-lightbox-staging');
+    if (stageInfo) stageInfo.innerHTML = visualStageMarkup(current.record);
+    visualRefreshStageControls();
     status.innerHTML = visualStatusMarkup(getSale(current.record));
     if (inventoryStatus) inventoryStatus.innerHTML = isVisualOut(current.record) ?
       '<span class="zmwm-visual-inventory-badge is-out">OUT — NOT IN INVENTORY</span>' : '';
@@ -1683,6 +1689,8 @@
       visualState.stageDraft = '';
       visualState.stageSavingId = '';
       visualState.stageMessages.clear();
+      // Obsolete settings requests may still resolve; a new refresh can retry.
+      visualState.stageSettingsPending = false;
       if (token !== visualState.token || !visualState.active) return;
       const groupIds = visualState.groupViewIds ? [...visualState.groupViewIds] : null;
       const records = await fetchVisualRecords(visualState.inventoryScope,groupIds);
@@ -1762,6 +1770,15 @@
     visualState.groupViewIds = null;
     visualState.groupError = '';
     visualState.basketMessage = '';
+    visualState.stageRights.clear();
+    visualState.stageRightsPending.clear();
+    visualState.stageSettings = null;
+    visualState.stageSettingsPending = false;
+    visualState.stageSettingsUnavailable = false;
+    visualState.stageEditId = '';
+    visualState.stageDraft = '';
+    visualState.stageSavingId = '';
+    visualState.stageMessages.clear();
     visualState.savedGroups = [];
     visualState.savedGroupsKey = '';
     visualState.savedGroupsError = '';
@@ -1853,6 +1870,13 @@
       }
     });
     ui.addEventListener('change',event => {
+      if (event.target.dataset && event.target.dataset.visualStageChoice) {
+        const id = str(event.target.dataset.visualStageChoice);
+        if (visualState.stageEditId === id &&
+            visualState.stageRights.get(id) === true && !visualState.stageSavingId)
+          visualState.stageDraft = str(event.target.value);
+        return;
+      }
       const filter = event.target.dataset ? event.target.dataset.visualFilter : '';
       if (filter === 'material' || filter === 'type') {
         const selected = filter === 'material' ? visualState.materials : visualState.pieceTypes;
@@ -1913,6 +1937,18 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
+      if (action === 'edit-staging') {
+        visualEditStage(str(button.dataset.visualStageId));
+        return;
+      }
+      if (action === 'cancel-staging') {
+        visualCancelStage(str(button.dataset.visualStageId));
+        return;
+      }
+      if (action === 'save-staging') {
+        visualSaveStage(str(button.dataset.visualStageId));
+        return;
+      }
       if (action === 'save-group') {
         visualSaveCurrentGroup();
         return;
