@@ -1,6 +1,6 @@
 /*
- * ZM Inventory - Visual Search v3.7 (v2 asset URL retained for Kintone compatibility)
- * Independent read-only Kintone Custom View for Inventory App 6.
+ * ZM Inventory - Visual Search v3.8 (v2 asset URL retained for Kintone compatibility)
+ * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
  */
@@ -22,6 +22,7 @@
   const getColor = r => toText(field(r,'color_combined')) ||
     [field(r,'color'),field(r,'zmv_num')].map(toText).filter(Boolean).join(' ');
   const getSale = r => toText(field(r,'sale_status'));
+  const getStage = r => toText(field(r,'staging_status'));
   const getInventoryStatus = r => toText(field(r,'inventory_status'));
   const isVisualOut = r => getInventoryStatus(r).toLowerCase() === 'out';
   // These fixed values are the only valid conditions for the inventory query.
@@ -121,7 +122,10 @@
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
     sale:'', inventoryScope:'in', minLength:'', minWidth:'', photosOnly:false, listView:false, sortKey:'color', sortDirection:'asc', shown:VISUAL_PAGE_SIZE,
     loading:false, error:'', updatedAt:null, materialAvailable:true, notesAvailable:true,
-    lotAvailable:true,
+    lotAvailable:true, stageFieldAvailable:true,
+    stageRights:new Map(), stageRightsPending:new Set(),
+    stageSettings:null, stageSettingsPending:false, stageSettingsUnavailable:false,
+    stageEditId:'', stageDraft:'', stageSavingId:'', stageMessages:new Map(),
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
     touchStartX:null, extraDimensionFields:[],
@@ -224,7 +228,7 @@
   const VISUAL_TABLE_COLUMNS = Object.freeze([
     {key:'select',label:'Select'}, {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
-    {key:'rack',label:'Rack'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
+    {key:'rack',label:'Rack'}, {key:'staging',label:'Staging'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
     {key:'status',label:'Status'}, {key:'job',label:'Job'},
     {key:'notes',label:'In / Out Notes'}, {key:'id',label:'Record #'}
@@ -239,6 +243,7 @@
       case 'type': return getPieceType(record);
       case 'material': return visualState.materialAvailable ? getMaterial(record) : '';
       case 'rack': return getRack(record);
+      case 'staging': return visualState.stageFieldAvailable ? getStage(record) : '';
       case 'lot': return visualState.lotAvailable ? getLot(record) : '';
       case 'length':
       case 'width': {
@@ -402,7 +407,7 @@
           '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
           '<div class="zmwm-visual-list-status">' + statusBadge + '</div></div>' +
         visualDetailMarkup(record) +
-      '</div></a></article>';
+      '</div></a>' + visualStageMarkup(record) + '</article>';
   }
 
   function visualTableHeader(column) {
@@ -458,6 +463,7 @@
       '<td>' + (material ? '<span class="zmwm-visual-material">' + esc(material) +
         '</span>' : '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
       '<td><span class="zmwm-visual-rack">' + esc(rack) + '</span></td>' +
+      '<td class="zmwm-visual-table-stage">' + visualStageMarkup(record) + '</td>' +
       '<td class="zmwm-visual-table-lot">' +
         (lot ? '<span class="zmwm-visual-lot">Lot #: ' + esc(lot) + '</span>' :
           '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
@@ -486,10 +492,10 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.7">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.8">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
-      '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
+      '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
       '<button type="button" data-visual-action="refresh">↻ Refresh</button></div></header>' +
       '<div class="zmwm-visual-toolbar" role="search" aria-label="Photo inventory filters">' +
       '<label class="zmwm-visual-field zmwm-visual-search-field"><span>SEARCH</span>' +
@@ -569,12 +575,13 @@
             '</div>' +
             '<aside class="zmwm-visual-lightbox-info" aria-label="Inventory piece details">' +
               '<div id="zmwm-visual-lightbox-details"></div>' +
+              '<div id="zmwm-visual-lightbox-staging"></div>' +
             '</aside>' +
           '</div>' +
         '</section></div>' +
       '<footer class="zmwm-visual-footer">Shows pieces marked In by default. ' +
       'Use the In / Out Status filter to find historical Out pieces and photos. ' +
-      'Nothing is edited here.</footer>' +
+      'Inventory is unchanged unless an authorized user explicitly saves a staging status.</footer>' +
       mapSignature() + '</main>';
   }
   // Options come from the currently selected In/Out scope. Show exact Kintone piece-type
