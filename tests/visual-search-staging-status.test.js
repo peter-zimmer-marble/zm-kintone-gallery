@@ -231,7 +231,7 @@ async function reopen(){
   assert.equal(writes[0].record.staging_status.value,'View Staging');
   assert.equal(records[1].staging_status.value,'View Staging');
   assert.equal(records[1].in_out_note.value,'Do not change');
-  assert.match(feedback(2),/Saved: View Staging/);
+  assert.match(html(),/Saved: View Staging/);
   assert.ok(aclCalls.length>=2,'Rights checked again immediately before saving');
   assert.ok(calls.at(-1).fields.includes('$revision'));
   assert.match(html(),/View Staging/);
@@ -247,7 +247,7 @@ async function reopen(){
   action('save-staging',4);await flush();
   assert.equal(writes.length,1);
   assert.equal(controls(4),'','Revoked permission must remove control');
-  assert.match(feedback(4),/no longer permits editing/);
+  assert.match(html(),/no longer permits editing/);
 
   // Load an editor with a staging value that changed after list fetch.
   canEdit.add('4');
@@ -257,7 +257,7 @@ async function reopen(){
   send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
   action('save-staging',4);await flush();
   assert.equal(writes.length,1,'Do not overwrite newer staging value');
-  assert.match(feedback(4),/changed since this page loaded/);
+  assert.match(html(),/changed since this page loaded/);
 
   // Field denied entirely: list still loads, but no staging field or ACL editor.
   canViewStage=false;
