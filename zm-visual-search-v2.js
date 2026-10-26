@@ -943,7 +943,7 @@
       (ids.length ?
         '<div class="zmwm-visual-basket-chips">' + chips + '</div>' +
         '<div class="zmwm-visual-basket-share">' +
-          '<label>Group name (optional)<input id="zmwm-visual-group-name" type="text"' +
+          '<label>Group name (required to save)<input id="zmwm-visual-group-name" type="text"' +
           ' maxlength="' + VISUAL_MAX_GROUP_TITLE + '"' +
           ' placeholder="e.g., Kitchen options for Smith" value="' +
           esc(visualState.groupName) + '"></label>' +
