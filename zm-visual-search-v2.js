@@ -607,7 +607,9 @@
     const node = document.getElementById('zmwm-visual-feedback');
     if (!node) return;
     if (visualState.loading) {
-      node.textContent = visualState.inventoryScope === 'out' ?
+      node.textContent = visualState.groupViewIds ?
+        'Loading selected Kintone records…' :
+        visualState.inventoryScope === 'out' ?
         'Loading historical Out pieces from Kintone…' :
         visualState.inventoryScope === 'all' ?
           'Loading In + Out inventory from Kintone…' :
@@ -1116,10 +1118,21 @@
 
   // Keyset pagination avoids Kintone's 10,000-record offset limit. All reads
   // are GETs from the inventory app; no cursor resources or writes are created.
-  async function fetchVisualRecords(scope) {
+  async function fetchVisualRecords(scope,groupIds) {
     const inventoryCondition = VISUAL_SCOPE_CONDITIONS[scope] ||
       VISUAL_SCOPE_CONDITIONS.in;
+    const ids = Array.isArray(groupIds) ?
+      groupIds.map(visualNormalizeGroupId).filter(Boolean) : [];
+    // Group links bypass the default In-only condition, but never permissions.
+    // All IDs are numeric and capped; read only exactly these records.
+    const groupCondition = ids.length ?
+      '$id in (' + ids.map(id => '"' + id + '"').join(',') + ')' : '';
     async function getRecords(fields) {
+      if (groupCondition) {
+        const data = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,fields,
+          groupCondition + ' order by $id asc limit ' + SETTINGS.PAGE_SIZE);
+        return Array.isArray(data.records) ? data.records : [];
+      }
       const records = [];
       let last = 0;
       for (let page=0;page<80;page++) {
@@ -1147,7 +1160,7 @@
       const probe = async fields => {
         try {
           await readOnlyApi(SETTINGS.INVENTORY_APP_ID,['$id',...fields],
-            inventoryCondition + ' order by $id asc limit 1');
+            (groupCondition || inventoryCondition) + ' order by $id asc limit 1');
           return true;
         } catch (error) { return false; }
       };
@@ -1175,6 +1188,7 @@
     visualState.loading = true;
     visualState.error = '';
     renderVisualFeedback();
+    renderVisualBasket();
     renderVisualResults();
     try {
       // The exact field codes are supplied by ZM Inventory's field settings.
@@ -1183,9 +1197,16 @@
       visualState.notesAvailable = true;
       visualState.lotAvailable = true;
       if (token !== visualState.token || !visualState.active) return;
-      const records = await fetchVisualRecords(visualState.inventoryScope);
+      const groupIds = visualState.groupViewIds ? [...visualState.groupViewIds] : null;
+      const records = await fetchVisualRecords(visualState.inventoryScope,groupIds);
       if (token !== visualState.token || !visualState.active) return;
-      visualState.records = records;
+      visualState.records = groupIds ?
+        groupIds.map(id => records.find(record => getId(record) === id)).filter(Boolean) :
+        records;
+      for (const record of visualState.records) {
+        const id = getId(record);
+        if (visualState.selectedIds.has(id)) visualState.selectedRecords.set(id,record);
+      }
       visualState.updatedAt = new Date();
       visualState.shown = VISUAL_PAGE_SIZE;
     } catch (error) {
@@ -1248,8 +1269,14 @@
     visualState.extraDimensionFields = [];
     visualState.materials.clear();
     visualState.pieceTypes.clear();
+    visualState.selectedIds.clear();
+    visualState.selectedRecords.clear();
+    visualState.groupName = '';
+    visualState.groupViewIds = null;
+    visualState.groupError = '';
+    visualState.basketMessage = '';
   }
-  function startVisualSearch() {
+  function startVisualSearch(event) {
     stopVisualSearch();
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
@@ -1266,9 +1293,26 @@
     visualState.sortKey = 'color';
     visualState.sortDirection = 'asc';
     visualState.shown = VISUAL_PAGE_SIZE;
+    const locationSearch = str(window.location && window.location.search);
+    const viewFromQuery = locationSearch.match(/[?&]view=([0-9]+)/);
+    visualState.viewId = visualNormalizeGroupId(event && event.viewId) ||
+      visualNormalizeGroupId(viewFromQuery && viewFromQuery[1]);
+    const shared = readVisualGroupLink();
+    if (shared && shared.error) visualState.groupError = shared.error;
+    else if (shared && shared.ids) {
+      visualState.groupViewIds = shared.ids;
+      visualState.selectedIds = new Set(shared.ids);
+      visualState.groupName = shared.name;
+      visualState.inventoryScope = 'all'; // Groups can include historical Out pieces.
+      visualState.listView = true; // Open shared groups as a selection table.
+    }
     root.innerHTML = visualShell();
     const ui = root.querySelector('#zmwm-visual-root');
     if (!ui) return;
+    if (ui.classList) ui.classList.toggle('is-shared-group',!!visualState.groupViewIds);
+    const scopeSelect = ui.querySelector('#zmwm-visual-inventory-scope');
+    if (scopeSelect && visualState.groupViewIds) scopeSelect.value = 'all';
+    renderVisualBasket();
     visualState.keydownHandler = visualLightboxKeydown;
     document.addEventListener('keydown',visualState.keydownHandler);
     ui.addEventListener('touchstart',event => {
@@ -1289,6 +1333,12 @@
         'zmwm-visual-min-length':'minLength',
         'zmwm-visual-min-width':'minWidth'
       };
+      if (event.target.id === 'zmwm-visual-group-name') {
+        visualState.groupName = str(event.target.value).slice(0,VISUAL_MAX_GROUP_TITLE);
+        visualState.basketMessage = '';
+        visualUpdateShareLinkField();
+        return;
+      }
       const key = names[event.target.id];
       if (key) {
         visualState[key] = event.target.value;
@@ -1308,6 +1358,9 @@
         saveVisualListPreference(visualState.listView);
         // Only change presentation: preserve filters, result count and pagination.
         renderVisualResults();
+        return;
+      } else if (event.target.dataset && event.target.dataset.visualSelectId) {
+        visualUpdateGroupSelection(event.target.dataset.visualSelectId,event.target.checked);
         return;
       } else if (event.target.id === 'zmwm-visual-inventory-scope') {
         const scope = event.target.value;
@@ -1354,6 +1407,39 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
+      if (action === 'remove-group') {
+        visualUpdateGroupSelection(button.dataset.visualId,false);
+        return;
+      }
+      if (action === 'clear-group') {
+        visualState.selectedIds.clear();
+        visualState.selectedRecords.clear();
+        visualState.basketMessage = '';
+        visualState.groupName = '';
+        visualSyncSelectedCheckboxes();
+        renderVisualBasket();
+        return;
+      }
+      if (action === 'copy-group') {
+        visualCopyGroupLink();
+        return;
+      }
+      if (action === 'leave-group') {
+        visualState.groupViewIds = null;
+        visualState.groupError = '';
+        visualState.inventoryScope = 'in';
+        const groupRoot = document.getElementById('zmwm-visual-root');
+        if (groupRoot && groupRoot.classList)
+          groupRoot.classList.toggle('is-shared-group',false);
+        if (window.history && window.location &&
+            typeof window.history.replaceState === 'function') {
+          window.history.replaceState(null,'',
+            window.location.pathname + window.location.search);
+        }
+        resetVisualFilters();
+        loadVisualSearch();
+        return;
+      }
       if (action === 'sort' && visualState.listView) {
         const column = VISUAL_TABLE_COLUMNS.find(item => item.key === button.dataset.visualSort);
         if (column) {
@@ -1389,7 +1475,7 @@
       return event;
     }
     if (!document.getElementById(ROOT_ID)) return event;
-    startVisualSearch();
+    startVisualSearch(event);
     return event;
   });
 })();
