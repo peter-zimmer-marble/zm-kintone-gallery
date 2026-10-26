@@ -50,6 +50,7 @@ const records=[
 ];
 const registrations=[];
 const api=async (url,method,options)=>{
+ if (String(url).includes('/records/acl/evaluate.json')) return {rights:[]};
  assert.equal(method,'GET');
  assert.equal(options.app,6);
  return {records};

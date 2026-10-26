@@ -16,6 +16,7 @@ on:
       - 'tests/visual-search-out-history.test.js'
       - 'tests/visual-search-share-group.test.js'
       - 'tests/visual-search-saved-groups.test.js'
+      - 'tests/visual-search-staging-status.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
@@ -51,3 +52,5 @@ jobs:
         run: node tests/visual-search-share-group.test.js
       - name: Test browser-local saved group persistence and deletion
         run: node tests/visual-search-saved-groups.test.js
+      - name: Test staging field edit permissions and safe updates
+        run: node tests/visual-search-staging-status.test.js

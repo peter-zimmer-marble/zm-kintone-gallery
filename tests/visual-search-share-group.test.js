@@ -70,6 +70,7 @@ const allRecords=[
 let denySeven=false;
 const calls=[],clipboardValues=[];
 async function api(url,method,request){
+  if (String(url).includes('/records/acl/evaluate.json')) return {rights:[]};
   assert.equal(method,'GET','No Kintone write requests allowed');
   assert.equal(request.app,6);
   assert.ok(request.fields.includes('inventory_status'));
@@ -198,7 +199,7 @@ function recordIds(html){
 
   // Switch to List view; selection state carries across layouts.
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,15);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
   assert.match(html(),/class="zmwm-visual-table-select-header"/);
   assert.match(html(),/data-visual-select-id="1" checked/);
   assert.match(html(),/data-visual-select-id="2" checked/);

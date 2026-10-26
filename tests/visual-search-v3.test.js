@@ -66,6 +66,7 @@ fixture[0].lot_num.value='LOT-11';
 fixture[1].lot_num.value='LOT-12';
 records=fixture;
 async function api(url,method,data) {
+  if (String(url).includes('/records/acl/evaluate.json')) return {rights:[]};
   assert.equal(method,'GET','Visual Search must never write Kintone records');
   assert.equal(data.app,6);
   requests.push(data);

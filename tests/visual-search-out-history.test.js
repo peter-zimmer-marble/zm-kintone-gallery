@@ -67,6 +67,7 @@ const pieces=[
 ];
 const calls=[];
 async function api(endpoint,method,query) {
+  if (String(endpoint).includes('/records/acl/evaluate.json')) return {rights:[]};
   assert.equal(method,'GET','Historical photos must be strictly read-only');
   assert.equal(query.app,6);
   calls.push(query);
@@ -159,7 +160,7 @@ function listIds(){
   // Sortable list: explicit In/Out column plus warning near color, while
   // existing sale-status display remains separate.
   dispatch('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,15);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
   assert.match(html(),/data-visual-sort="inventory"/);
   assert.match(html(),/data-visual-sort="lot"/);
   assert.match(html(),/Lot #: HIST-2/);

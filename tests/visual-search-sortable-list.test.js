@@ -74,6 +74,7 @@ for(const [id,lot] of [[13,'LOT-10'],[2,'LOT-2'],[7,'LOT-1'],[5,'LOT-2']]) {
 }
 const calls=[];let getCount=0;
 async function api(url,method,query) {
+  if (String(url).includes('/records/acl/evaluate.json')) return {rights:[]};
   assert.equal(method,'GET','The inventory view must remain read-only');
   assert.equal(query.app,6);
   assert.match(query.query,/inventory_status in \("In"\)/);
@@ -131,7 +132,7 @@ function assertOrder(ids,msg) { assert.deepEqual(rowIds(),ids,msg); }
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
   assert.match(html(),/class="zmwm-visual-table-scroll"/);
   assert.match(html(),/<table class="zmwm-visual-table">/);
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,15);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
   assert.match(html(),/aria-sort="ascending"/);
   assertOrder([7,2,13,5,9],'Default list sort: Color ascending');
   for(const heading of ['Photos','Color','In / Out','Piece Type','Material','Rack','Lot #','Length (in)',

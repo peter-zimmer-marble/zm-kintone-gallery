@@ -1,6 +1,6 @@
 /*
- * ZM Inventory - Visual Search v3.7 (v2 asset URL retained for Kintone compatibility)
- * Independent read-only Kintone Custom View for Inventory App 6.
+ * ZM Inventory - Visual Search v3.8 (v2 asset URL retained for Kintone compatibility)
+ * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
  */
@@ -22,6 +22,7 @@
   const getColor = r => toText(field(r,'color_combined')) ||
     [field(r,'color'),field(r,'zmv_num')].map(toText).filter(Boolean).join(' ');
   const getSale = r => toText(field(r,'sale_status'));
+  const getStage = r => toText(field(r,'staging_status'));
   const getInventoryStatus = r => toText(field(r,'inventory_status'));
   const isVisualOut = r => getInventoryStatus(r).toLowerCase() === 'out';
   // These fixed values are the only valid conditions for the inventory query.
@@ -121,7 +122,10 @@
     active:false, records:[], search:'', materials:new Set(), pieceTypes:new Set(),
     sale:'', inventoryScope:'in', minLength:'', minWidth:'', photosOnly:false, listView:false, sortKey:'color', sortDirection:'asc', shown:VISUAL_PAGE_SIZE,
     loading:false, error:'', updatedAt:null, materialAvailable:true, notesAvailable:true,
-    lotAvailable:true,
+    lotAvailable:true, stageFieldAvailable:true,
+    stageRights:new Map(), stageRightsPending:new Set(),
+    stageSettings:null, stageSettingsPending:false, stageSettingsUnavailable:false,
+    stageEditId:'', stageDraft:'', stageSavingId:'', stageMessages:new Map(),
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
     touchStartX:null, extraDimensionFields:[],
@@ -224,7 +228,7 @@
   const VISUAL_TABLE_COLUMNS = Object.freeze([
     {key:'select',label:'Select'}, {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
-    {key:'rack',label:'Rack'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
+    {key:'rack',label:'Rack'}, {key:'staging',label:'Staging'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
     {key:'status',label:'Status'}, {key:'job',label:'Job'},
     {key:'notes',label:'In / Out Notes'}, {key:'id',label:'Record #'}
@@ -239,6 +243,7 @@
       case 'type': return getPieceType(record);
       case 'material': return visualState.materialAvailable ? getMaterial(record) : '';
       case 'rack': return getRack(record);
+      case 'staging': return visualState.stageFieldAvailable ? getStage(record) : '';
       case 'lot': return visualState.lotAvailable ? getLot(record) : '';
       case 'length':
       case 'width': {
@@ -366,6 +371,240 @@
       '<div class="zmwm-visual-photo"><span class="zmwm-visual-no-photo">No photo available</span>' +
         statusBadge + outOverlay + '</div>';
   }
+
+  // Staging is display-only until Kintone explicitly grants BOTH record edit
+  // and staging_status field edit for this exact record. Never infer rights from
+  // username, admin status, staging value, or ability to read a record.
+  function visualStageActionsMarkup(record) {
+    const id = getId(record);
+    if (visualState.stageRights.get(id) !== true || !visualState.stageSettings) return '';
+    if (visualState.stageSavingId === id)
+      return '<span class="zmwm-visual-stage-busy" role="status">Saving…</span>';
+    if (visualState.stageEditId !== id)
+      return '<button type="button" class="zmwm-visual-stage-change"' +
+        ' data-visual-action="edit-staging" data-visual-stage-id="' + esc(id) +
+        '">Change</button>';
+    const current = getStage(record);
+    const choices = visualState.stageSettings.choices;
+    const optionalBlank = !visualState.stageSettings.required ?
+      '<option value=""' + (!visualState.stageDraft ? ' selected' : '') +
+        '>Not staged</option>' : '';
+    const options = choices.map(value =>
+      '<option value="' + esc(value) + '"' +
+        (value === visualState.stageDraft ? ' selected' : '') +
+        '>' + esc(value) + '</option>').join('');
+    return '<span class="zmwm-visual-stage-editor">' +
+      '<select data-visual-stage-choice="' + esc(id) + '"' +
+        ' aria-label="Staging status for ' + esc(getColorCombined(record)) + '">' +
+        optionalBlank + options + '</select>' +
+      '<button type="button" data-visual-action="save-staging"' +
+        ' data-visual-stage-id="' + esc(id) + '">Save</button>' +
+      '<button type="button" class="zmwm-visual-stage-cancel"' +
+        ' data-visual-action="cancel-staging"' +
+        ' data-visual-stage-id="' + esc(id) + '">Cancel</button>' +
+      '</span>';
+  }
+  function visualStageMarkup(record) {
+    if (!visualState.stageFieldAvailable) return '';
+    const id = getId(record);
+    const stage = getStage(record);
+    const message = visualState.stageMessages.get(id) || '';
+    return '<div class="zmwm-visual-staging" data-visual-staging-record="' + esc(id) + '">' +
+      '<span class="zmwm-visual-stage-label">STAGING</span>' +
+      '<strong class="zmwm-visual-stage-value" data-visual-stage-value>' +
+        esc(stage || 'Not staged') + '</strong>' +
+      '<span class="zmwm-visual-stage-actions" data-visual-stage-actions>' +
+        visualStageActionsMarkup(record) + '</span>' +
+      '<span class="zmwm-visual-stage-feedback" data-visual-stage-feedback' +
+        ' role="status" aria-live="polite">' + esc(message) + '</span>' +
+      '</div>';
+  }
+  function visualRefreshStageControls() {
+    if (!visualState.active) return;
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('[data-visual-staging-record]').forEach(host => {
+      const record = visualState.records.find(r =>
+        getId(r) === str(host.dataset.visualStagingRecord));
+      if (!record) return;
+      const status = host.querySelector('[data-visual-stage-value]');
+      const actions = host.querySelector('[data-visual-stage-actions]');
+      const note = host.querySelector('[data-visual-stage-feedback]');
+      if (status) status.textContent = getStage(record) || 'Not staged';
+      if (actions) actions.innerHTML = visualStageActionsMarkup(record);
+      if (note) note.textContent = visualState.stageMessages.get(getId(record)) || '';
+    });
+  }
+  function visualParseStagePermissions(response,ids) {
+    const entries = Array.isArray(response && response.rights) ? response.rights : [];
+    const known = new Map();
+    for (const entry of entries) {
+      const id = visualNormalizeGroupId(entry && entry.id);
+      if (!id || !ids.includes(id)) continue;
+      const right = entry && entry.fields && entry.fields.staging_status;
+      known.set(id,entry.record && entry.record.editable === true &&
+        right && right.viewable === true && right.editable === true);
+    }
+    // Fail closed: missing fields/records have no permission.
+    return new Map(ids.map(id => [id,known.get(id) === true]));
+  }
+  async function visualEvaluateStagePermissions(ids) {
+    const values = ids.map(visualNormalizeGroupId).filter(Boolean);
+    if (!values.length || values.length > 100) return new Map();
+    const response = await kintone.api(
+      kintone.api.url('/k/v1/records/acl/evaluate.json',true),'GET',
+      {app:SETTINGS.INVENTORY_APP_ID,ids:values.map(Number)});
+    return visualParseStagePermissions(response,values);
+  }
+  async function visualLoadStageSettings() {
+    if (visualState.stageSettings || visualState.stageSettingsPending ||
+        visualState.stageSettingsUnavailable || !visualState.active) return;
+    const token = visualState.token;
+    visualState.stageSettingsPending = true;
+    try {
+      const form = await kintone.api(
+        kintone.api.url('/k/v1/app/form/fields.json',true),'GET',
+        {app:SETTINGS.INVENTORY_APP_ID});
+      if (!visualState.active || token !== visualState.token) return;
+      const property = form && form.properties && form.properties.staging_status;
+      if (!property || !['DROP_DOWN','RADIO_BUTTON'].includes(property.type) ||
+          !property.options || typeof property.options !== 'object')
+        throw new Error('Staging is not a supported choice field');
+      const choices = Object.entries(property.options)
+        .filter(([value]) => typeof value === 'string' && value !== '')
+        .sort((a,b) => Number(a[1].index) - Number(b[1].index))
+        .map(([value]) => value);
+      if (!choices.length) throw new Error('Staging has no configured options');
+      visualState.stageSettings = {
+        required:property.required === true,choices
+      };
+    } catch (_error) {
+      if (visualState.active && token === visualState.token) {
+        // Never make up allowed values or show edit controls if form metadata
+        // cannot be read or field type unexpectedly changes.
+        visualState.stageSettingsUnavailable = true;
+      }
+    } finally {
+      if (visualState.active && token === visualState.token) {
+        visualState.stageSettingsPending = false;
+        visualRefreshStageControls();
+      }
+    }
+  }
+  function visualRequestStagePermissions(records) {
+    if (!visualState.active || visualState.loading ||
+        !visualState.stageFieldAvailable || !records || !records.length) return;
+    const ids = [...new Set(records.map(getId).map(visualNormalizeGroupId)
+      .filter(id => id && !visualState.stageRights.has(id) &&
+        !visualState.stageRightsPending.has(id)))];
+    if (!ids.length) return;
+    const token = visualState.token;
+    for(let start=0;start<ids.length;start+=100) {
+      const batch = ids.slice(start,start+100);
+      batch.forEach(id => visualState.stageRightsPending.add(id));
+      visualEvaluateStagePermissions(batch).then(rights => {
+        if (!visualState.active || token !== visualState.token) return;
+        for (const id of batch)
+          visualState.stageRights.set(id,rights.get(id) === true);
+        if (batch.some(id => rights.get(id) === true))
+          visualLoadStageSettings();
+        visualRefreshStageControls();
+      }).catch(() => {
+        if (!visualState.active || token !== visualState.token) return;
+        // A failed permission check never exposes edit controls.
+        for (const id of batch) visualState.stageRights.set(id,false);
+      }).finally(() => {
+        if (!visualState.active || token !== visualState.token) return;
+        batch.forEach(id => visualState.stageRightsPending.delete(id));
+      });
+    }
+  }
+  function visualEditStage(id) {
+    const record = visualState.records.find(r => getId(r) === id);
+    if (!record || visualState.stageSavingId ||
+        visualState.stageRights.get(id) !== true || !visualState.stageSettings) return;
+    visualState.stageEditId = id;
+    visualState.stageDraft = getStage(record);
+    visualState.stageMessages.delete(id);
+    visualRefreshStageControls();
+  }
+  function visualCancelStage(id) {
+    if (visualState.stageSavingId || visualState.stageEditId !== id) return;
+    visualState.stageEditId = '';
+    visualState.stageDraft = '';
+    visualRefreshStageControls();
+  }
+  async function visualSaveStage(id) {
+    if (!visualState.active || visualState.stageSavingId ||
+        visualState.stageEditId !== id || visualState.stageRights.get(id) !== true ||
+        !visualState.stageSettings || !visualState.stageFieldAvailable) return;
+    const record = visualState.records.find(r => getId(r) === id);
+    if (!record) return;
+    const choice = visualState.stageDraft;
+    const allowed = visualState.stageSettings.choices.includes(choice) ||
+      (choice === '' && !visualState.stageSettings.required);
+    if (!allowed) {
+      visualState.stageMessages.set(id,'Choose a valid staging status.');
+      visualRefreshStageControls();
+      return;
+    }
+    if (choice === getStage(record)) {
+      visualCancelStage(id);
+      return;
+    }
+    visualState.stageSavingId = id;
+    visualState.stageMessages.delete(id);
+    visualRefreshStageControls();
+    const token = visualState.token;
+    try {
+      // Permissions are checked again immediately before attempting to write.
+      const rights = await visualEvaluateStagePermissions([id]);
+      if (!visualState.active || token !== visualState.token) return;
+      if (rights.get(id) !== true) {
+        visualState.stageRights.set(id,false);
+        visualState.stageEditId = '';
+        throw new Error('Kintone no longer permits editing staging for this piece.');
+      }
+      const result = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,
+        ['$id','$revision','staging_status'],
+        '$id = "' + id + '" limit 1');
+      if (!visualState.active || token !== visualState.token) return;
+      const latest = result && Array.isArray(result.records) ? result.records[0] : null;
+      if (!latest || getId(latest) !== id)
+        throw new Error('The inventory record could not be loaded. No changes were made.');
+      const latestRevision = toText(field(latest,'$revision'));
+      if (!/^\d+$/.test(latestRevision))
+        throw new Error('Could not verify the record revision. No changes were made.');
+      if (getStage(latest) !== getStage(record)) {
+        if (!record.staging_status) record.staging_status = {value:getStage(latest)};
+        else record.staging_status.value = getStage(latest);
+        visualState.stageEditId = '';
+        throw new Error('Staging changed since this page loaded. Review the new value and try again.');
+      }
+      // Exactly one field is written. Revision checking prevents overwriting a
+      // concurrent Kintone update between the last read and this save.
+      await kintone.api(kintone.api.url('/k/v1/record.json',true),'PUT',{
+        app:SETTINGS.INVENTORY_APP_ID,id,
+        revision:latestRevision,
+        record:{staging_status:{value:choice}}
+      });
+      if (!visualState.active || token !== visualState.token) return;
+      if (!record.staging_status) record.staging_status = {value:choice};
+      else record.staging_status.value = choice;
+      visualState.stageEditId = '';
+      visualState.stageDraft = '';
+      visualState.stageMessages.set(id,'Saved: ' + (choice || 'Not staged'));
+    } catch (error) {
+      if (!visualState.active || token !== visualState.token) return;
+      visualState.stageMessages.set(id,describeError(error));
+    } finally {
+      if (visualState.active && token === visualState.token) {
+        visualState.stageSavingId = '';
+        renderVisualResults();
+        if (visualState.lightbox) renderVisualLightbox();
+      }
+    }
+  }
   function visualCard(record) {
     const id = getId(record);
     const name = getColorCombined(record);
@@ -402,7 +641,7 @@
           '<h3 class="zmwm-visual-color">' + esc(name) + '</h3>' +
           '<div class="zmwm-visual-list-status">' + statusBadge + '</div></div>' +
         visualDetailMarkup(record) +
-      '</div></a></article>';
+      '</div></a>' + visualStageMarkup(record) + '</article>';
   }
 
   function visualTableHeader(column) {
@@ -458,6 +697,7 @@
       '<td>' + (material ? '<span class="zmwm-visual-material">' + esc(material) +
         '</span>' : '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
       '<td><span class="zmwm-visual-rack">' + esc(rack) + '</span></td>' +
+      '<td class="zmwm-visual-table-stage">' + visualStageMarkup(record) + '</td>' +
       '<td class="zmwm-visual-table-lot">' +
         (lot ? '<span class="zmwm-visual-lot">Lot #: ' + esc(lot) + '</span>' :
           '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
@@ -486,10 +726,10 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.7">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.8">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
-      '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
+      '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
       '<button type="button" data-visual-action="refresh">↻ Refresh</button></div></header>' +
       '<div class="zmwm-visual-toolbar" role="search" aria-label="Photo inventory filters">' +
       '<label class="zmwm-visual-field zmwm-visual-search-field"><span>SEARCH</span>' +
@@ -569,12 +809,13 @@
             '</div>' +
             '<aside class="zmwm-visual-lightbox-info" aria-label="Inventory piece details">' +
               '<div id="zmwm-visual-lightbox-details"></div>' +
+              '<div id="zmwm-visual-lightbox-staging"></div>' +
             '</aside>' +
           '</div>' +
         '</section></div>' +
       '<footer class="zmwm-visual-footer">Shows pieces marked In by default. ' +
       'Use the In / Out Status filter to find historical Out pieces and photos. ' +
-      'Nothing is edited here.</footer>' +
+      'Inventory is unchanged unless an authorized user explicitly saves a staging status.</footer>' +
       mapSignature() + '</main>';
   }
   // Options come from the currently selected In/Out scope. Show exact Kintone piece-type
@@ -1058,6 +1299,9 @@
         '<button type="button" data-visual-action="refresh">Try again</button></div>';
       return;
     }
+    const tableBefore = container.querySelector &&
+      container.querySelector('.zmwm-visual-table-scroll');
+    const oldHorizontalScroll = tableBefore ? tableBefore.scrollLeft : 0;
     const results = visualMatchesSorted();
     const visible = results.slice(0,visualState.shown);
     renderVisualBasket();
@@ -1073,7 +1317,13 @@
         '<div class="zmwm-visual-empty">No pieces match those filters.</div>') +
       (visible.length < results.length ? '<div class="zmwm-visual-more-wrap"><button type="button" ' +
         'data-visual-action="more">Show more pieces</button></div>' : '');
+    const tableAfter = container.querySelector &&
+      container.querySelector('.zmwm-visual-table-scroll');
+    if (tableAfter) tableAfter.scrollLeft = oldHorizontalScroll;
     prepareVisualPhotos();
+    // Only displayed rows are evaluated (batch <= 100), never every inventory
+    // record. Until confirmed by Kintone, every staging control is hidden.
+    visualRequestStagePermissions(visible);
   }
   function fillVisualSlot(slot, url) {
     if (!slot) return;
@@ -1244,6 +1494,9 @@
     // Match the card's colored piece-type, material, rack, measurements,
     // job allocation and staff notes while retaining the large photo.
     details.innerHTML = visualDetailMarkup(current.record);
+    const stageInfo = root.querySelector('#zmwm-visual-lightbox-staging');
+    if (stageInfo) stageInfo.innerHTML = visualStageMarkup(current.record);
+    visualRefreshStageControls();
     status.innerHTML = visualStatusMarkup(getSale(current.record));
     if (inventoryStatus) inventoryStatus.innerHTML = isVisualOut(current.record) ?
       '<span class="zmwm-visual-inventory-badge is-out">OUT — NOT IN INVENTORY</span>' : '';
@@ -1385,12 +1638,12 @@
       throw new Error('Too many records for this view. Narrow the query before retrying.');
     }
     const dimensions = VISUAL_EXTRA_DIMENSION_FIELDS.map(dim => dim.code);
-    const optional = ['material','in_out_note','lot_num',...dimensions];
+    const optional = ['material','in_out_note','lot_num','staging_status',...dimensions];
     try {
       return await getRecords([...VISUAL_FIELDS,...optional]);
     } catch (initialError) {
       // Field-level permissions differ among Kintone users. Probe only the
-      // four explicit optional groups, with no inventory data exported,
+      // five explicit optional groups, with no inventory data exported,
       // then retry without fields that the signed-in user cannot access.
       const probe = async fields => {
         try {
@@ -1399,18 +1652,21 @@
           return true;
         } catch (error) { return false; }
       };
-      const [materialOK,notesOK,dimensionsOK,lotOK] = await Promise.all([
-        probe(['material']),probe(['in_out_note']),probe(dimensions),probe(['lot_num'])
+      const [materialOK,notesOK,dimensionsOK,lotOK,stageOK] = await Promise.all([
+        probe(['material']),probe(['in_out_note']),probe(dimensions),
+        probe(['lot_num']),probe(['staging_status'])
       ]);
       visualState.materialAvailable = materialOK;
       visualState.notesAvailable = notesOK;
       visualState.lotAvailable = lotOK;
+      visualState.stageFieldAvailable = stageOK;
       visualState.extraDimensionFields = dimensionsOK ?
         VISUAL_EXTRA_DIMENSION_FIELDS : [];
       const allowed = [
         ...(materialOK ? ['material'] : []),
         ...(notesOK ? ['in_out_note'] : []),
         ...(lotOK ? ['lot_num'] : []),
+        ...(stageOK ? ['staging_status'] : []),
         ...(dimensionsOK ? dimensions : [])
       ];
       return getRecords([...VISUAL_FIELDS,...allowed]);
@@ -1431,6 +1687,16 @@
       visualState.materialAvailable = true;
       visualState.notesAvailable = true;
       visualState.lotAvailable = true;
+      visualState.stageFieldAvailable = true;
+      // Drop cached edit rights on every refresh; the next page is checked anew.
+      visualState.stageRights.clear();
+      visualState.stageRightsPending.clear();
+      visualState.stageEditId = '';
+      visualState.stageDraft = '';
+      visualState.stageSavingId = '';
+      visualState.stageMessages.clear();
+      // Obsolete settings requests may still resolve; a new refresh can retry.
+      visualState.stageSettingsPending = false;
       if (token !== visualState.token || !visualState.active) return;
       const groupIds = visualState.groupViewIds ? [...visualState.groupViewIds] : null;
       const records = await fetchVisualRecords(visualState.inventoryScope,groupIds);
@@ -1510,6 +1776,15 @@
     visualState.groupViewIds = null;
     visualState.groupError = '';
     visualState.basketMessage = '';
+    visualState.stageRights.clear();
+    visualState.stageRightsPending.clear();
+    visualState.stageSettings = null;
+    visualState.stageSettingsPending = false;
+    visualState.stageSettingsUnavailable = false;
+    visualState.stageEditId = '';
+    visualState.stageDraft = '';
+    visualState.stageSavingId = '';
+    visualState.stageMessages.clear();
     visualState.savedGroups = [];
     visualState.savedGroupsKey = '';
     visualState.savedGroupsError = '';
@@ -1601,6 +1876,13 @@
       }
     });
     ui.addEventListener('change',event => {
+      if (event.target.dataset && event.target.dataset.visualStageChoice) {
+        const id = str(event.target.dataset.visualStageChoice);
+        if (visualState.stageEditId === id &&
+            visualState.stageRights.get(id) === true && !visualState.stageSavingId)
+          visualState.stageDraft = str(event.target.value);
+        return;
+      }
       const filter = event.target.dataset ? event.target.dataset.visualFilter : '';
       if (filter === 'material' || filter === 'type') {
         const selected = filter === 'material' ? visualState.materials : visualState.pieceTypes;
@@ -1661,6 +1943,18 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
+      if (action === 'edit-staging') {
+        visualEditStage(str(button.dataset.visualStageId));
+        return;
+      }
+      if (action === 'cancel-staging') {
+        visualCancelStage(str(button.dataset.visualStageId));
+        return;
+      }
+      if (action === 'save-staging') {
+        visualSaveStage(str(button.dataset.visualStageId));
+        return;
+      }
       if (action === 'save-group') {
         visualSaveCurrentGroup();
         return;

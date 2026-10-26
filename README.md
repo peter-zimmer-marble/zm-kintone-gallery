@@ -48,6 +48,16 @@ The **standalone ZM Inventory App 6 Visual Search** can now create a temporary s
 
 Regression coverage: `tests/visual-search-saved-groups.test.js` validates saving, reopening after leaving the view, named updates, user isolation, delete confirmations, copied links, historical Out pieces, HTML escaping, cross-tab changes and storage errors. Live Kintone browser testing is still required.
 
+## Update staging status from Visual Search (2026-10-26)
+
+The **standalone App 6 Visual Search** displays the existing `staging_status` field when the logged-in user has permission to read it, in the gallery, sortable list column and enlarged photo details. The actual values come from the existing inventory record. The warehouse staging pilot uses `RTS` and `View Staging`; edit options are **fetched from the Kintone form** instead of hardcoding just those two.
+
+An **inline Change button is shown only after the logged-in user is explicitly confirmed to have both record-level Edit and field-level Edit rights for that exact record**, via the official session-authenticated `GET /k/v1/records/acl/evaluate.json` API. A read-only user, one who can edit other fields but not `staging_status`, or one who cannot edit that record sees **no Change control**. Permission checks are batched only for displayed records (maximum 100 per request) and fail closed. Editors see a dropdown with the live field options and Save/Cancel buttons; others can still browse inventory. No user names are hardcoded.
+
+**Writing safeguard:** Clicking Save first rechecks the current record/field permissions, then rereads `staging_status` and `$revision` from the current record. If the staging value changed since the page loaded, the save is rejected and the updated value displayed. The PUT is explicitly limited to `{staging_status:{value:newValue}}` and includes the latest revision to prevent lost updates. On failure the UI shows a message and does not claim success. No image, rack, inventory status, notes, pricing, or other inventory fields are updated. This is a **narrow exception** to the otherwise read-only Visual Search; warehouse staging and the separate inventory application are unchanged.
+
+**Deployment:** Existing `zm-visual-search-v2.js` and `.css` URLs are retained; no Kintone customization settings or permission changes are made. The new test `tests/visual-search-staging-status.test.js` verifies actual ACL behavior, hidden controls for denied fields, form-derived options, explicit single-field updates, revision checks, and read-only fallbacks. Live authenticated Kintone browser verification with both an authorized and restricted login is still necessary.
+
 ## Move Visual Search to ZM Inventory (App 6)
 
 **Updated:** Visual Search v2 supersedes the original v1 assets below. For an already-installed app use the v2 replacement steps in the next section; do not install both versions.

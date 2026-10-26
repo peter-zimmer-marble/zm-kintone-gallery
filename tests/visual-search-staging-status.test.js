@@ -1,0 +1,294 @@
+// Permission-gated staging_status editor regression for Inventory App 6.
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync('zm-visual-search-v2.js','utf8');
+const css=fs.readFileSync('zm-visual-search-v2.css','utf8');
+new vm.Script(source);
+function node(){
+ return {innerHTML:'',textContent:'',value:'',checked:false,hidden:true,
+   classList:{toggle(){}},querySelector(){return null;},querySelectorAll(){return [];}};
+}
+const nodes=new Map(),listeners=new Map(),events=[];
+for(const id of [
+ 'zmwm-visual-results','zmwm-visual-feedback','zmwm-visual-basket',
+ 'zmwm-visual-group-banner','zmwm-visual-inventory-scope',
+ 'zmwm-visual-material-options','zmwm-visual-type-options',
+ 'zmwm-visual-material-summary','zmwm-visual-type-summary',
+ 'zmwm-visual-material-filter','zmwm-visual-type-filter',
+ 'zmwm-visual-search','zmwm-visual-sale','zmwm-visual-min-length',
+ 'zmwm-visual-min-width','zmwm-visual-photos-only',
+ 'zmwm-visual-lightbox-staging'
+])nodes.set(id,node());
+const hosts=new Map();
+function hostFor(id){
+ if(!hosts.has(id)){
+   const parts=new Map();
+   for(const part of ['value','actions','feedback'])parts.set(part,node());
+   hosts.set(id,{dataset:{visualStagingRecord:id},
+     parts,querySelector(selector){
+       if(selector==='[data-visual-stage-value]')return parts.get('value');
+       if(selector==='[data-visual-stage-actions]')return parts.get('actions');
+       if(selector==='[data-visual-stage-feedback]')return parts.get('feedback');
+       return null;
+     }});
+ }
+ return hosts.get(id);
+}
+const ui=node();
+ui.addEventListener=(event,cb,capture)=>{
+ const list=listeners.get(event)||[];list.push({cb,capture:!!capture});
+ listeners.set(event,list);
+};
+ui.querySelector=selector=>nodes.get(selector.slice(1))||null;
+ui.querySelectorAll=selector=>{
+ if(selector!=='[data-visual-staging-record]')return [];
+ const html=nodes.get('zmwm-visual-results').innerHTML;
+ const ids=[...html.matchAll(/data-visual-staging-record="([0-9]+)"/g)]
+   .map(m=>m[1]);
+ return [...new Set(ids)].map(hostFor);
+};
+nodes.set('zmwm-visual-root',ui);
+const app=node();
+app.querySelector=selector=>selector==='#zmwm-visual-root'?ui:null;
+nodes.set('zm-visual-search-root',app);
+const popup=node(),sub=new Map();
+for(const selector of [
+ '#zmwm-visual-lightbox-title','#zmwm-visual-lightbox-meta',
+ '#zmwm-visual-lightbox-record-link','#zmwm-visual-lightbox-status',
+ '#zmwm-visual-lightbox-inventory','#zmwm-visual-lightbox-details',
+ '#zmwm-visual-lightbox-staging','#zmwm-visual-lightbox-image',
+ '#zmwm-visual-lightbox-caption','#zmwm-visual-lightbox-thumbnails',
+ '[data-visual-action="download-photo"]','[data-visual-action="previous-photo"]',
+ '[data-visual-action="next-photo"]',
+ '[data-visual-action="close-photo"].zmwm-visual-lightbox-close',
+ '.zmwm-visual-lightbox-panel'
+])sub.set(selector,node());
+sub.get('[data-visual-action="close-photo"].zmwm-visual-lightbox-close').focus=()=>{};
+popup.querySelector=selector=>sub.get(selector)||null;
+nodes.set('zmwm-visual-lightbox',popup);
+function piece(id,name,status){
+ const record={
+   $id:String(id),$revision:'1',color:name,color_combined:name,zmv_num:'',
+   type:'STOCK Rem',material:'Quartz',inventory_status:'In',
+   sale_status:'Avl',rack:'Z-1A',lot_num:'LOT-'+id,
+   length:'50',width:'32',shape:'Rectangle',
+   staging_status:status,job:'Test Kitchen',
+   in_out_note:'Do not change',length_2:'',width_2:'',
+   exact_picture:[],example_picture:[]
+ };
+ return Object.fromEntries(Object.entries(record).map(([k,v])=>[k,{value:v}]));
+}
+let records=[
+ piece(1,'Read Only Remnant','RTS'),
+ piece(2,'Editable Remnant','RTS'),
+ piece(3,'Record Not Editable','View Staging'),
+ piece(4,'No Staging Set','')
+];
+const calls=[],writes=[],aclCalls=[];
+const canEdit=new Set(['2','3','4']);
+let canViewStage=true, formFailure=false, forcePutError=false;
+let formCalls=0;
+function cloneRecord(record,fields){
+ return Object.fromEntries(Object.entries(record)
+   .filter(([k])=>!fields || fields.includes(k))
+   .map(([k,v])=>[k,{...v}]));
+}
+async function api(url,method,request){
+ const path=String(url);
+ assert.equal(request.app,6);
+ if(path.includes('/records/acl/evaluate.json')){
+   assert.equal(method,'GET');
+   assert.ok(request.ids.length<=100,'Kintone ACL batch max 100');
+   aclCalls.push(request);
+   return {rights:request.ids.map(value=>{
+     const id=String(value);
+     return {id,record:{viewable:true,editable:id!=='3'},
+       fields:{staging_status:{
+         viewable:canViewStage,
+         editable:canEdit.has(id)
+       }}};
+   })};
+ }
+ if(path.includes('/app/form/fields.json')){
+   assert.equal(method,'GET');
+   formCalls++;
+   if(formFailure)throw Error('Form options not accessible');
+   return {properties:{staging_status:{
+     type:'DROP_DOWN',required:false,
+     options:{RTS:{label:'RTS',index:'0'},
+       'View Staging':{label:'View Staging',index:'1'},
+       'Ready for Shop':{label:'Ready for Shop',index:'2'}}
+   }}};
+ }
+ if(path.includes('/record.json') && method==='PUT'){
+   assert.equal(request.id,'2','Only explicitly authorized row may be written');
+   assert.deepEqual(Object.keys(request.record),['staging_status'],
+     'Never update unrelated fields');
+   assert.equal(request.revision,
+     records.find(r=>r.$id.value===request.id).$revision.value);
+   if(forcePutError)throw Error('Revision conflict: another user changed this record');
+   const found=records.find(r=>r.$id.value===request.id);
+   found.staging_status.value=request.record.staging_status.value;
+   found.$revision.value='2';
+   writes.push(request);
+   return {revision:'2'};
+ }
+ assert.equal(method,'GET','No implicit inventory writes');
+ assert.ok(path.includes('/records.json'),'Only records GET allowed');
+ calls.push(request);
+ const specific=request.query.match(/\$id = "([0-9]+)"/);
+ const stageDenied=request.fields.includes('staging_status') && !canViewStage;
+ if(stageDenied)throw Error('Staging field not viewable');
+ const allowed=records.filter(r=>specific ? r.$id.value===specific[1] : true);
+ return {records:allowed.map(r=>cloneRecord(r,request.fields))};
+}
+api.url=x=>x;
+const location={origin:'https://zimmermarble.kintone.com',pathname:'/k/6/',
+ search:'?view=4321',hash:''},stored=new Map();
+const env={
+ console,
+ window:{kintone:{},location,localStorage:{
+   getItem(k){return stored.get(k)||null;},
+   setItem(k,v){stored.set(k,v);}
+ }},
+ kintone:{api,getLoginUser(){return {code:'admin-test'};},
+   events:{on(_types,handler){events.push(handler);}}},
+ document:{getElementById(id){return nodes.get(id)||null;},
+   addEventListener(){},removeEventListener(){}},
+ URL:{revokeObjectURL(){},createObjectURL(){return 'blob:test';}},
+ XMLHttpRequest:class{open(m){assert.equal(m,'GET');}
+   setRequestHeader(){}send(){}abort(){}}
+};
+vm.runInNewContext(source,env);
+assert.equal(events.length,1);
+const handler=events[0],event={viewName:'Visual Search',viewType:'custom',viewId:4321};
+const tick=()=>new Promise(r=>setImmediate(r));
+const flush=async()=>{await tick();await tick();await tick();};
+function send(type,target,capture=false){
+ const callbacks=(listeners.get(type)||[]).filter(x=>x.capture===capture);
+ assert.ok(callbacks.length,'Missing '+type+' handler');
+ for(const item of callbacks)item.cb({
+   target,preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}
+ });
+}
+function action(name,id){
+ const target={dataset:{visualAction:name,visualStageId:String(id)}};
+ send('click',{closest:sel=>sel==='[data-visual-action]'?target:null});
+}
+const html=()=>nodes.get('zmwm-visual-results').innerHTML;
+const controls=id=>hostFor(String(id)).parts.get('actions').innerHTML;
+const feedback=id=>hostFor(String(id)).parts.get('feedback').textContent;
+async function reopen(){
+ handler({viewName:'Gallery A',viewType:'custom'});
+ listeners.clear();hosts.clear();
+ handler(event);await flush();
+}
+(async()=>{
+  handler(event);await flush();
+  assert.match(calls[0].query,/inventory_status in \("In"\)/);
+  assert.ok(calls[0].fields.includes('staging_status'));
+  assert.ok(aclCalls.length>0,'Must check current signed-in user with Kintone ACL API');
+  assert.match(html(),/STAGING/);
+  assert.match(html(),/RTS/);
+  assert.match(html(),/Not staged/);
+  assert.match(html(),/<\/a><div class="zmwm-visual-staging"/,
+    'Gallery staging widget must be outside the record link');
+  assert.match(controls(2),/data-visual-action="edit-staging"/);
+  assert.match(controls(4),/data-visual-action="edit-staging"/);
+  assert.equal(controls(1),'','Read-only fields must expose no editor');
+  assert.equal(controls(3),'','Non-editable records must expose no editor');
+  assert.equal(formCalls,1,'Form settings loaded only after ACL edit permission');
+  assert.equal(writes.length,0);
+
+  // The existing list view has a separately sortable staging column.
+  send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
+  assert.match(html(),/data-visual-sort="staging"/);
+  assert.match(html(),/class="zmwm-visual-table-stage"/);
+
+  // A forged click for a read-only field must not update anything.
+  action('edit-staging',1);action('save-staging',1);
+  assert.equal(writes.length,0);
+  assert.equal(controls(1),'');
+
+  // Authorized editor sees true Kintone choice values including form-defined
+  // extra options, rather than hardcoded RTS/View Staging.
+  action('edit-staging',2);
+  assert.match(controls(2),/data-visual-stage-choice="2"/);
+  assert.match(controls(2),/Ready for Shop/);
+  assert.match(controls(2),/data-visual-action="save-staging"/);
+  action('cancel-staging',2);
+  assert.match(controls(2),/data-visual-action="edit-staging"/);
+  assert.equal(writes.length,0);
+
+  // Explicit Save re-evaluates ACL then reads a fresh revision and updates
+  // exactly the staging_status field. No inventory notes or photos are sent.
+  action('edit-staging',2);
+  send('change',{dataset:{visualStageChoice:'2'},value:'View Staging'});
+  action('save-staging',2);await flush();
+  assert.equal(writes.length,1);
+  assert.equal(writes[0].record.staging_status.value,'View Staging');
+  assert.equal(records[1].staging_status.value,'View Staging');
+  assert.equal(records[1].in_out_note.value,'Do not change');
+  assert.match(html(),/Saved: View Staging/);
+  assert.ok(aclCalls.length>=2,'Rights checked again immediately before saving');
+  assert.ok(calls.at(-1).fields.includes('$revision'));
+  assert.match(html(),/View Staging/);
+
+  // Concurrent revision conflict after the final read must fail cleanly.
+  forcePutError=true;
+  action('edit-staging',2);
+  send('change',{dataset:{visualStageChoice:'2'},value:'RTS'});
+  action('save-staging',2);await flush();
+  assert.equal(writes.length,1,'Failed PUT must not be reported as saved');
+  assert.equal(records[1].staging_status.value,'View Staging');
+  assert.match(html(),/Revision conflict/);
+  forcePutError=false;
+
+  // Cancel and unchanged selections never issue writes.
+  action('edit-staging',4);action('cancel-staging',4);
+  assert.equal(writes.length,1);
+
+  // A revoked permission before Save must prevent PUT and hide editor.
+  canEdit.delete('4');
+  action('edit-staging',4);
+  send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
+  action('save-staging',4);await flush();
+  assert.equal(writes.length,1);
+  assert.doesNotMatch(html(),/data-visual-stage-id="4"/,
+    'Revoked permission must remove control after DOM re-render');
+  assert.match(html(),/no longer permits editing/);
+
+  // Load an editor with a staging value that changed after list fetch.
+  canEdit.add('4');
+  await reopen();
+  action('edit-staging',4);
+  records[3].staging_status.value='View Staging';
+  send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
+  action('save-staging',4);await flush();
+  assert.equal(writes.length,1,'Do not overwrite newer staging value');
+  assert.match(html(),/changed since this page loaded/);
+
+  // Field denied entirely: list still loads, but no staging field or ACL editor.
+  canViewStage=false;
+  const before=aclCalls.length;
+  await reopen();
+  assert.equal(aclCalls.length,before,'No ACL probes when field cannot be read');
+  assert.doesNotMatch(html(),/data-visual-staging-record/);
+  assert.equal(writes.length,1);
+  canViewStage=true;
+
+  // Form choices inaccessible: rights do not imply it is safe to guess options.
+  formFailure=true;
+  await reopen();
+  assert.equal(controls(2),'');
+  assert.equal(writes.length,1);
+  formFailure=false;
+  assert.ok(css.includes('.zmwm-visual-table-stage'));
+  assert.ok(css.includes('.zmwm-visual-stage-editor'));
+  console.log('Staging status: display, record/field ACL, gallery/list, '+
+    'dynamic choices, guarded single-field revisioned PUT, revoked rights, '+
+    'stale values, denied fields and failed metadata passed.');
+})().catch(error=>{console.error(error);process.exitCode=1;});
