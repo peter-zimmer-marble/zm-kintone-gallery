@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.6 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.7 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -95,6 +95,8 @@
   const VISUAL_PAGE_SIZE = 32;
   const VISUAL_MAX_GROUP_PIECES = 75;
   const VISUAL_MAX_GROUP_TITLE = 80;
+  const VISUAL_MAX_SAVED_GROUPS = 40;
+  const VISUAL_SAVED_GROUPS_PREFIX = 'zmwm-visual-search-saved-groups-v1:';
   // Save only the display preference; inventory records and image blobs are never persisted.
   const VISUAL_LIST_PREFERENCE_KEY = 'zmwm-visual-search-list-view';
   function readVisualListPreference() {
@@ -126,7 +128,9 @@
     // Selection is tab-local only. Shared URLs contain IDs and optional title,
     // never protected inventory records, images, prices or account credentials.
     selectedIds:new Set(), selectedRecords:new Map(), groupName:'',
-    groupViewIds:null, viewId:'', groupError:'', basketMessage:''
+    groupViewIds:null, viewId:'', groupError:'', basketMessage:'',
+    savedGroups:[], savedGroupsKey:'', savedGroupsError:'',
+    savedGroupsStorageHandler:null
   };
   const visualDimension = value => toText(value) || '?';
   const visualNumericDimension = value => {
@@ -482,7 +486,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.6">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.7">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
@@ -668,18 +672,21 @@
     catch (_error) { return {error:'This group link has an invalid name.'}; }
     return {ids,name:name.trim().slice(0,VISUAL_MAX_GROUP_TITLE)};
   }
-  function visualGroupShareUrl() {
+  function visualGroupUrlForIds(pieceIds,groupName) {
     const origin = toText(window.location && window.location.origin);
     const viewId = visualNormalizeGroupId(visualState.viewId);
-    const ids = [...visualState.selectedIds];
+    const ids = Array.isArray(pieceIds) ? pieceIds.map(visualNormalizeGroupId) : [];
     if (!origin || !/^https?:\/\//.test(origin) || !viewId || !ids.length ||
-        ids.length > VISUAL_MAX_GROUP_PIECES) return '';
-    // The link includes only Kintone record IDs; the receiver must authenticate
-    // and is subject to the same Kintone record/photo permissions.
-    const name = toText(visualState.groupName).slice(0,VISUAL_MAX_GROUP_TITLE);
+        ids.length > VISUAL_MAX_GROUP_PIECES ||
+        ids.some(id => !id) || new Set(ids).size !== ids.length) return '';
+    // A link contains IDs and a title, not photos, inventory data or credentials.
+    const name = toText(groupName).trim().slice(0,VISUAL_MAX_GROUP_TITLE);
     const fragment = '#zmgroup=' + ids.join('.') +
       (name ? '&zmname=' + encodeURIComponent(name) : '');
     return origin + '/k/' + SETTINGS.INVENTORY_APP_ID + '/?view=' + viewId + fragment;
+  }
+  function visualGroupShareUrl() {
+    return visualGroupUrlForIds([...visualState.selectedIds],visualState.groupName);
   }
   function renderVisualBasket() {
     const basket = document.getElementById('zmwm-visual-basket');
