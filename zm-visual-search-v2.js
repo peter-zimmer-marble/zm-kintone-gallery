@@ -688,6 +688,215 @@
   function visualGroupShareUrl() {
     return visualGroupUrlForIds([...visualState.selectedIds],visualState.groupName);
   }
+  // Saved groups store only name, record IDs and timestamps; never record
+  // details or photo keys. Each Kintone user has a separate browser-local key.
+  function visualSavedGroupsStorageKey() {
+    try {
+      const user = typeof kintone.getLoginUser === 'function' ?
+        kintone.getLoginUser() : null;
+      const code = user && toText(user.code).trim();
+      return code ? VISUAL_SAVED_GROUPS_PREFIX + encodeURIComponent(code) : '';
+    } catch (_error) { return ''; }
+  }
+  function visualValidateSavedGroup(entry) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
+        typeof entry.id !== 'string' || !/^[a-zA-Z0-9_-]{5,80}$/.test(entry.id) ||
+        typeof entry.name !== 'string' ||
+        !entry.name.trim() || entry.name.trim().length > VISUAL_MAX_GROUP_TITLE ||
+        !Array.isArray(entry.pieceIds) || !entry.pieceIds.length ||
+        entry.pieceIds.length > VISUAL_MAX_GROUP_PIECES) return null;
+    const ids = entry.pieceIds.map(visualNormalizeGroupId);
+    if (ids.some(id => !id) || new Set(ids).size !== ids.length) return null;
+    const createdAt = typeof entry.createdAt === 'string' &&
+      Number.isFinite(Date.parse(entry.createdAt)) ? entry.createdAt : '';
+    const updatedAt = typeof entry.updatedAt === 'string' &&
+      Number.isFinite(Date.parse(entry.updatedAt)) ? entry.updatedAt : createdAt;
+    if (!createdAt) return null;
+    return {
+      id:entry.id, name:entry.name.trim(), pieceIds:ids,
+      createdAt, updatedAt
+    };
+  }
+  function visualLoadSavedGroups() {
+    visualState.savedGroups = [];
+    visualState.savedGroupsKey = visualSavedGroupsStorageKey();
+    visualState.savedGroupsError = '';
+    if (!visualState.savedGroupsKey) {
+      visualState.savedGroupsError = 'Saved groups require a signed-in Kintone user. ' +
+        'You can still copy and share links.';
+      return;
+    }
+    try {
+      const value = window.localStorage.getItem(visualState.savedGroupsKey);
+      if (!value) return;
+      // Fail closed on unreadable storage; do not overwrite a damaged library.
+      if (value.length > 90000) throw new Error('Saved group data is too large');
+      const raw = JSON.parse(value);
+      if (!Array.isArray(raw) || raw.length > VISUAL_MAX_SAVED_GROUPS)
+        throw new Error('Invalid saved group collection');
+      const groups = raw.map(visualValidateSavedGroup);
+      if (groups.some(item => !item) ||
+          new Set(groups.map(item => item.id)).size !== groups.length)
+        throw new Error('Invalid saved group data');
+      visualState.savedGroups = groups.sort((a,b) =>
+        b.updatedAt.localeCompare(a.updatedAt));
+    } catch (_error) {
+      visualState.savedGroupsError = 'Saved groups could not be read in this browser. ' +
+        'No saved data has been overwritten. You can still copy links.';
+    }
+  }
+  function visualPersistSavedGroups(groups) {
+    if (!visualState.savedGroupsKey || visualState.savedGroupsError) {
+      visualState.basketMessage = visualState.savedGroupsError ||
+        'Saved groups are unavailable. You can still copy the group link.';
+      return false;
+    }
+    try {
+      if (!Array.isArray(groups) || groups.length > VISUAL_MAX_SAVED_GROUPS ||
+          groups.some(group => !visualValidateSavedGroup(group)))
+        throw new Error('Saved group is invalid');
+      const json = JSON.stringify(groups);
+      if (json.length > 90000) throw new Error('Saved groups exceed browser capacity');
+      window.localStorage.setItem(visualState.savedGroupsKey,json);
+      if (window.localStorage.getItem(visualState.savedGroupsKey) !== json)
+        throw new Error('Saved groups were not stored');
+      visualState.savedGroups = groups;
+      return true;
+    } catch (_error) {
+      visualState.basketMessage = 'This browser could not save your group. ' +
+        'Copy its shareable link to keep it instead.';
+      return false;
+    }
+  }
+  function visualSavedGroupsMarkup() {
+    const groups = visualState.savedGroups;
+    const items = groups.map(item => {
+      const link = visualGroupUrlForIds(item.pieceIds,item.name);
+      const date = new Date(item.updatedAt).toLocaleDateString(undefined,{
+        year:'numeric',month:'short',day:'numeric'
+      });
+      return '<div class="zmwm-visual-saved-item">' +
+        '<div class="zmwm-visual-saved-info"><strong>' + esc(item.name) + '</strong>' +
+          '<span>' + item.pieceIds.length + ' piece' +
+            (item.pieceIds.length === 1 ? '' : 's') +
+            ' · Saved ' + esc(date) + '</span></div>' +
+        '<div class="zmwm-visual-saved-actions">' +
+          (link ? '<a href="' + esc(link) +
+            '" class="zmwm-visual-saved-open">Open</a>' :
+            '<span class="zmwm-visual-saved-disabled">Open unavailable</span>') +
+          '<button type="button" data-visual-action="copy-saved-group"' +
+            ' data-visual-saved-id="' + esc(item.id) + '"' +
+            (link ? '' : ' disabled') + '>Copy link</button>' +
+          '<button type="button" class="zmwm-visual-saved-delete"' +
+            ' data-visual-action="delete-saved-group"' +
+            ' data-visual-saved-id="' + esc(item.id) + '">' +
+            'Delete</button></div></div>';
+    }).join('');
+    return '<section class="zmwm-visual-saved-groups" aria-label="My saved groups">' +
+      '<div class="zmwm-visual-saved-head"><strong>My saved groups</strong>' +
+        '<span>' + groups.length + ' saved</span></div>' +
+      (visualState.savedGroupsError ?
+        '<p class="zmwm-visual-saved-error" role="alert">' +
+          esc(visualState.savedGroupsError) + '</p>' :
+        groups.length ? '<div class="zmwm-visual-saved-list">' + items + '</div>' :
+          '<p class="zmwm-visual-saved-empty">No saved groups yet. ' +
+            'Build a selection, give it a name, then choose Save group.</p>') +
+      '<p class="zmwm-visual-saved-footnote">Stored only in this browser for your ' +
+        'Kintone login. Clearing browser data may remove these saved groups. ' +
+        'Previously shared links continue to work even after deletion.</p>' +
+      '</section>';
+  }
+  function visualSaveCurrentGroup() {
+    const name = toText(visualState.groupName).trim().slice(0,VISUAL_MAX_GROUP_TITLE);
+    const ids = [...visualState.selectedIds];
+    if (!ids.length) {
+      visualState.basketMessage = 'Select at least one piece before saving.';
+      renderVisualBasket();
+      return;
+    }
+    if (!name) {
+      visualState.basketMessage = 'Enter a group name before saving it.';
+      renderVisualBasket();
+      return;
+    }
+    const existing = visualState.savedGroups.find(item =>
+      item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    const now = new Date().toISOString();
+    let next;
+    if (existing) {
+      if (existing.pieceIds.join('.') === ids.join('.')) {
+        visualState.basketMessage = 'This group is already saved in this browser.';
+        renderVisualBasket();
+        return;
+      }
+      const prompt = 'Replace saved group "' + existing.name +
+        '" with these ' + ids.length + ' selected pieces? This does not change inventory records.';
+      if (typeof window.confirm !== 'function' || !window.confirm(prompt)) return;
+      next = visualState.savedGroups.map(item =>
+        item.id === existing.id ?
+          {...item,name,pieceIds:ids,updatedAt:now} : item);
+    } else {
+      if (visualState.savedGroups.length >= VISUAL_MAX_SAVED_GROUPS) {
+        visualState.basketMessage = 'This browser holds the maximum of ' +
+          VISUAL_MAX_SAVED_GROUPS + ' saved groups. Delete an old one first.';
+        renderVisualBasket();
+        return;
+      }
+      const key = 'sg_' + Date.now().toString(36) +
+        Math.random().toString(36).slice(2,9);
+      next = [{
+        id:key,name,pieceIds:ids,createdAt:now,updatedAt:now
+      },...visualState.savedGroups];
+    }
+    next.sort((a,b) => b.updatedAt.localeCompare(a.updatedAt));
+    if (visualPersistSavedGroups(next)) {
+      visualState.groupName = name;
+      visualState.basketMessage = existing ?
+        'Saved group updated in this browser.' :
+        'Group saved in this browser. Reopen it anytime from My saved groups.';
+    }
+    renderVisualBasket();
+  }
+  function visualDeleteSavedGroup(id) {
+    const group = visualState.savedGroups.find(item => item.id === id);
+    if (!group) return;
+    const question = 'Delete saved group "' + group.name +
+      '" from this browser? This cannot be undone here. ' +
+      'Previously shared links will still work.';
+    if (typeof window.confirm !== 'function' || !window.confirm(question)) return;
+    if (visualPersistSavedGroups(visualState.savedGroups.filter(item =>
+      item.id !== id))) {
+      visualState.basketMessage = '"' + group.name +
+        '" deleted from your saved groups. Shared links are unchanged.';
+    }
+    renderVisualBasket();
+  }
+  function visualCopySavedGroup(id) {
+    const group = visualState.savedGroups.find(item => item.id === id);
+    if (!group) return;
+    const link = visualGroupUrlForIds(group.pieceIds,group.name);
+    if (!link) {
+      visualState.basketMessage = 'Could not generate a group link from this view.';
+      renderVisualBasket();
+      return;
+    }
+    const clipboard = window.navigator && window.navigator.clipboard;
+    if (!clipboard || typeof clipboard.writeText !== 'function') {
+      visualState.basketMessage = 'Clipboard access is unavailable. Open the saved ' +
+        'group and copy its URL from the address bar.';
+      renderVisualBasket();
+      return;
+    }
+    clipboard.writeText(link).then(() => {
+      if (!visualState.active) return;
+      visualState.basketMessage = 'Saved group link copied for "' + group.name + '".';
+      renderVisualBasket();
+    }).catch(() => {
+      if (!visualState.active) return;
+      visualState.basketMessage = 'Copy failed. Open the saved group and copy the URL.';
+      renderVisualBasket();
+    });
+  }
   function renderVisualBasket() {
     const basket = document.getElementById('zmwm-visual-basket');
     const banner = document.getElementById('zmwm-visual-group-banner');
