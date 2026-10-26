@@ -24,6 +24,18 @@ The code repository does not expose live Kintone customization settings, so it c
 
 The optional Material and In/Out Notes fields follow the signed-in Kintone user's permissions. If an optional field is denied, the view keeps loading inventory, reports the missing field and disables only the affected feature. No pricing or supplier fields are fetched. Verify with a typical restricted-role user before relying on notes.
 
+## Share a custom group of pieces (2026-10-26)
+
+The **standalone ZM Inventory App 6 Visual Search** can now create a temporary selection basket without altering records or requiring a separate Kintone app:
+
+1. Check pieces in **List view**. Selections remain in the basket while you search, sort, paginate, or change the In/Out filter; for example, pick four remnants, search again, and pick three slabs.
+2. Optionally give the group a name. Use **Copy group link** or **Open group**. The recipient opens the normal Visual Search view with exactly the selected records, including any historical Out pieces. The recipient can view images and normal inventory details, or remove items and copy a revised link.
+3. **Back to inventory** returns to the normal default of In only, keeping the current tab's basket if the user wants to continue selecting. **Clear selection** empties only the basket. The basket is tab-local and is not a permanent saved object; an already-sent link is a snapshot of record IDs, while displayed statuses, photos and record details update live.
+
+**Link design:** `https://zimmermarble.kintone.com/k/6/?view={viewId}#zmgroup=123.456.789&zmname=Example`. Kintone's `app.record.index.show` event provides the custom view ID. Links contain record IDs and an optional group title, **not** images, notes, prices or credentials. Opening uses the authenticated Kintone GET API with `$id in (...)`, so recipients must sign in and have record/field/photo access. Missing/deleted/inaccessible items receive a warning. A group can contain up to **75** record IDs to keep links manageable. The URL does not create any new permanent record; editing a basket and sharing again creates a new link.
+
+**Deployment:** This is an in-place update to `zm-visual-search-v2.js` / `.css` (the existing Kintone customization URLs). No new Kintone customization entries or data tables are required. This affects only the standalone App 6 view, not the Warehouse Map test bundle, warehouse staging, or the separate inventory rebuild. The CI suite includes `tests/visual-search-share-group.test.js`; verify deep-link routing and clipboard access in an authenticated Kintone browser after publication.
+
 ## Move Visual Search to ZM Inventory (App 6)
 
 **Updated:** Visual Search v2 supersedes the original v1 assets below. For an already-installed app use the v2 replacement steps in the next section; do not install both versions.

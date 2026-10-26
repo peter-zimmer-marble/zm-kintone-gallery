@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.4 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.5 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -93,6 +93,8 @@
   // physical maps, but has its own image-first, read-only user interface.
   // It does not change any warehouse-map layout or write to Kintone.
   const VISUAL_PAGE_SIZE = 32;
+  const VISUAL_MAX_GROUP_PIECES = 75;
+  const VISUAL_MAX_GROUP_TITLE = 80;
   // Save only the display preference; inventory records and image blobs are never persisted.
   const VISUAL_LIST_PREFERENCE_KEY = 'zmwm-visual-search-list-view';
   function readVisualListPreference() {
@@ -120,7 +122,11 @@
     lotAvailable:true,
     token:0, urls:new Map(), failed:new Set(), pending:[], pendingKeys:new Set(),
     inflight:new Map(), observer:null, lightbox:null, keydownHandler:null,
-    touchStartX:null, extraDimensionFields:[]
+    touchStartX:null, extraDimensionFields:[],
+    // Selection is tab-local only. Shared URLs contain IDs and optional title,
+    // never protected inventory records, images, prices or account credentials.
+    selectedIds:new Set(), selectedRecords:new Map(), groupName:'',
+    groupViewIds:null, viewId:'', groupError:'', basketMessage:''
   };
   const visualDimension = value => toText(value) || '?';
   const visualNumericDimension = value => {
@@ -212,7 +218,7 @@
   // All list columns sort on underlying Kintone values, never on rendered HTML.
   // Gallery mode deliberately retains its original alphabetical ordering.
   const VISUAL_TABLE_COLUMNS = Object.freeze([
-    {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
+    {key:'select',label:'Select'}, {key:'photo',label:'Photos'}, {key:'color',label:'Color'},
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
     {key:'rack',label:'Rack'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
@@ -383,6 +389,10 @@
   }
 
   function visualTableHeader(column) {
+    if (column.key === 'select') {
+      return '<th scope="col" class="zmwm-visual-table-select-header">' +
+        '<span>Select</span></th>';
+    }
     const selected = visualState.sortKey === column.key;
     const ascending = visualState.sortDirection === 'asc';
     const nextDirection = selected && ascending ? 'descending' : 'ascending';
@@ -414,6 +424,11 @@
     return '<tr class="zmwm-visual-table-row' +
       (sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '') +
       (isVisualOut(record) ? ' is-out' : '') + '">' +
+      '<td class="zmwm-visual-table-select-cell"><label title="Add to shareable group">' +
+        '<input type="checkbox" data-visual-select-id="' + esc(id) + '"' +
+          (visualState.selectedIds.has(id) ? ' checked' : '') +
+          ' aria-label="Add ' + esc(name) + ' to group">' +
+        '</label></td>' +
       '<td class="zmwm-visual-table-photo-cell">' + visualPhotoMarkup(record) + '</td>' +
       '<td class="zmwm-visual-table-color-cell"><a class="zmwm-visual-table-record-link"' +
         linkAttrs + '>' + esc(name) + '</a>' +
@@ -454,7 +469,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.4">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.5">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
@@ -493,6 +508,8 @@
       '<span>Photos only</span></label>' +
       '<button class="zmwm-visual-reset" type="button" data-visual-action="reset">Reset</button></div>' +
       '<div id="zmwm-visual-feedback" class="zmwm-visual-feedback" role="status" aria-live="polite"></div>' +
+      '<div id="zmwm-visual-group-banner"></div>' +
+      '<div id="zmwm-visual-basket"></div>' +
       '<div id="zmwm-visual-results"></div>' +
       '<div id="zmwm-visual-lightbox" class="zmwm-visual-lightbox" role="dialog"' +
         ' aria-modal="true" aria-label="Inventory photo viewer" hidden>' +
@@ -590,7 +607,9 @@
     const node = document.getElementById('zmwm-visual-feedback');
     if (!node) return;
     if (visualState.loading) {
-      node.textContent = visualState.inventoryScope === 'out' ?
+      node.textContent = visualState.groupViewIds ?
+        'Loading selected Kintone records…' :
+        visualState.inventoryScope === 'out' ?
         'Loading historical Out pieces from Kintone…' :
         visualState.inventoryScope === 'all' ?
           'Loading In + Out inventory from Kintone…' :
@@ -599,7 +618,8 @@
       node.textContent = 'Could not load inventory: ' + visualState.error;
     } else {
       node.textContent = 'LIVE KINTONE DATA · ' + visualState.records.length.toLocaleString() +
-        (visualState.inventoryScope === 'out' ? ' pieces marked Out' :
+        (visualState.groupViewIds ? ' pieces in shared group' :
+         visualState.inventoryScope === 'out' ? ' pieces marked Out' :
           visualState.inventoryScope === 'all' ? ' pieces (In + Out)' : ' pieces in shop') +
         ' · Refreshed ' + (visualState.updatedAt ?
           visualState.updatedAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '—') +
@@ -607,6 +627,188 @@
         (!visualState.materialAvailable ? ' · Material filter unavailable (Kintone permissions).' : '') +
         (!visualState.lotAvailable ? ' · Lot # unavailable (Kintone permissions).' : '');
     }
+  }
+
+  function visualNormalizeGroupId(value) {
+    const raw = toText(value);
+    if (!/^[1-9][0-9]{0,14}$/.test(raw)) return '';
+    const number = Number(raw);
+    return Number.isSafeInteger(number) && number > 0 ? String(number) : '';
+  }
+  function readVisualGroupLink() {
+    const hash = str(window.location && window.location.hash).replace(/^#/,'');
+    if (!/(^|&)zmgroup=/.test(hash)) return null;
+    const values = new Map();
+    for (const part of hash.split('&')) {
+      const equals = part.indexOf('=');
+      if (equals >= 0) values.set(part.slice(0,equals),part.slice(equals+1));
+    }
+    const raw = values.get('zmgroup') || '';
+    const tokens = raw.split('.');
+    if (!raw || raw.length > 1400 || tokens.length > VISUAL_MAX_GROUP_PIECES ||
+        tokens.some(id => !visualNormalizeGroupId(id))) {
+      return {error:'This group link contains invalid or too many record IDs.'};
+    }
+    const ids = [...new Set(tokens.map(visualNormalizeGroupId))];
+    let name = '';
+    try { name = decodeURIComponent((values.get('zmname') || '').replace(/\+/g,'%20')); }
+    catch (_error) { return {error:'This group link has an invalid name.'}; }
+    return {ids,name:name.trim().slice(0,VISUAL_MAX_GROUP_TITLE)};
+  }
+  function visualGroupShareUrl() {
+    const origin = toText(window.location && window.location.origin);
+    const viewId = visualNormalizeGroupId(visualState.viewId);
+    const ids = [...visualState.selectedIds];
+    if (!origin || !/^https?:\/\//.test(origin) || !viewId || !ids.length ||
+        ids.length > VISUAL_MAX_GROUP_PIECES) return '';
+    // The link includes only Kintone record IDs; the receiver must authenticate
+    // and is subject to the same Kintone record/photo permissions.
+    const name = toText(visualState.groupName).slice(0,VISUAL_MAX_GROUP_TITLE);
+    const fragment = '#zmgroup=' + ids.join('.') +
+      (name ? '&zmname=' + encodeURIComponent(name) : '');
+    return origin + '/k/' + SETTINGS.INVENTORY_APP_ID + '/?view=' + viewId + fragment;
+  }
+  function renderVisualBasket() {
+    const basket = document.getElementById('zmwm-visual-basket');
+    const banner = document.getElementById('zmwm-visual-group-banner');
+    if (!visualState.active) return;
+    const ids = [...visualState.selectedIds];
+    const shareUrl = visualGroupShareUrl();
+    const groupIds = visualState.groupViewIds;
+    if (banner) {
+      const visible = new Set(visualState.records.map(getId));
+      const unavailable = groupIds ? groupIds.filter(id => !visible.has(id)).length : 0;
+      banner.innerHTML = groupIds ?
+        '<section class="zmwm-visual-shared-banner">' +
+          '<div><strong>' + esc(visualState.groupName || 'Shared inventory group') +
+          '</strong><span> ' + groupIds.length + ' selected piece' +
+          (groupIds.length === 1 ? '' : 's') +
+          ' · Live Kintone records, including In and Out</span>' +
+          (unavailable && !visualState.loading && !visualState.error ?
+            '<p class="zmwm-visual-group-warning">' + unavailable +
+            ' piece' + (unavailable===1?' is':'s are') +
+            ' missing or not accessible with your permissions.</p>' : '') +
+          '</div><button type="button" data-visual-action="leave-group">' +
+            'Back to inventory</button></section>' :
+        visualState.groupError ?
+          '<div class="zmwm-visual-group-warning" role="alert">' +
+            esc(visualState.groupError) + '</div>' : '';
+    }
+    if (!basket) return;
+    const chips = ids.map(id => {
+      const item = visualState.selectedRecords.get(id);
+      const name = item ? getColorCombined(item) : 'Record #' + id + ' (unavailable)';
+      return '<button type="button" class="zmwm-visual-group-chip"' +
+        ' data-visual-action="remove-group" data-visual-id="' + esc(id) + '"' +
+        ' aria-label="Remove ' + esc(name) + ' from group">' +
+        '<span>' + esc(name) + '</span><span aria-hidden="true">×</span></button>';
+    }).join('');
+    basket.innerHTML = '<section class="zmwm-visual-basket' +
+      (ids.length ? ' has-selection' : '') + '">' +
+      '<div class="zmwm-visual-basket-head">' +
+        '<div><strong>Custom group</strong><span>' + ids.length +
+        ' piece' + (ids.length===1?'':'s') + ' selected</span></div>' +
+        (ids.length ? '<button type="button" class="zmwm-visual-basket-clear"' +
+          ' data-visual-action="clear-group">Clear selection</button>' : '') +
+      '</div>' +
+      (ids.length ?
+        '<div class="zmwm-visual-basket-chips">' + chips + '</div>' +
+        '<div class="zmwm-visual-basket-share">' +
+          '<label>Group name (optional)<input id="zmwm-visual-group-name" type="text"' +
+          ' maxlength="' + VISUAL_MAX_GROUP_TITLE + '"' +
+          ' placeholder="e.g., Kitchen options for Smith" value="' +
+          esc(visualState.groupName) + '"></label>' +
+          '<label>Shareable internal link<input id="zmwm-visual-group-link" type="text"' +
+          ' readonly value="' + esc(shareUrl) + '"' +
+          ' aria-label="Shareable Kintone group link"></label>' +
+          '<div class="zmwm-visual-basket-actions">' +
+            '<button type="button" data-visual-action="copy-group"' +
+              (shareUrl ? '' : ' disabled') + '>Copy group link</button>' +
+            (shareUrl ? '<a href="' + esc(shareUrl) +
+              '" target="_blank" rel="noopener noreferrer">Open group</a>' : '') +
+          '</div></div>' +
+          '<p class="zmwm-visual-basket-disclaimer">Recipients must sign in to Kintone.' +
+          ' They will see the latest status and photos of records they can access.</p>' :
+        '<p class="zmwm-visual-basket-empty">' +
+        'Switch to List view and check pieces to collect options across searches.</p>') +
+      (visualState.basketMessage ?
+        '<p class="zmwm-visual-basket-message" role="status">' +
+          esc(visualState.basketMessage) + '</p>' : '') +
+      '</section>';
+  }
+  function visualSyncSelectedCheckboxes() {
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('input[data-visual-select-id]').forEach(box => {
+      box.checked = visualState.selectedIds.has(str(box.dataset.visualSelectId));
+    });
+  }
+  function visualUpdateGroupSelection(id,checked) {
+    const normalized = visualNormalizeGroupId(id);
+    if (!normalized) return;
+    if (checked) {
+      if (!visualState.selectedIds.has(normalized) &&
+          visualState.selectedIds.size >= VISUAL_MAX_GROUP_PIECES) {
+        visualState.basketMessage = 'Groups are limited to ' +
+          VISUAL_MAX_GROUP_PIECES + ' pieces per link.';
+        visualSyncSelectedCheckboxes();
+        renderVisualBasket();
+        return;
+      }
+      visualState.selectedIds.add(normalized);
+      const record = visualState.records.find(r => getId(r) === normalized);
+      if (record) visualState.selectedRecords.set(normalized,record);
+    } else {
+      visualState.selectedIds.delete(normalized);
+      visualState.selectedRecords.delete(normalized);
+    }
+    visualState.basketMessage = '';
+    visualSyncSelectedCheckboxes();
+    renderVisualBasket();
+  }
+  function visualUpdateShareLinkField() {
+    const field = document.getElementById('zmwm-visual-group-link');
+    if (field) field.value = visualGroupShareUrl();
+    const open = document.getElementById('zmwm-visual-basket');
+    if (open && open.querySelector) {
+      const link = open.querySelector('.zmwm-visual-basket-actions a');
+      if (link) link.href = visualGroupShareUrl();
+    }
+  }
+  function visualCopyGroupLink() {
+    const value = visualGroupShareUrl();
+    if (!value) {
+      visualState.basketMessage = 'Unable to generate a link. Open Visual Search through its Kintone view first.';
+      renderVisualBasket();
+      return;
+    }
+    const done = () => {
+      if (!visualState.active) return;
+      visualState.basketMessage = 'Link copied. Paste it into an internal message.';
+      renderVisualBasket();
+    };
+    const fallback = () => {
+      const field = document.getElementById('zmwm-visual-group-link');
+      if (field && field.select) {
+        field.focus();
+        field.select();
+        try {
+          if (document.execCommand && document.execCommand('copy')) {
+            done();
+            return;
+          }
+        } catch (_error) { /* Manual copy remains available in the text box. */ }
+      }
+      visualState.basketMessage = 'Select and copy the link from the text box.';
+      // Do not replace a selected text box before the user can copy it manually.
+      const notice = document.querySelector &&
+        document.querySelector('#zmwm-visual-basket .zmwm-visual-basket-message');
+      if (notice) notice.textContent = visualState.basketMessage;
+    };
+    const clipboard = window.navigator && window.navigator.clipboard;
+    if (clipboard && typeof clipboard.writeText === 'function') {
+      clipboard.writeText(value).then(done).catch(fallback);
+    } else fallback();
   }
   function renderVisualResults() {
     const container = document.getElementById('zmwm-visual-results');
@@ -623,6 +825,7 @@
     }
     const results = visualMatchesSorted();
     const visible = results.slice(0,visualState.shown);
+    renderVisualBasket();
     container.innerHTML = '<div class="zmwm-visual-results-heading">' +
       '<div class="zmwm-visual-count">' + results.length.toLocaleString() +
       ' matching ' + (results.length === 1 ? 'piece' : 'pieces') +
@@ -915,10 +1118,21 @@
 
   // Keyset pagination avoids Kintone's 10,000-record offset limit. All reads
   // are GETs from the inventory app; no cursor resources or writes are created.
-  async function fetchVisualRecords(scope) {
+  async function fetchVisualRecords(scope,groupIds) {
     const inventoryCondition = VISUAL_SCOPE_CONDITIONS[scope] ||
       VISUAL_SCOPE_CONDITIONS.in;
+    const ids = Array.isArray(groupIds) ?
+      groupIds.map(visualNormalizeGroupId).filter(Boolean) : [];
+    // Group links bypass the default In-only condition, but never permissions.
+    // All IDs are numeric and capped; read only exactly these records.
+    const groupCondition = ids.length ?
+      '$id in (' + ids.map(id => '"' + id + '"').join(',') + ')' : '';
     async function getRecords(fields) {
+      if (groupCondition) {
+        const data = await readOnlyApi(SETTINGS.INVENTORY_APP_ID,fields,
+          groupCondition + ' order by $id asc limit ' + SETTINGS.PAGE_SIZE);
+        return Array.isArray(data.records) ? data.records : [];
+      }
       const records = [];
       let last = 0;
       for (let page=0;page<80;page++) {
@@ -946,7 +1160,7 @@
       const probe = async fields => {
         try {
           await readOnlyApi(SETTINGS.INVENTORY_APP_ID,['$id',...fields],
-            inventoryCondition + ' order by $id asc limit 1');
+            (groupCondition || inventoryCondition) + ' order by $id asc limit 1');
           return true;
         } catch (error) { return false; }
       };
@@ -974,6 +1188,7 @@
     visualState.loading = true;
     visualState.error = '';
     renderVisualFeedback();
+    renderVisualBasket();
     renderVisualResults();
     try {
       // The exact field codes are supplied by ZM Inventory's field settings.
@@ -982,9 +1197,16 @@
       visualState.notesAvailable = true;
       visualState.lotAvailable = true;
       if (token !== visualState.token || !visualState.active) return;
-      const records = await fetchVisualRecords(visualState.inventoryScope);
+      const groupIds = visualState.groupViewIds ? [...visualState.groupViewIds] : null;
+      const records = await fetchVisualRecords(visualState.inventoryScope,groupIds);
       if (token !== visualState.token || !visualState.active) return;
-      visualState.records = records;
+      visualState.records = groupIds ?
+        groupIds.map(id => records.find(record => getId(record) === id)).filter(Boolean) :
+        records;
+      for (const record of visualState.records) {
+        const id = getId(record);
+        if (visualState.selectedIds.has(id)) visualState.selectedRecords.set(id,record);
+      }
       visualState.updatedAt = new Date();
       visualState.shown = VISUAL_PAGE_SIZE;
     } catch (error) {
@@ -1047,8 +1269,14 @@
     visualState.extraDimensionFields = [];
     visualState.materials.clear();
     visualState.pieceTypes.clear();
+    visualState.selectedIds.clear();
+    visualState.selectedRecords.clear();
+    visualState.groupName = '';
+    visualState.groupViewIds = null;
+    visualState.groupError = '';
+    visualState.basketMessage = '';
   }
-  function startVisualSearch() {
+  function startVisualSearch(event) {
     stopVisualSearch();
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
@@ -1065,9 +1293,26 @@
     visualState.sortKey = 'color';
     visualState.sortDirection = 'asc';
     visualState.shown = VISUAL_PAGE_SIZE;
+    const locationSearch = str(window.location && window.location.search);
+    const viewFromQuery = locationSearch.match(/[?&]view=([0-9]+)/);
+    visualState.viewId = visualNormalizeGroupId(event && event.viewId) ||
+      visualNormalizeGroupId(viewFromQuery && viewFromQuery[1]);
+    const shared = readVisualGroupLink();
+    if (shared && shared.error) visualState.groupError = shared.error;
+    else if (shared && shared.ids) {
+      visualState.groupViewIds = shared.ids;
+      visualState.selectedIds = new Set(shared.ids);
+      visualState.groupName = shared.name;
+      visualState.inventoryScope = 'all'; // Groups can include historical Out pieces.
+      visualState.listView = true; // Open shared groups as a selection table.
+    }
     root.innerHTML = visualShell();
     const ui = root.querySelector('#zmwm-visual-root');
     if (!ui) return;
+    if (ui.classList) ui.classList.toggle('is-shared-group',!!visualState.groupViewIds);
+    const scopeSelect = ui.querySelector('#zmwm-visual-inventory-scope');
+    if (scopeSelect && visualState.groupViewIds) scopeSelect.value = 'all';
+    renderVisualBasket();
     visualState.keydownHandler = visualLightboxKeydown;
     document.addEventListener('keydown',visualState.keydownHandler);
     ui.addEventListener('touchstart',event => {
@@ -1088,6 +1333,12 @@
         'zmwm-visual-min-length':'minLength',
         'zmwm-visual-min-width':'minWidth'
       };
+      if (event.target.id === 'zmwm-visual-group-name') {
+        visualState.groupName = str(event.target.value).slice(0,VISUAL_MAX_GROUP_TITLE);
+        visualState.basketMessage = '';
+        visualUpdateShareLinkField();
+        return;
+      }
       const key = names[event.target.id];
       if (key) {
         visualState[key] = event.target.value;
@@ -1107,6 +1358,9 @@
         saveVisualListPreference(visualState.listView);
         // Only change presentation: preserve filters, result count and pagination.
         renderVisualResults();
+        return;
+      } else if (event.target.dataset && event.target.dataset.visualSelectId) {
+        visualUpdateGroupSelection(event.target.dataset.visualSelectId,event.target.checked);
         return;
       } else if (event.target.id === 'zmwm-visual-inventory-scope') {
         const scope = event.target.value;
@@ -1153,6 +1407,39 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
+      if (action === 'remove-group') {
+        visualUpdateGroupSelection(button.dataset.visualId,false);
+        return;
+      }
+      if (action === 'clear-group') {
+        visualState.selectedIds.clear();
+        visualState.selectedRecords.clear();
+        visualState.basketMessage = '';
+        visualState.groupName = '';
+        visualSyncSelectedCheckboxes();
+        renderVisualBasket();
+        return;
+      }
+      if (action === 'copy-group') {
+        visualCopyGroupLink();
+        return;
+      }
+      if (action === 'leave-group') {
+        visualState.groupViewIds = null;
+        visualState.groupError = '';
+        visualState.inventoryScope = 'in';
+        const groupRoot = document.getElementById('zmwm-visual-root');
+        if (groupRoot && groupRoot.classList)
+          groupRoot.classList.toggle('is-shared-group',false);
+        if (window.history && window.location &&
+            typeof window.history.replaceState === 'function') {
+          window.history.replaceState(null,'',
+            window.location.pathname + window.location.search);
+        }
+        resetVisualFilters();
+        loadVisualSearch();
+        return;
+      }
       if (action === 'sort' && visualState.listView) {
         const column = VISUAL_TABLE_COLUMNS.find(item => item.key === button.dataset.visualSort);
         if (column) {
@@ -1188,7 +1475,7 @@
       return event;
     }
     if (!document.getElementById(ROOT_ID)) return event;
-    startVisualSearch();
+    startVisualSearch(event);
     return event;
   });
 })();

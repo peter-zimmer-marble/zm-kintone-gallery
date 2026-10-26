@@ -159,7 +159,7 @@ function listIds(){
   // Sortable list: explicit In/Out column plus warning near color, while
   // existing sale-status display remains separate.
   dispatch('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,14);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,15);
   assert.match(html(),/data-visual-sort="inventory"/);
   assert.match(html(),/data-visual-sort="lot"/);
   assert.match(html(),/Lot #: HIST-2/);
