@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.5 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.6 (v2 asset URL retained for Kintone compatibility)
  * Independent read-only Kintone Custom View for Inventory App 6.
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -372,8 +372,21 @@
     const cardStatus = sale === 'SOLD' ? ' is-sold' : sale === 'Hold' ? ' is-hold' : '';
     const statusBadge = visualStatusMarkup(sale);
     const photo = visualPhotoMarkup(record);
+    const selected = visualState.selectedIds.has(id);
+    // The gallery checkbox is a sibling of the photo button and record link.
+    // It only changes the existing tab-local share basket, never the inventory.
+    const selectMarkup =
+      '<label class="zmwm-visual-card-select" title="Include in shareable group">' +
+        '<input type="checkbox" data-visual-select-id="' + esc(id) + '"' +
+          (selected ? ' checked' : '') +
+          ' aria-label="Include ' + esc(name) + ' in shared group">' +
+        '<span class="zmwm-visual-select-off">Select</span>' +
+        '<span class="zmwm-visual-select-on">Selected</span>' +
+      '</label>';
     return '<article class="zmwm-visual-card' + cardStatus +
-      (isVisualOut(record) ? ' is-out' : '') + '">' + photo +
+      (isVisualOut(record) ? ' is-out' : '') +
+      (selected ? ' is-selected' : '') + '">' +
+      '<div class="zmwm-visual-gallery-media">' + photo + selectMarkup + '</div>' +
       '<a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) +
       ', ' + esc(type) + ', ' + esc(geometry.display) +
@@ -469,7 +482,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.5">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.6">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>READ ONLY</span>' +
@@ -730,7 +743,7 @@
           '<p class="zmwm-visual-basket-disclaimer">Recipients must sign in to Kintone.' +
           ' They will see the latest status and photos of records they can access.</p>' :
         '<p class="zmwm-visual-basket-empty">' +
-        'Switch to List view and check pieces to collect options across searches.</p>') +
+        'Check pieces in Gallery or List view to collect options across searches.</p>') +
       (visualState.basketMessage ?
         '<p class="zmwm-visual-basket-message" role="status">' +
           esc(visualState.basketMessage) + '</p>' : '') +
@@ -741,6 +754,10 @@
     if (!root || !root.querySelectorAll) return;
     root.querySelectorAll('input[data-visual-select-id]').forEach(box => {
       box.checked = visualState.selectedIds.has(str(box.dataset.visualSelectId));
+      // Update the gallery selection highlight without rebuilding photo nodes.
+      const card = typeof box.closest === 'function' ?
+        box.closest('.zmwm-visual-card') : null;
+      if (card && card.classList) card.classList.toggle('is-selected',box.checked);
     });
   }
   function visualUpdateGroupSelection(id,checked) {
