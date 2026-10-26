@@ -951,6 +951,8 @@
           ' readonly value="' + esc(shareUrl) + '"' +
           ' aria-label="Shareable Kintone group link"></label>' +
           '<div class="zmwm-visual-basket-actions">' +
+            '<button type="button" data-visual-action="save-group"' +
+              ' class="zmwm-visual-save-group">Save group</button>' +
             '<button type="button" data-visual-action="copy-group"' +
               (shareUrl ? '' : ' disabled') + '>Copy group link</button>' +
             (shareUrl ? '<a href="' + esc(shareUrl) +
@@ -963,7 +965,7 @@
       (visualState.basketMessage ?
         '<p class="zmwm-visual-basket-message" role="status">' +
           esc(visualState.basketMessage) + '</p>' : '') +
-      '</section>';
+      '</section>' + visualSavedGroupsMarkup();
   }
   function visualSyncSelectedCheckboxes() {
     const root = document.getElementById('zmwm-visual-root');
@@ -1508,6 +1510,14 @@
     visualState.groupViewIds = null;
     visualState.groupError = '';
     visualState.basketMessage = '';
+    visualState.savedGroups = [];
+    visualState.savedGroupsKey = '';
+    visualState.savedGroupsError = '';
+    if (visualState.savedGroupsStorageHandler &&
+        typeof window.removeEventListener === 'function') {
+      window.removeEventListener('storage',visualState.savedGroupsStorageHandler);
+    }
+    visualState.savedGroupsStorageHandler = null;
   }
   function startVisualSearch(event) {
     stopVisualSearch();
@@ -1530,6 +1540,17 @@
     const viewFromQuery = locationSearch.match(/[?&]view=([0-9]+)/);
     visualState.viewId = visualNormalizeGroupId(event && event.viewId) ||
       visualNormalizeGroupId(viewFromQuery && viewFromQuery[1]);
+    visualLoadSavedGroups();
+    // A different tab may save or delete a group on the same signed-in account.
+    if (typeof window.addEventListener === 'function') {
+      visualState.savedGroupsStorageHandler = storageEvent => {
+        if (!visualState.active ||
+            storageEvent.key !== visualState.savedGroupsKey) return;
+        visualLoadSavedGroups();
+        renderVisualBasket();
+      };
+      window.addEventListener('storage',visualState.savedGroupsStorageHandler);
+    }
     const shared = readVisualGroupLink();
     if (shared && shared.error) visualState.groupError = shared.error;
     else if (shared && shared.ids) {
@@ -1640,6 +1661,18 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
+      if (action === 'save-group') {
+        visualSaveCurrentGroup();
+        return;
+      }
+      if (action === 'copy-saved-group') {
+        visualCopySavedGroup(str(button.dataset.visualSavedId));
+        return;
+      }
+      if (action === 'delete-saved-group') {
+        visualDeleteSavedGroup(str(button.dataset.visualSavedId));
+        return;
+      }
       if (action === 'remove-group') {
         visualUpdateGroupSelection(button.dataset.visualId,false);
         return;
