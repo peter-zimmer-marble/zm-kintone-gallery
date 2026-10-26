@@ -626,6 +626,188 @@
         (!visualState.lotAvailable ? ' · Lot # unavailable (Kintone permissions).' : '');
     }
   }
+
+  function visualNormalizeGroupId(value) {
+    const raw = toText(value);
+    if (!/^[1-9][0-9]{0,14}$/.test(raw)) return '';
+    const number = Number(raw);
+    return Number.isSafeInteger(number) && number > 0 ? String(number) : '';
+  }
+  function readVisualGroupLink() {
+    const hash = str(window.location && window.location.hash).replace(/^#/,'');
+    if (!/(^|&)zmgroup=/.test(hash)) return null;
+    const values = new Map();
+    for (const part of hash.split('&')) {
+      const equals = part.indexOf('=');
+      if (equals >= 0) values.set(part.slice(0,equals),part.slice(equals+1));
+    }
+    const raw = values.get('zmgroup') || '';
+    const tokens = raw.split('.');
+    if (!raw || raw.length > 1400 || tokens.length > VISUAL_MAX_GROUP_PIECES ||
+        tokens.some(id => !visualNormalizeGroupId(id))) {
+      return {error:'This group link contains invalid or too many record IDs.'};
+    }
+    const ids = [...new Set(tokens.map(visualNormalizeGroupId))];
+    let name = '';
+    try { name = decodeURIComponent((values.get('zmname') || '').replace(/\+/g,'%20')); }
+    catch (_error) { return {error:'This group link has an invalid name.'}; }
+    return {ids,name:name.trim().slice(0,VISUAL_MAX_GROUP_TITLE)};
+  }
+  function visualGroupShareUrl() {
+    const origin = toText(window.location && window.location.origin);
+    const viewId = visualNormalizeGroupId(visualState.viewId);
+    const ids = [...visualState.selectedIds];
+    if (!origin || !/^https?:\/\//.test(origin) || !viewId || !ids.length ||
+        ids.length > VISUAL_MAX_GROUP_PIECES) return '';
+    // The link includes only Kintone record IDs; the receiver must authenticate
+    // and is subject to the same Kintone record/photo permissions.
+    const name = toText(visualState.groupName).slice(0,VISUAL_MAX_GROUP_TITLE);
+    const fragment = '#zmgroup=' + ids.join('.') +
+      (name ? '&zmname=' + encodeURIComponent(name) : '');
+    return origin + '/k/' + SETTINGS.INVENTORY_APP_ID + '/?view=' + viewId + fragment;
+  }
+  function renderVisualBasket() {
+    const basket = document.getElementById('zmwm-visual-basket');
+    const banner = document.getElementById('zmwm-visual-group-banner');
+    if (!visualState.active) return;
+    const ids = [...visualState.selectedIds];
+    const shareUrl = visualGroupShareUrl();
+    const groupIds = visualState.groupViewIds;
+    if (banner) {
+      const visible = new Set(visualState.records.map(getId));
+      const unavailable = groupIds ? groupIds.filter(id => !visible.has(id)).length : 0;
+      banner.innerHTML = groupIds ?
+        '<section class="zmwm-visual-shared-banner">' +
+          '<div><strong>' + esc(visualState.groupName || 'Shared inventory group') +
+          '</strong><span> ' + groupIds.length + ' selected piece' +
+          (groupIds.length === 1 ? '' : 's') +
+          ' · Live Kintone records, including In and Out</span>' +
+          (unavailable && !visualState.loading && !visualState.error ?
+            '<p class="zmwm-visual-group-warning">' + unavailable +
+            ' piece' + (unavailable===1?' is':'s are') +
+            ' missing or not accessible with your permissions.</p>' : '') +
+          '</div><button type="button" data-visual-action="leave-group">' +
+            'Back to inventory</button></section>' :
+        visualState.groupError ?
+          '<div class="zmwm-visual-group-warning" role="alert">' +
+            esc(visualState.groupError) + '</div>' : '';
+    }
+    if (!basket) return;
+    const chips = ids.map(id => {
+      const item = visualState.selectedRecords.get(id);
+      const name = item ? getColorCombined(item) : 'Record #' + id + ' (unavailable)';
+      return '<button type="button" class="zmwm-visual-group-chip"' +
+        ' data-visual-action="remove-group" data-visual-id="' + esc(id) + '"' +
+        ' aria-label="Remove ' + esc(name) + ' from group">' +
+        '<span>' + esc(name) + '</span><span aria-hidden="true">×</span></button>';
+    }).join('');
+    basket.innerHTML = '<section class="zmwm-visual-basket' +
+      (ids.length ? ' has-selection' : '') + '">' +
+      '<div class="zmwm-visual-basket-head">' +
+        '<div><strong>Custom group</strong><span>' + ids.length +
+        ' piece' + (ids.length===1?'':'s') + ' selected</span></div>' +
+        (ids.length ? '<button type="button" class="zmwm-visual-basket-clear"' +
+          ' data-visual-action="clear-group">Clear selection</button>' : '') +
+      '</div>' +
+      (ids.length ?
+        '<div class="zmwm-visual-basket-chips">' + chips + '</div>' +
+        '<div class="zmwm-visual-basket-share">' +
+          '<label>Group name (optional)<input id="zmwm-visual-group-name" type="text"' +
+          ' maxlength="' + VISUAL_MAX_GROUP_TITLE + '"' +
+          ' placeholder="e.g., Kitchen options for Smith" value="' +
+          esc(visualState.groupName) + '"></label>' +
+          '<label>Shareable internal link<input id="zmwm-visual-group-link" type="text"' +
+          ' readonly value="' + esc(shareUrl) + '"' +
+          ' aria-label="Shareable Kintone group link"></label>' +
+          '<div class="zmwm-visual-basket-actions">' +
+            '<button type="button" data-visual-action="copy-group"' +
+              (shareUrl ? '' : ' disabled') + '>Copy group link</button>' +
+            (shareUrl ? '<a href="' + esc(shareUrl) +
+              '" target="_blank" rel="noopener noreferrer">Open group</a>' : '') +
+          '</div></div>' +
+          '<p class="zmwm-visual-basket-disclaimer">Recipients must sign in to Kintone.' +
+          ' They will see the latest status and photos of records they can access.</p>' :
+        '<p class="zmwm-visual-basket-empty">' +
+        'Switch to List view and check pieces to collect options across searches.</p>') +
+      (visualState.basketMessage ?
+        '<p class="zmwm-visual-basket-message" role="status">' +
+          esc(visualState.basketMessage) + '</p>' : '') +
+      '</section>';
+  }
+  function visualSyncSelectedCheckboxes() {
+    const root = document.getElementById('zmwm-visual-root');
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('input[data-visual-select-id]').forEach(box => {
+      box.checked = visualState.selectedIds.has(str(box.dataset.visualSelectId));
+    });
+  }
+  function visualUpdateGroupSelection(id,checked) {
+    const normalized = visualNormalizeGroupId(id);
+    if (!normalized) return;
+    if (checked) {
+      if (!visualState.selectedIds.has(normalized) &&
+          visualState.selectedIds.size >= VISUAL_MAX_GROUP_PIECES) {
+        visualState.basketMessage = 'Groups are limited to ' +
+          VISUAL_MAX_GROUP_PIECES + ' pieces per link.';
+        visualSyncSelectedCheckboxes();
+        renderVisualBasket();
+        return;
+      }
+      visualState.selectedIds.add(normalized);
+      const record = visualState.records.find(r => getId(r) === normalized);
+      if (record) visualState.selectedRecords.set(normalized,record);
+    } else {
+      visualState.selectedIds.delete(normalized);
+      visualState.selectedRecords.delete(normalized);
+    }
+    visualState.basketMessage = '';
+    visualSyncSelectedCheckboxes();
+    renderVisualBasket();
+  }
+  function visualUpdateShareLinkField() {
+    const field = document.getElementById('zmwm-visual-group-link');
+    if (field) field.value = visualGroupShareUrl();
+    const open = document.getElementById('zmwm-visual-basket');
+    if (open && open.querySelector) {
+      const link = open.querySelector('.zmwm-visual-basket-actions a');
+      if (link) link.href = visualGroupShareUrl();
+    }
+  }
+  function visualCopyGroupLink() {
+    const value = visualGroupShareUrl();
+    if (!value) {
+      visualState.basketMessage = 'Unable to generate a link. Open Visual Search through its Kintone view first.';
+      renderVisualBasket();
+      return;
+    }
+    const done = () => {
+      if (!visualState.active) return;
+      visualState.basketMessage = 'Link copied. Paste it into an internal message.';
+      renderVisualBasket();
+    };
+    const fallback = () => {
+      const field = document.getElementById('zmwm-visual-group-link');
+      if (field && field.select) {
+        field.focus();
+        field.select();
+        try {
+          if (document.execCommand && document.execCommand('copy')) {
+            done();
+            return;
+          }
+        } catch (_error) { /* Manual copy remains available in the text box. */ }
+      }
+      visualState.basketMessage = 'Select and copy the link from the text box.';
+      // Do not replace a selected text box before the user can copy it manually.
+      const notice = document.querySelector &&
+        document.querySelector('#zmwm-visual-basket .zmwm-visual-basket-message');
+      if (notice) notice.textContent = visualState.basketMessage;
+    };
+    const clipboard = window.navigator && window.navigator.clipboard;
+    if (clipboard && typeof clipboard.writeText === 'function') {
+      clipboard.writeText(value).then(done).catch(fallback);
+    } else fallback();
+  }
   function renderVisualResults() {
     const container = document.getElementById('zmwm-visual-results');
     if (!container || !visualState.active) return;
