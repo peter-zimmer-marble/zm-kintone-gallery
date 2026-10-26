@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.7 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.8 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1021,4 +1021,115 @@
   #zm-visual-search-root .zmwm-visual-saved-actions > a {
     flex:1 1 auto;min-width:73px;
   }
+}
+
+/* v3.8 — staging status is visible when readable; Change is injected only
+   after Kintone's per-record field EDIT permission is confirmed. */
+#zm-visual-search-root .zmwm-visual-staging {
+  display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;
+  min-width:0;padding:8px 10px;
+  background:#f2f6f2;color:#40594a;
+  border:1px solid #d8e5d9;
+  font-size:10.5px;line-height:1.4;
+}
+#zm-visual-search-root .zmwm-visual-stage-label {
+  color:#68816f;font-size:9px;font-weight:900;letter-spacing:.8px;
+}
+#zm-visual-search-root .zmwm-visual-stage-value {
+  color:#2d573d;font-size:11px;font-weight:850;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-stage-actions {
+  display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;
+  min-width:0;margin-left:auto;
+}
+#zm-visual-search-root .zmwm-visual-stage-actions:empty {display:none;}
+#zm-visual-search-root .zmwm-visual-stage-change,
+#zm-visual-search-root .zmwm-visual-stage-editor > button {
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid #a1bdab;background:#fff;color:#276342;
+  padding:4px 8px;min-height:27px;line-height:1.2;
+  font-size:10px;font-weight:850;cursor:pointer;border-radius:2px;
+}
+#zm-visual-search-root .zmwm-visual-stage-change:hover,
+#zm-visual-search-root .zmwm-visual-stage-editor > button:hover {
+  background:#e5f2e8;border-color:#61966e;
+}
+#zm-visual-search-root .zmwm-visual-stage-editor {
+  display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;
+  min-width:0;max-width:100%;
+}
+#zm-visual-search-root .zmwm-visual-stage-editor select {
+  min-height:29px;min-width:110px;max-width:100%;
+  border:1px solid #afc5b4;background:#fff;color:#294c39;
+  font-size:11px;padding:3px 5px;
+}
+#zm-visual-search-root .zmwm-visual-stage-editor > button[data-visual-action="save-staging"] {
+  background:#2a6944;color:#fff;border-color:#2a6944;
+}
+#zm-visual-search-root .zmwm-visual-stage-editor > button[data-visual-action="save-staging"]:hover {
+  background:#1c5435;
+}
+#zm-visual-search-root .zmwm-visual-stage-editor > .zmwm-visual-stage-cancel {
+  border-color:#d6ded7;background:transparent;color:#69786d;
+}
+#zm-visual-search-root .zmwm-visual-stage-busy {
+  font-size:10px;font-weight:850;color:#756137;
+}
+#zm-visual-search-root .zmwm-visual-stage-feedback {
+  display:block;flex-basis:100%;color:#40674b;
+  font-size:10px;font-weight:700;line-height:1.35;
+}
+#zm-visual-search-root .zmwm-visual-stage-feedback:empty {display:none;}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card > .zmwm-visual-staging {
+  margin-top:auto;padding:9px 10px;background:#edf3ed;
+  border:0;border-top:1px solid #d6e4d8;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-out > .zmwm-visual-staging {
+  background:#fff1ea;border-top-color:#e6c7b6;
+}
+#zm-visual-search-root .zmwm-visual-table {min-width:2120px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(1) {width:62px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(2) {width:110px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(3) {width:175px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(4) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(5) {width:135px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(6) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(7) {width:115px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(8) {width:180px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(9) {width:125px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(10),
+#zm-visual-search-root .zmwm-visual-table th:nth-child(11) {width:91px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(12) {width:160px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(13) {width:107px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(14) {width:165px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(15) {width:205px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(16) {width:90px;}
+#zm-visual-search-root .zmwm-visual-table-stage {min-width:0;padding:6px!important;}
+#zm-visual-search-root .zmwm-visual-table-stage .zmwm-visual-staging {
+  border:0;background:transparent;padding:3px;
+  align-items:flex-start;flex-direction:column;gap:4px;
+}
+#zm-visual-search-root .zmwm-visual-table-stage .zmwm-visual-stage-actions {
+  margin-left:0;
+}
+#zm-visual-search-root .zmwm-visual-table-stage .zmwm-visual-stage-editor select {
+  min-width:95px;
+}
+#zm-visual-search-root #zmwm-visual-lightbox-staging {
+  margin-top:12px;
+}
+#zm-visual-search-root #zmwm-visual-lightbox-staging .zmwm-visual-staging {
+  padding:12px;background:#edf3ef;border-color:#cbdccc;
+}
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card > .zmwm-visual-staging {
+    padding:7px 6px;gap:4px 5px;
+  }
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-stage-label {
+    font-size:8px;
+  }
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-stage-value {
+    font-size:10px;
+  }
+  #zm-visual-search-root .zmwm-visual-stage-editor {width:100%;}
 }
