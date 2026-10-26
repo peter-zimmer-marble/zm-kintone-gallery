@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.5 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.6 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -870,4 +870,58 @@
   #zm-visual-search-root .zmwm-visual-basket-share {grid-template-columns:1fr;}
   #zm-visual-search-root .zmwm-visual-basket-actions {grid-column:1;}
   #zm-visual-search-root .zmwm-visual-shared-banner > button {width:100%;}
+}
+
+/* v3.6: selection in Gallery view, independent of image enlargement / record links.
+   The same data-visual-select-id and selection basket power both layouts. */
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-gallery-media {
+  position:relative;display:block;min-width:0;flex:0 0 auto;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card-select {
+  position:absolute;right:9px;bottom:9px;z-index:5;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:34px;padding:6px 9px;
+  color:#254b36;background:rgba(255,255,255,.97);
+  border:1px solid #b4cbb9;box-shadow:0 2px 8px rgba(15,35,20,.23);
+  cursor:pointer;user-select:none;font-size:11px;font-weight:900;
+  line-height:1.2;white-space:nowrap;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card-select:hover {
+  background:#e6f3e9;border-color:#4d9564;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card-select input {
+  margin:0;width:18px;height:18px;flex:0 0 18px;
+  cursor:pointer;accent-color:#287547;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-select-on {display:none;}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-selected .zmwm-visual-select-on {
+  display:inline;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-selected .zmwm-visual-select-off {
+  display:none;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-selected .zmwm-visual-card-select {
+  color:#fff;background:#2c7047;border-color:#1c5736;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-selected .zmwm-visual-card-select:hover {
+  background:#225d3b;
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-selected,
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-selected:hover {
+  /* Keep OUT / SOLD / HOLD border colors intact; ring signifies basket selection. */
+  box-shadow:0 0 0 3px rgba(48,124,77,.68),0 7px 18px rgba(22,64,39,.12);
+}
+@media(max-width:580px) {
+  /* Narrow two-column cards keep full photo visible and a generous tap target. */
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-gallery-media {
+    display:flex;flex-direction:column;
+  }
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card-select {
+    position:static;align-self:stretch;min-height:37px;
+    gap:6px;padding:6px 8px;border:0;border-top:1px solid #d5e3d9;
+    box-shadow:none;background:#f8faf8;font-size:11px;
+  }
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card-select input {
+    width:19px;height:19px;flex-basis:19px;
+  }
 }

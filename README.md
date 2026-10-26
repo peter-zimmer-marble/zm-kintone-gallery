@@ -28,7 +28,7 @@ The optional Material and In/Out Notes fields follow the signed-in Kintone user'
 
 The **standalone ZM Inventory App 6 Visual Search** can now create a temporary selection basket without altering records or requiring a separate Kintone app:
 
-1. Check pieces in **List view**. Selections remain in the basket while you search, sort, paginate, or change the In/Out filter; for example, pick four remnants, search again, and pick three slabs.
+1. Check pieces directly on **Gallery photo cards** or in **List view**. Gallery cards have a separate checkbox positioned away from the photo and record links; on narrow screens it sits just below the picture. Both layouts use the same basket, so selections remain while you search, switch layouts, sort, paginate, or change the In/Out filter; for example, pick four remnants, search again, and pick three slabs.
 2. Optionally give the group a name. Use **Copy group link** or **Open group**. The recipient opens the normal Visual Search view with exactly the selected records, including any historical Out pieces. The recipient can view images and normal inventory details, or remove items and copy a revised link.
 3. **Back to inventory** returns to the normal default of In only, keeping the current tab's basket if the user wants to continue selecting. **Clear selection** empties only the basket. The basket is tab-local and is not a permanent saved object; an already-sent link is a snapshot of record IDs, while displayed statuses, photos and record details update live.
 
