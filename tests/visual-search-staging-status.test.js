@@ -84,7 +84,8 @@ let records=[
  piece(1,'Read Only Remnant','RTS'),
  piece(2,'Editable Remnant','RTS'),
  piece(3,'Record Not Editable','View Staging'),
- piece(4,'No Staging Set','')
+ piece(4,'No Staging Set',''),
+ piece(5,'Additional Option','Ready for Shop')
 ];
 const calls=[],writes=[],aclCalls=[];
 const canEdit=new Set(['2','3','4']);
@@ -193,7 +194,13 @@ async function reopen(){
   assert.match(html(),/STAGING/);
   assert.match(html(),/RTS/);
   assert.match(html(),/Not staged/);
-  assert.match(html(),/<\/a><div class="zmwm-visual-staging"/,
+  // Colors are determined by the existing staging field, never sale status.
+  assert.match(html(),/class="zmwm-visual-staging is-rts" data-visual-staging-record="1"/);
+  assert.match(html(),/class="zmwm-visual-staging is-rts" data-visual-staging-record="2"/);
+  assert.match(html(),/class="zmwm-visual-staging is-view-staging" data-visual-staging-record="3"/);
+  assert.match(html(),/class="zmwm-visual-staging is-unset" data-visual-staging-record="4"/);
+  assert.match(html(),/class="zmwm-visual-staging is-other" data-visual-staging-record="5"/);
+  assert.match(html(),/<\/a><div class="zmwm-visual-staging is-rts"/,
     'Gallery staging widget must be outside the record link');
   assert.match(controls(2),/data-visual-action="edit-staging"/);
   assert.match(controls(4),/data-visual-action="edit-staging"/);
@@ -207,6 +214,9 @@ async function reopen(){
   assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
   assert.match(html(),/data-visual-sort="staging"/);
   assert.match(html(),/class="zmwm-visual-table-stage"/);
+  assert.match(html(),/data-visual-staging-record="3"/);
+  assert.match(html(),/class="zmwm-visual-staging is-view-staging"/,
+    'List layout uses the same blue staging badge');
 
   // A forged click for a read-only field must not update anything.
   action('edit-staging',1);action('save-staging',1);
@@ -233,6 +243,8 @@ async function reopen(){
   assert.equal(records[1].staging_status.value,'View Staging');
   assert.equal(records[1].in_out_note.value,'Do not change');
   assert.match(html(),/Saved: View Staging/);
+  assert.match(html(),/class="zmwm-visual-staging is-view-staging" data-visual-staging-record="2"/,
+    'The saved value must immediately switch from amber to blue');
   assert.ok(aclCalls.length>=2,'Rights checked again immediately before saving');
   assert.ok(calls.at(-1).fields.includes('$revision'));
   assert.match(html(),/View Staging/);
@@ -288,6 +300,16 @@ async function reopen(){
   formFailure=false;
   assert.ok(css.includes('.zmwm-visual-table-stage'));
   assert.ok(css.includes('.zmwm-visual-stage-editor'));
+  for (const tone of ['is-rts','is-view-staging','is-unset','is-other']) {
+    assert.match(css,new RegExp('\\.zmwm-visual-staging\\.'+tone+'\\s*\\{'),
+      'Each staging tone needs a dedicated CSS palette: '+tone);
+  }
+  assert.match(css,/\.zmwm-visual-table-stage \.zmwm-visual-staging/,
+    'List must retain color styling');
+  assert.match(css,/#zmwm-visual-lightbox-staging \.zmwm-visual-staging/,
+    'Enlarged photo must retain color styling');
+  assert.match(css,/\.zmwm-visual-card\.is-out > \.zmwm-visual-staging/,
+    'Out inventory retains its warning while status is colored');
   console.log('Staging status: display, record/field ACL, gallery/list, '+
     'dynamic choices, guarded single-field revisioned PUT, revoked rights, '+
     'stale values, denied fields and failed metadata passed.');

@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.8 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.9 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1132,4 +1132,78 @@
     font-size:10px;
   }
   #zm-visual-search-root .zmwm-visual-stage-editor {width:100%;}
+}
+
+/* v3.9 — staging colors are intentionally independent of inventory/sale status:
+   RTS amber; View Staging blue; blank gray; other configured values teal.
+   Status text remains visible for accessibility and black-and-white printing. */
+#zm-visual-search-root .zmwm-visual-staging {
+  --zm-stage-surface:#f5f6f6;
+  --zm-stage-badge:#ebeeee;
+  --zm-stage-ink:#4c5b5a;
+  --zm-stage-border:#cbd4d3;
+  --zm-stage-accent:#879996;
+  border-left:4px solid var(--zm-stage-accent);
+}
+#zm-visual-search-root .zmwm-visual-staging.is-rts {
+  --zm-stage-surface:#fff9ec;
+  --zm-stage-badge:#ffe6ad;
+  --zm-stage-ink:#754906;
+  --zm-stage-border:#e8c47e;
+  --zm-stage-accent:#cc8719;
+}
+#zm-visual-search-root .zmwm-visual-staging.is-view-staging {
+  --zm-stage-surface:#f0f7ff;
+  --zm-stage-badge:#dbeafe;
+  --zm-stage-ink:#174a7d;
+  --zm-stage-border:#a5c9ec;
+  --zm-stage-accent:#3b82bf;
+}
+#zm-visual-search-root .zmwm-visual-staging.is-other {
+  --zm-stage-surface:#effaf6;
+  --zm-stage-badge:#d0f2e7;
+  --zm-stage-ink:#19584e;
+  --zm-stage-border:#98d6c3;
+  --zm-stage-accent:#258c74;
+}
+#zm-visual-search-root .zmwm-visual-staging.is-unset {
+  --zm-stage-surface:#f5f6f6;
+  --zm-stage-badge:#e9ecec;
+  --zm-stage-ink:#586564;
+  --zm-stage-border:#ced6d5;
+  --zm-stage-accent:#92a19d;
+}
+#zm-visual-search-root .zmwm-visual-staging .zmwm-visual-stage-value {
+  display:inline-flex;align-items:center;max-width:100%;
+  padding:4px 9px;min-height:26px;box-sizing:border-box;
+  color:var(--zm-stage-ink);background:var(--zm-stage-badge);
+  border:1px solid var(--zm-stage-border);
+  border-radius:3px;font-weight:900;letter-spacing:.15px;
+  line-height:1.35;white-space:normal;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-staging .zmwm-visual-stage-label {
+  color:var(--zm-stage-ink);
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card > .zmwm-visual-staging {
+  background:var(--zm-stage-surface);
+  border-left:4px solid var(--zm-stage-accent);
+}
+#zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card.is-out > .zmwm-visual-staging {
+  /* OUT remains clearly marked even when staging has its own color. */
+  background:#fff1ea;
+  border-left:4px solid var(--zm-stage-accent);
+}
+#zm-visual-search-root .zmwm-visual-table-stage .zmwm-visual-staging {
+  background:transparent;
+  border-left:4px solid var(--zm-stage-accent);
+}
+#zm-visual-search-root #zmwm-visual-lightbox-staging .zmwm-visual-staging {
+  background:var(--zm-stage-surface);
+  border:1px solid var(--zm-stage-border);
+  border-left:4px solid var(--zm-stage-accent);
+}
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-staging .zmwm-visual-stage-value {
+    padding:3px 6px;min-height:24px;font-size:10px;
+  }
 }

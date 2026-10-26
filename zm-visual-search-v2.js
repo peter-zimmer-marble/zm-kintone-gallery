@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.8 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.9 (v2 asset URL retained for Kintone compatibility)
  * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -404,12 +404,23 @@
         ' data-visual-stage-id="' + esc(id) + '">Cancel</button>' +
       '</span>';
   }
+  // Color reflects STAGING ONLY, separate from SOLD/HOLD/OUT badges.
+  // Unknown future form options receive the same restrained teal fallback;
+  // the actual status text is always shown so colors never carry meaning alone.
+  function visualStageTone(value) {
+    const stage = toText(value).toLocaleLowerCase();
+    if (!stage) return 'is-unset';
+    if (stage === 'rts') return 'is-rts';
+    if (stage === 'view staging') return 'is-view-staging';
+    return 'is-other';
+  }
   function visualStageMarkup(record) {
     if (!visualState.stageFieldAvailable) return '';
     const id = getId(record);
     const stage = getStage(record);
     const message = visualState.stageMessages.get(id) || '';
-    return '<div class="zmwm-visual-staging" data-visual-staging-record="' + esc(id) + '">' +
+    return '<div class="zmwm-visual-staging ' + visualStageTone(stage) +
+      '" data-visual-staging-record="' + esc(id) + '">' +
       '<span class="zmwm-visual-stage-label">STAGING</span>' +
       '<strong class="zmwm-visual-stage-value" data-visual-stage-value>' +
         esc(stage || 'Not staged') + '</strong>' +
@@ -726,7 +737,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.8">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.9">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
