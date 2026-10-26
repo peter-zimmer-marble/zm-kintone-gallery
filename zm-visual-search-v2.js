@@ -1392,12 +1392,12 @@
       throw new Error('Too many records for this view. Narrow the query before retrying.');
     }
     const dimensions = VISUAL_EXTRA_DIMENSION_FIELDS.map(dim => dim.code);
-    const optional = ['material','in_out_note','lot_num',...dimensions];
+    const optional = ['material','in_out_note','lot_num','staging_status',...dimensions];
     try {
       return await getRecords([...VISUAL_FIELDS,...optional]);
     } catch (initialError) {
       // Field-level permissions differ among Kintone users. Probe only the
-      // four explicit optional groups, with no inventory data exported,
+      // five explicit optional groups, with no inventory data exported,
       // then retry without fields that the signed-in user cannot access.
       const probe = async fields => {
         try {
@@ -1406,18 +1406,21 @@
           return true;
         } catch (error) { return false; }
       };
-      const [materialOK,notesOK,dimensionsOK,lotOK] = await Promise.all([
-        probe(['material']),probe(['in_out_note']),probe(dimensions),probe(['lot_num'])
+      const [materialOK,notesOK,dimensionsOK,lotOK,stageOK] = await Promise.all([
+        probe(['material']),probe(['in_out_note']),probe(dimensions),
+        probe(['lot_num']),probe(['staging_status'])
       ]);
       visualState.materialAvailable = materialOK;
       visualState.notesAvailable = notesOK;
       visualState.lotAvailable = lotOK;
+      visualState.stageFieldAvailable = stageOK;
       visualState.extraDimensionFields = dimensionsOK ?
         VISUAL_EXTRA_DIMENSION_FIELDS : [];
       const allowed = [
         ...(materialOK ? ['material'] : []),
         ...(notesOK ? ['in_out_note'] : []),
         ...(lotOK ? ['lot_num'] : []),
+        ...(stageOK ? ['staging_status'] : []),
         ...(dimensionsOK ? dimensions : [])
       ];
       return getRecords([...VISUAL_FIELDS,...allowed]);
@@ -1438,6 +1441,14 @@
       visualState.materialAvailable = true;
       visualState.notesAvailable = true;
       visualState.lotAvailable = true;
+      visualState.stageFieldAvailable = true;
+      // Drop cached edit rights on every refresh; the next page is checked anew.
+      visualState.stageRights.clear();
+      visualState.stageRightsPending.clear();
+      visualState.stageEditId = '';
+      visualState.stageDraft = '';
+      visualState.stageSavingId = '';
+      visualState.stageMessages.clear();
       if (token !== visualState.token || !visualState.active) return;
       const groupIds = visualState.groupViewIds ? [...visualState.groupViewIds] : null;
       const records = await fetchVisualRecords(visualState.inventoryScope,groupIds);
