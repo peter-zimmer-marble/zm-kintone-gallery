@@ -225,7 +225,8 @@ async function reopen(){
   await reopen();
   assert.match(getCalls.at(-1).query,/\$id in \("11","12","22"\)/);
   assert.doesNotMatch(getCalls.at(-1).query,/inventory_status in/);
-  assert.match(html(),/class="zmwm-visual-card is-out is-selected"/);
+  assert.match(html(),/class="zmwm-visual-table-row is-out"/);
+  assert.match(html(),/data-visual-select-id="22" checked/);
   assert.match(basket(),/3 pieces selected/);
   location.hash='';
 
