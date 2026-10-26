@@ -257,7 +257,10 @@ async function reopen(){
   action('delete-saved-group',newGroup.id);
   assert.equal(stored().groups.length,1);
   assert.match(basket(),/deleted from your saved groups/);
-  assert.doesNotMatch(basket(),/Kitchen &lt;Options&gt; B/);
+  // The deletion confirmation message still mentions the removed group.
+  // Check the actual saved-library section rather than all basket messages.
+  assert.doesNotMatch(basket().split('<section class="zmwm-visual-saved-groups"')[1],
+    /Kitchen &lt;Options&gt; B/);
   assert.match(basket(),/Previously shared links continue to work/);
   assert.match(basket(),/4 pieces selected/,'Basket selection unaffected by deletion');
 
