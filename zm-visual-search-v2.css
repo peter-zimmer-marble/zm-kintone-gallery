@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.6 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.7 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -923,5 +923,102 @@
   }
   #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-card-select input {
     width:19px;height:19px;flex-basis:19px;
+  }
+}
+
+/* v3.7: per-user, browser-local saved group library. Nothing is stored in
+   inventory records and the existing authenticated share links still work. */
+#zm-visual-search-root .zmwm-visual-save-group {
+  background:#fff!important;color:#2b6842!important;border-color:#7bac89!important;
+}
+#zm-visual-search-root .zmwm-visual-save-group:hover {
+  background:#e5f2e7!important;
+}
+#zm-visual-search-root .zmwm-visual-saved-groups {
+  margin:10px 0 17px;padding:13px 14px;background:#fff;
+  border:1px solid #d9e4da;color:#304d3a;
+}
+#zm-visual-search-root .zmwm-visual-saved-head {
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:9px;padding:1px 0 8px;
+}
+#zm-visual-search-root .zmwm-visual-saved-head strong {
+  font-size:14px;line-height:1.3;font-weight:900;color:#2c5840;
+}
+#zm-visual-search-root .zmwm-visual-saved-head > span {
+  padding:3px 8px;font-size:10px;font-weight:850;
+  background:#edf4ee;color:#467353;border:1px solid #d4e3d7;
+}
+#zm-visual-search-root .zmwm-visual-saved-empty,
+#zm-visual-search-root .zmwm-visual-saved-footnote {
+  margin:6px 0 0;font-size:11px;color:#708275;line-height:1.5;
+}
+#zm-visual-search-root .zmwm-visual-saved-footnote {
+  padding-top:8px;border-top:1px solid #ebf0eb;margin-top:10px;font-size:10px;
+}
+#zm-visual-search-root .zmwm-visual-saved-error {
+  margin:8px 0;padding:9px 10px;background:#fff6e6;
+  border:1px solid #e5cba0;color:#7d4f2d;font-size:11.5px;
+  line-height:1.4;font-weight:750;
+}
+#zm-visual-search-root .zmwm-visual-saved-list {
+  display:flex;flex-direction:column;gap:0;max-height:350px;overflow-y:auto;
+  border-top:1px solid #e2e9e2;
+}
+#zm-visual-search-root .zmwm-visual-saved-item {
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:10px 16px;padding:11px 0;
+  border-bottom:1px solid #e7eee7;
+}
+#zm-visual-search-root .zmwm-visual-saved-info {
+  display:flex;flex-direction:column;gap:4px;min-width:160px;flex:1 1 235px;
+}
+#zm-visual-search-root .zmwm-visual-saved-info strong {
+  font-size:12.5px;color:#2c5138;font-weight:850;
+  line-height:1.3;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-saved-info > span {
+  font-size:10.5px;color:#7a897e;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions {
+  display:flex;gap:7px;align-items:center;flex-wrap:wrap;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions > button,
+#zm-visual-search-root .zmwm-visual-saved-actions > a {
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:33px;padding:7px 11px;line-height:1.2;
+  font-size:11px;font-weight:850;text-decoration:none;
+  color:#37684a;background:#f5faf5;border:1px solid #c1d6c5;
+  cursor:pointer;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions > a {
+  background:#2f6947;color:#fff;border-color:#2f6947;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions > button:hover {
+  border-color:#7dac84;background:#e5f2e8;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions > a:hover {
+  background:#255b3b;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions > .zmwm-visual-saved-delete {
+  color:#944536;border-color:#e5c3bb;background:#fff7f6;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions > .zmwm-visual-saved-delete:hover {
+  border-color:#c88778;background:#ffe9e5;
+}
+#zm-visual-search-root .zmwm-visual-saved-actions button:disabled {
+  opacity:.55;cursor:default;
+}
+#zm-visual-search-root .zmwm-visual-saved-disabled {
+  color:#89968d;font-size:10.5px;font-style:italic;
+}
+@media(max-width:600px) {
+  #zm-visual-search-root .zmwm-visual-saved-groups {padding:11px;}
+  #zm-visual-search-root .zmwm-visual-saved-list {max-height:315px;}
+  #zm-visual-search-root .zmwm-visual-saved-item {align-items:flex-start;}
+  #zm-visual-search-root .zmwm-visual-saved-actions {width:100%;}
+  #zm-visual-search-root .zmwm-visual-saved-actions > button,
+  #zm-visual-search-root .zmwm-visual-saved-actions > a {
+    flex:1 1 auto;min-width:73px;
   }
 }
