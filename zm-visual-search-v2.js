@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.10 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.11 (v2 asset URL retained for Kintone compatibility)
  * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -375,26 +375,24 @@
   // Staging is display-only until Kintone explicitly grants BOTH record edit
   // and staging_status field edit for this exact record. Never infer rights from
   // username, admin status, staging value, or ability to read a record.
+  function visualStageHasUnsavedChoice(record) {
+    return visualState.stageEditId === getId(record) &&
+      visualState.stageDraft !== getStage(record);
+  }
+  function visualStageSelectedValue(record) {
+    return visualStageHasUnsavedChoice(record) ?
+      visualState.stageDraft : getStage(record);
+  }
   function visualStageActionsMarkup(record) {
     const id = getId(record);
     if (visualState.stageRights.get(id) !== true || !visualState.stageSettings) return '';
     if (visualState.stageSavingId === id)
       return '<span class="zmwm-visual-stage-busy" role="status">Saving…</span>';
-    // The colored status badge itself opens editing. No separate Change button.
-    if (visualState.stageEditId !== id) return '';
-    const current = getStage(record);
-    const choices = visualState.stageSettings.choices;
-    const optionalBlank = !visualState.stageSettings.required ?
-      '<option value=""' + (!visualState.stageDraft ? ' selected' : '') +
-        '>Not staged</option>' : '';
-    const options = choices.map(value =>
-      '<option value="' + esc(value) + '"' +
-        (value === visualState.stageDraft ? ' selected' : '') +
-        '>' + esc(value) + '</option>').join('');
+    if (!visualStageHasUnsavedChoice(record)) return '';
+    // Keep the existing, revision-protected explicit Save/Cancel operation.
+    // The select now lives INSIDE the colored badge, not in this action area.
     return '<span class="zmwm-visual-stage-editor">' +
-      '<select data-visual-stage-choice="' + esc(id) + '"' +
-        ' aria-label="Staging status for ' + esc(getColorCombined(record)) + '">' +
-        optionalBlank + options + '</select>' +
+      '<span class="zmwm-visual-stage-unsaved">Unsaved</span>' +
       '<button type="button" data-visual-action="save-staging"' +
         ' data-visual-stage-id="' + esc(id) + '">Save</button>' +
       '<button type="button" class="zmwm-visual-stage-cancel"' +
@@ -412,35 +410,49 @@
     if (stage === 'view staging') return 'is-view-staging';
     return 'is-other';
   }
-  function visualStageCanOpen(record) {
-    const id = getId(record);
+  function visualStageCanSelect(record) {
     return visualState.stageFieldAvailable &&
-      visualState.stageRights.get(id) === true && !!visualState.stageSettings &&
-      visualState.stageEditId !== id && visualState.stageSavingId !== id;
+      visualState.stageRights.get(getId(record)) === true &&
+      !!visualState.stageSettings;
   }
   function visualStageValueMarkup(record) {
-    const label = esc(getStage(record) || 'Not staged');
-    if (!visualStageCanOpen(record)) return label;
+    const saved = getStage(record);
+    if (!visualStageCanSelect(record)) return esc(saved || 'Not staged');
     const id = getId(record);
-    return '<button type="button" class="zmwm-visual-stage-pill-button"' +
-      ' data-visual-action="edit-staging" data-visual-stage-id="' + esc(id) + '"' +
-      ' title="Click to change staging status"' +
-      ' aria-label="Change staging status for ' + esc(getColorCombined(record)) +
-        ' (currently ' + label + ')">' +
-      '<span>' + label + '</span>' +
-      '<span class="zmwm-visual-stage-pill-arrow" aria-hidden="true">▾</span>' +
-      '</button>';
+    const current = visualStageSelectedValue(record);
+    const settings = visualState.stageSettings;
+    // Represent unset/legacy values faithfully; never silently replace them
+    // with the first configured option when a select is first displayed.
+    const blank = '<option value=""' +
+      (current === '' ? ' selected' : '') +
+      (settings.required ? ' disabled' : '') + '>Not staged</option>';
+    const legacy = saved && !settings.choices.includes(saved) ?
+      '<option value="' + esc(saved) + '"' +
+        (current === saved ? ' selected' : '') +
+        ' disabled>' + esc(saved) + ' (legacy)</option>' : '';
+    const options = settings.choices.map(value =>
+      '<option value="' + esc(value) + '"' +
+        (value === current ? ' selected' : '') +
+        '>' + esc(value) + '</option>').join('');
+    return '<select class="zmwm-visual-stage-pill-select"' +
+      ' data-visual-stage-choice="' + esc(id) + '"' +
+      (visualState.stageSavingId ? ' disabled' : '') +
+      ' aria-label="Staging status for ' + esc(getColorCombined(record)) + '"' +
+      ' title="Select a staging status; save to apply">' +
+      blank + legacy + options + '</select>';
   }
   function visualStageMarkup(record) {
     if (!visualState.stageFieldAvailable) return '';
     const id = getId(record);
-    const stage = getStage(record);
+    const stage = visualStageSelectedValue(record);
+    const pending = visualStageHasUnsavedChoice(record);
     const message = visualState.stageMessages.get(id) || '';
     return '<div class="zmwm-visual-staging ' + visualStageTone(stage) +
+      (pending ? ' is-pending' : '') +
       '" data-visual-staging-record="' + esc(id) + '">' +
       '<span class="zmwm-visual-stage-label">STAGING</span>' +
       '<span class="zmwm-visual-stage-value' +
-        (visualStageCanOpen(record) ? ' is-clickable' : '') +
+        (visualStageCanSelect(record) ? ' is-clickable' : '') +
         '" data-visual-stage-value>' + visualStageValueMarkup(record) + '</span>' +
       '<span class="zmwm-visual-stage-actions" data-visual-stage-actions>' +
         visualStageActionsMarkup(record) + '</span>' +
@@ -459,10 +471,16 @@
       const status = host.querySelector('[data-visual-stage-value]');
       const actions = host.querySelector('[data-visual-stage-actions]');
       const note = host.querySelector('[data-visual-stage-feedback]');
+      if (host.classList) {
+        const tone = visualStageTone(visualStageSelectedValue(record));
+        for (const option of ['is-rts','is-view-staging','is-other','is-unset'])
+          host.classList.toggle(option,option === tone);
+        host.classList.toggle('is-pending',visualStageHasUnsavedChoice(record));
+      }
       if (status) {
         status.innerHTML = visualStageValueMarkup(record);
         if (status.classList)
-          status.classList.toggle('is-clickable',visualStageCanOpen(record));
+          status.classList.toggle('is-clickable',visualStageCanSelect(record));
       }
       if (actions) actions.innerHTML = visualStageActionsMarkup(record);
       if (note) note.textContent = visualState.stageMessages.get(getId(record)) || '';
@@ -551,15 +569,6 @@
         batch.forEach(id => visualState.stageRightsPending.delete(id));
       });
     }
-  }
-  function visualEditStage(id) {
-    const record = visualState.records.find(r => getId(r) === id);
-    if (!record || visualState.stageSavingId ||
-        visualState.stageRights.get(id) !== true || !visualState.stageSettings) return;
-    visualState.stageEditId = id;
-    visualState.stageDraft = getStage(record);
-    visualState.stageMessages.delete(id);
-    visualRefreshStageControls();
   }
   function visualCancelStage(id) {
     if (visualState.stageSavingId || visualState.stageEditId !== id) return;
@@ -759,7 +768,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.10">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.11">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
@@ -1911,9 +1920,31 @@
     ui.addEventListener('change',event => {
       if (event.target.dataset && event.target.dataset.visualStageChoice) {
         const id = str(event.target.dataset.visualStageChoice);
-        if (visualState.stageEditId === id &&
-            visualState.stageRights.get(id) === true && !visualState.stageSavingId)
-          visualState.stageDraft = str(event.target.value);
+        const record = visualState.records.find(r => getId(r) === id);
+        if (!record || !visualStageCanSelect(record) ||
+            visualState.stageSavingId) return;
+        const value = str(event.target.value);
+        const settings = visualState.stageSettings;
+        if (!settings.choices.includes(value) &&
+            !(value === '' && !settings.required)) {
+          visualRefreshStageControls();
+          return;
+        }
+        if (value === getStage(record)) {
+          visualState.stageEditId = '';
+          visualState.stageDraft = '';
+        } else {
+          // One pending edit at a time; the other card reverts to its saved value.
+          visualState.stageEditId = id;
+          visualState.stageDraft = value;
+        }
+        visualState.stageMessages.delete(id);
+        const host = typeof event.target.closest === 'function' ?
+          event.target.closest('[data-visual-staging-record]') : null;
+        visualRefreshStageControls();
+        const replacement = host && host.querySelector ?
+          host.querySelector('[data-visual-stage-choice]') : null;
+        if (replacement && replacement.focus) replacement.focus({preventScroll:true});
         return;
       }
       const filter = event.target.dataset ? event.target.dataset.visualFilter : '';
@@ -1976,24 +2007,12 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
-      if (action === 'edit-staging') {
-        // Capture the host before the badge button is replaced with the editor.
-        const host = typeof button.closest === 'function' ?
-          button.closest('[data-visual-staging-record]') : null;
-        const id = str(button.dataset.visualStageId);
-        visualEditStage(id);
-        // Keyboard and touchscreen users go straight to the new selector.
-        const select = host && host.querySelector ?
-          host.querySelector('[data-visual-stage-choice]') : null;
-        if (select && select.focus) select.focus({preventScroll:true});
-        return;
-      }
       if (action === 'cancel-staging') {
         const host = typeof button.closest === 'function' ?
           button.closest('[data-visual-staging-record]') : null;
         visualCancelStage(str(button.dataset.visualStageId));
         const badge = host && host.querySelector ?
-          host.querySelector('.zmwm-visual-stage-pill-button') : null;
+          host.querySelector('.zmwm-visual-stage-pill-select') : null;
         if (badge && badge.focus) badge.focus({preventScroll:true});
         return;
       }
