@@ -48,6 +48,10 @@ The **standalone ZM Inventory App 6 Visual Search** can now create a temporary s
 
 Regression coverage: `tests/visual-search-saved-groups.test.js` validates saving, reopening after leaving the view, named updates, user isolation, delete confirmations, copied links, historical Out pieces, HTML escaping, cross-tab changes and storage errors. Live Kintone browser testing is still required.
 
+## Click the staging badge to edit (2026-10-27)
+
+In **Gallery**, **sortable List**, and **enlarged-photo details**, a permitted user can click the **colored staging-status badge itself** (shown with a small dropdown chevron) to open the existing staging choices plus **Save** / **Cancel**. The separate **Change** button is removed. Focus moves to the dropdown when opening and returns to the status badge when canceling. Users without confirmed Kintone record/field-edit permission continue to see the colored status text **without a clickable button**. Permission checks, allowed values from Kintone, explicit Save, and revision-protected single-field PUTs remain unchanged. No other inventory fields are modified.
+
 ## Color-coded staging status (2026-10-26)
 
 The existing staging status remains labeled in text and now uses the same color scheme in **Gallery cards, the sortable List column, and enlarged-photo details**: **RTS = amber**, **View Staging = blue**, **blank / Not staged = gray**. Any additional field option uses a **teal** badge rather than being mislabeled or silently omitted. A narrow colored accent highlights the staging section without changing the separate SOLD, HOLD, or OUT warning styles. The color reflects the **saved** field value, not a draft dropdown choice; after an authorized successful Save, the badge changes to the new color immediately. This is a presentation-only change: no new API permissions or record writes.
