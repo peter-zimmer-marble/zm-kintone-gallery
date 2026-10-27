@@ -199,7 +199,7 @@ function recordIds(html){
 
   // Switch to List view; selection state carries across layouts.
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,17);
   assert.match(html(),/class="zmwm-visual-table-select-header"/);
   assert.match(html(),/data-visual-select-id="1" checked/);
   assert.match(html(),/data-visual-select-id="2" checked/);
