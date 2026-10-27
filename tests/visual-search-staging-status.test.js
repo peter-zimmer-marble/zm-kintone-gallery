@@ -28,6 +28,7 @@ function hostFor(id){
    const parts=new Map();
    for(const part of ['value','actions','feedback'])parts.set(part,node());
    hosts.set(id,{dataset:{visualStagingRecord:id},
+     classList:{flags:new Map(),toggle(key,on){this.flags.set(key,on);}},
      parts,querySelector(selector){
        if(selector==='[data-visual-stage-value]')return parts.get('value');
        if(selector==='[data-visual-stage-actions]')return parts.get('actions');
@@ -183,6 +184,7 @@ const html=()=>nodes.get('zmwm-visual-results').innerHTML;
 const controls=id=>hostFor(String(id)).parts.get('actions').innerHTML;
 const badge=id=>hostFor(String(id)).parts.get('value').innerHTML;
 const clickable=id=>hostFor(String(id)).parts.get('value').classList.flags.get('is-clickable');
+const stageClass=(id,name)=>hostFor(String(id)).classList.flags.get(name);
 const feedback=id=>hostFor(String(id)).parts.get('feedback').textContent;
 async function reopen(){
  handler({viewName:'Gallery A',viewType:'custom'});
@@ -205,24 +207,27 @@ async function reopen(){
   assert.match(html(),/class="zmwm-visual-staging is-other" data-visual-staging-record="5"/);
   assert.match(html(),/<\/a><div class="zmwm-visual-staging is-rts"/,
     'Gallery staging widget must be outside the record link');
-  assert.match(badge(2),/class="zmwm-visual-stage-pill-button"/);
-  assert.match(badge(2),/data-visual-action="edit-staging"/);
-  assert.match(badge(4),/data-visual-action="edit-staging"/);
-  assert.match(badge(2),/currently RTS/);
+  assert.match(badge(2),/<select class="zmwm-visual-stage-pill-select"/);
+  assert.match(badge(2),/data-visual-stage-choice="2"/);
+  assert.match(badge(4),/data-visual-stage-choice="4"/);
+  assert.match(badge(2),/value="RTS" selected>RTS<\/option>/);
+  assert.match(badge(2),/Ready for Shop/,'Form choices are inside the pill');
   assert.equal(clickable(2),true);
   assert.equal(clickable(4),true);
-  assert.equal(controls(2),'','No separate Change button should render');
-  assert.equal(controls(4),'','No separate Change button should render');
-  assert.equal(controls(1),'','Read-only fields must expose no editor');
-  assert.equal(controls(3),'','Non-editable records must expose no editor');
-  assert.doesNotMatch(badge(1),/data-visual-action="edit-staging"/,
-    'Read-only status is a non-clickable color badge');
-  assert.doesNotMatch(badge(3),/data-visual-action="edit-staging"/,
-    'Non-editable record is a non-clickable badge');
+  assert.equal(controls(2),'','No secondary dropdown or actions before change');
+  assert.equal(controls(4),'','No secondary dropdown or actions before change');
+  assert.equal(controls(1),'','Read-only field exposes no editor');
+  assert.equal(controls(3),'','Non-editable record exposes no editor');
+  assert.doesNotMatch(badge(1),/<select/,
+    'Read-only status must be non-clickable');
+  assert.doesNotMatch(badge(3),/<select/,
+    'Non-editable record status must be non-clickable');
   assert.equal(clickable(1),false);
   assert.equal(clickable(3),false);
+  assert.doesNotMatch(source,/data-visual-action="edit-staging"/,
+    'No intermediate edit button may remain');
   assert.doesNotMatch(source,/class="zmwm-visual-stage-change"/,
-    'Legacy Change button must be removed');
+    'Old Change button must be removed');
   assert.equal(formCalls,1,'Form settings loaded only after ACL edit permission');
   assert.equal(writes.length,0);
 
