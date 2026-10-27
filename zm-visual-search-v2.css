@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.10 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.11 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1056,11 +1056,6 @@
   display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;
   min-width:0;max-width:100%;
 }
-#zm-visual-search-root .zmwm-visual-stage-editor select {
-  min-height:29px;min-width:110px;max-width:100%;
-  border:1px solid #afc5b4;background:#fff;color:#294c39;
-  font-size:11px;padding:3px 5px;
-}
 #zm-visual-search-root .zmwm-visual-stage-editor > button[data-visual-action="save-staging"] {
   background:#2a6944;color:#fff;border-color:#2a6944;
 }
@@ -1109,9 +1104,6 @@
 }
 #zm-visual-search-root .zmwm-visual-table-stage .zmwm-visual-stage-actions {
   margin-left:0;
-}
-#zm-visual-search-root .zmwm-visual-table-stage .zmwm-visual-stage-editor select {
-  min-width:95px;
 }
 #zm-visual-search-root #zmwm-visual-lightbox-staging {
   margin-top:12px;
@@ -1206,37 +1198,79 @@
   }
 }
 
-/* v3.10 — the status pill itself is the only staging edit trigger.
-   Unprivileged users get the identical color badge without a button. */
+/* v3.11 — authorized editors use the colored status pill AS the native
+   dropdown, not a button that reveals a separate select. Native select
+   provides touch, mouse and keyboard access while preserving stage colors. */
 #zm-visual-search-root .zmwm-visual-stage-value.is-clickable {
+  position:relative;
+  display:inline-flex;
+  align-items:stretch;
+  max-width:100%;
   padding:0;
+  min-height:30px;
 }
-#zm-visual-search-root .zmwm-visual-stage-pill-button {
-  display:inline-flex;align-items:center;justify-content:space-between;
-  gap:8px;max-width:100%;min-height:30px;
-  padding:4px 9px;margin:0;
-  background:transparent;border:0;border-radius:2px;
-  color:inherit;font:inherit;font-size:inherit;font-weight:900;
-  line-height:1.35;text-align:left;cursor:pointer;overflow-wrap:anywhere;
+#zm-visual-search-root .zmwm-visual-stage-pill-select {
+  -webkit-appearance:none;
+  appearance:none;
+  display:block;
+  box-sizing:border-box;
+  min-width:105px;
+  max-width:100%;
+  width:100%;
+  min-height:30px;
+  padding:5px 27px 5px 9px;
+  border:0;
+  border-radius:2px;
+  background:transparent;
+  color:var(--zm-stage-ink);
+  font:inherit;
+  font-size:inherit;
+  font-weight:900;
+  line-height:1.35;
+  text-overflow:ellipsis;
+  cursor:pointer;
 }
-#zm-visual-search-root .zmwm-visual-stage-pill-button:hover {
-  background:rgba(255,255,255,.38);
+#zm-visual-search-root .zmwm-visual-stage-value.is-clickable::after {
+  position:absolute;
+  top:50%;
+  right:9px;
+  content:'▾';
+  color:var(--zm-stage-ink);
+  font-size:13px;
+  font-weight:950;
+  line-height:1;
+  transform:translateY(-50%);
+  pointer-events:none;
+  opacity:.85;
+}
+#zm-visual-search-root .zmwm-visual-stage-pill-select:hover {
+  background:rgba(255,255,255,.35);
   box-shadow:inset 0 0 0 1px var(--zm-stage-accent);
 }
-#zm-visual-search-root .zmwm-visual-stage-pill-button:focus-visible {
+#zm-visual-search-root .zmwm-visual-stage-pill-select:focus-visible {
   outline:3px solid var(--zm-stage-accent);
   outline-offset:2px;
 }
-#zm-visual-search-root .zmwm-visual-stage-pill-arrow {
-  color:var(--zm-stage-ink);
-  font-size:13px;font-weight:950;line-height:1;flex-shrink:0;
-  opacity:.8;
+#zm-visual-search-root .zmwm-visual-stage-pill-select:disabled {
+  cursor:progress;
+  opacity:.65;
+}
+#zm-visual-search-root .zmwm-visual-staging.is-pending .zmwm-visual-stage-value {
+  box-shadow:0 0 0 2px var(--zm-stage-accent);
+}
+#zm-visual-search-root .zmwm-visual-stage-unsaved {
+  color:#855019;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.25px;
 }
 @media(max-width:470px) {
   #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-stage-value.is-clickable {
     padding:0;
+    min-height:34px;
   }
-  #zm-visual-search-root .zmwm-visual-stage-pill-button {
-    min-height:34px;padding:6px 8px;gap:5px;
+  #zm-visual-search-root .zmwm-visual-stage-pill-select {
+    min-height:34px;
+    padding:6px 26px 6px 7px;
   }
 }
