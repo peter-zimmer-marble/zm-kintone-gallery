@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.11 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.12 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1273,4 +1273,68 @@
     min-height:34px;
     padding:6px 26px 6px 7px;
   }
+}
+
+/* v3.12 — calculated fitting rectangles for LHL/RHL (A x B and C x B+D).
+   All values are geometric; actual cut feasibility still needs inspection. */
+#zm-visual-search-root .zmwm-visual-rect-filter-hint {
+  margin:0 0 11px;padding:8px 12px;
+  color:#556a5d;background:#f1f6f2;border-left:3px solid #779d82;
+  font-size:11px;line-height:1.5;
+}
+#zm-visual-search-root .zmwm-visual-max-rect {
+  display:flex;flex-wrap:wrap;align-items:baseline;column-gap:9px;row-gap:4px;
+  margin:7px 0 8px;padding:10px 11px;
+  border:1px solid #bdd9cb;border-left:4px solid #3e8669;
+  background:#eff8f2;color:#285a41;
+}
+#zm-visual-search-root .zmwm-visual-max-rect-heading {
+  flex-basis:100%;font-size:9.5px;line-height:1.25;
+  letter-spacing:.6px;font-weight:900;color:#567665;
+}
+#zm-visual-search-root .zmwm-visual-max-rect-value {
+  font-size:15px;line-height:1.3;font-weight:950;
+  color:#214b36;white-space:normal;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-max-rect-alternate {
+  font-size:10.5px;line-height:1.4;color:#567164;
+}
+#zm-visual-search-root .zmwm-visual-max-rect.is-incomplete {
+  border-left-color:#a98a54;background:#faf8f2;border-color:#e1d5ba;
+}
+#zm-visual-search-root .zmwm-visual-max-rect.is-incomplete .zmwm-visual-max-rect-heading {
+  color:#87672d;
+}
+#zm-visual-search-root .zmwm-visual-max-rect-warning {
+  font-size:11px;line-height:1.4;font-weight:750;color:#885f25;
+  overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-table-max-rect-cell {
+  min-width:150px;vertical-align:middle;
+}
+#zm-visual-search-root .zmwm-visual-table-max-rect {
+  display:block;font-size:12px;font-weight:950;color:#286246;line-height:1.35;
+  white-space:normal;
+}
+#zm-visual-search-root .zmwm-visual-table-max-rect small {
+  display:inline-block;margin-left:4px;padding:2px 4px;border:1px solid #c2dacb;
+  background:#ebf7ef;color:#47765b;font-size:9px;font-weight:850;
+}
+#zm-visual-search-root .zmwm-visual-table-max-rect-alt {
+  display:block;font-size:10px;color:#587165;line-height:1.35;margin-top:3px;
+}
+#zm-visual-search-root .zmwm-visual-max-rect-unavailable {
+  font-size:10px;line-height:1.4;color:#947446;font-style:italic;
+}
+#zm-visual-search-root .zmwm-visual-table {min-width:2300px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(13) {width:178px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(14) {width:107px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(15) {width:165px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(16) {width:205px;}
+#zm-visual-search-root .zmwm-visual-table th:nth-child(17) {width:90px;}
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-max-rect {padding:7px 8px;margin:5px 0 6px;}
+  #zm-visual-search-root .zmwm-visual-max-rect-value {font-size:13px;}
+  #zm-visual-search-root .zmwm-visual-max-rect-alternate {font-size:10px;}
+  #zm-visual-search-root .zmwm-visual-rect-filter-hint {font-size:10.5px;}
 }
