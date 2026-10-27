@@ -307,17 +307,22 @@
     if (visualState.pieceTypes.size && !visualState.pieceTypes.has(getPieceType(record))) return false;
     if (visualState.sale && getSale(record) !== visualState.sale) return false;
     if (visualState.photosOnly && !visualPhotoKeys(record).length) return false;
-    if (visualState.minLength !== '' &&
-      !(visualNumericDimension(field(record,'length')) >= Number(visualState.minLength))) return false;
-    if (visualState.minWidth !== '' &&
-      !(visualNumericDimension(field(record,'width')) >= Number(visualState.minWidth))) return false;
+    if (visualState.minLength !== '' || visualState.minWidth !== '') {
+      const minLength = visualState.minLength === '' ? 0 : Number(visualState.minLength);
+      const minWidth = visualState.minWidth === '' ? 0 : Number(visualState.minWidth);
+      // BOTH thresholds must fit within the SAME physical rectangle.
+      // Do not combine primary A with the wider C x (B + D) section.
+      if (!visualRectCandidates(record).rectangles.some(rect =>
+        rect.length >= minLength && rect.width >= minWidth)) return false;
+    }
     const terms = visualState.search.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
     if (!terms.length) return true;
     const haystack = [
       getId(record), getColor(record), getRack(record), getMaterial(record),
       getPieceType(record), field(record,'color'), field(record,'zmv_num'),
       field(record,'shape'), field(record,'job'), getInventoryStatus(record),
-      visualState.lotAvailable ? getLot(record) : ''
+      visualState.lotAvailable ? getLot(record) : '',
+      visualRectSearchText(record)
     ].map(value => str(value).toLocaleLowerCase()).join(' ');
     return terms.every(term => haystack.includes(term));
   }
@@ -329,10 +334,10 @@
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
     {key:'rack',label:'Rack'}, {key:'staging',label:'Staging'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
-    {key:'status',label:'Status'}, {key:'job',label:'Job'},
+    {key:'maxRect',label:'Max Rect (in)'}, {key:'status',label:'Status'}, {key:'job',label:'Job'},
     {key:'notes',label:'In / Out Notes'}, {key:'id',label:'Record #'}
   ]);
-  const VISUAL_NUMERIC_SORTS = new Set(['photo','length','width','id']);
+  const VISUAL_NUMERIC_SORTS = new Set(['photo','length','width','maxRect','id']);
   const visualSortCollator = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
   function visualSortValue(record,key) {
     switch(key) {
@@ -350,6 +355,13 @@
         return value ? visualNumericDimension(value) : NaN;
       }
       case 'shape': return toText(field(record,'shape'));
+      case 'maxRect': {
+        const calc = visualRectCandidates(record);
+        const knownRectangle =
+          toText(field(record,'shape')).trim().toLowerCase() === 'rectangle';
+        return (calc.isL ? calc.completeL : knownRectangle) && calc.largest ?
+          calc.largest.area : NaN;
+      }
       case 'status': {
         const sale = getSale(record);
         return sale === 'Avl' ? 'Available' : sale === 'Hold' ? 'Hold' :
@@ -795,10 +807,11 @@
     const nextDirection = selected && ascending ? 'descending' : 'ascending';
     const ariaSort = selected ? (ascending ? 'ascending' : 'descending') : 'none';
     const arrow = selected ? (ascending ? '▲' : '▼') : '↕';
+    const sortLabel = column.key === 'maxRect' ? 'Max Rect area' : column.label;
     return '<th scope="col" aria-sort="' + ariaSort + '">' +
       '<button type="button" class="zmwm-visual-table-sort' + (selected ? ' is-sorted' : '') +
       '" data-visual-action="sort" data-visual-sort="' + esc(column.key) + '"' +
-      ' aria-label="Sort by ' + esc(column.label) + ', ' + nextDirection + '">' +
+      ' aria-label="Sort by ' + esc(sortLabel) + ', ' + nextDirection + '">' +
       esc(column.label) + '<span aria-hidden="true" class="zmwm-visual-sort-arrow">' +
       arrow + '</span></button></th>';
   }
