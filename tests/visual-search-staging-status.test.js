@@ -233,7 +233,7 @@ async function reopen(){
 
   // The existing list view has a separately sortable staging column.
   send('change',{id:'zmwm-visual-list-view',checked:true,dataset:{}});
-  assert.equal((html().match(/<th scope="col"/g)||[]).length,16);
+  assert.equal((html().match(/<th scope="col"/g)||[]).length,17);
   assert.match(html(),/data-visual-sort="staging"/);
   assert.match(html(),/class="zmwm-visual-table-stage"/);
   assert.match(html(),/data-visual-staging-record="3"/);

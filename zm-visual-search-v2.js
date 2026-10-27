@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.11 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.12 (v2 asset URL retained for Kintone compatibility)
  * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -181,6 +181,105 @@
     };
   }
 
+
+  // Geometry-only rectangle fits; no material condition/kerf/vein allowance.
+  // Zimmer's L dimensions are A x B x C x D (LHL/RHL):
+  //   full long section = A x B;
+  //   widened section   = C x (B + D).
+  // Keep BOTH candidates. Picking max length and max width independently
+  // would wrongly claim that an 89 x 27 rectangle fits 89x16x63x12.
+  // LHL vs RHL changes handedness but not the candidate rectangles.
+  function visualRectDimension(n) {
+    return String(Math.round(n * 1000) / 1000);
+  }
+  function visualRectText(rect) {
+    return visualRectDimension(rect.length) + ' × ' +
+      visualRectDimension(rect.width);
+  }
+  function visualRectCandidates(record) {
+    const lCode = visualGeometry(record).lCode;
+    const isL = Boolean(lCode);
+    const length = visualNumericDimension(field(record,'length'));
+    const width = visualNumericDimension(field(record,'width'));
+    const primaryValid = Number.isFinite(length) && length > 0 &&
+      Number.isFinite(width) && width > 0;
+    const rectangles = primaryValid ? [{length,width,area:length*width}] : [];
+    let completeL = false;
+    let issue = '';
+    if (isL) {
+      const canReadExtras = VISUAL_EXTRA_DIMENSION_FIELDS.every(dim =>
+        visualState.extraDimensionFields.some(item => item.code === dim.code));
+      const secondaryLength = canReadExtras ?
+        visualNumericDimension(field(record,'length_2')) : NaN;
+      const addedWidth = canReadExtras ?
+        visualNumericDimension(field(record,'width_2')) : NaN;
+      if (!primaryValid) issue = 'Primary length/width missing or invalid';
+      else if (!canReadExtras ||
+          !Number.isFinite(secondaryLength) || secondaryLength <= 0 ||
+          !Number.isFinite(addedWidth) || addedWidth <= 0) {
+        issue = 'Enter valid Length 2 and Width 2 to calculate';
+      } else if (secondaryLength > length) {
+        issue = 'Review L measurements: Length 2 exceeds Length';
+      } else {
+        const expandedWidth = Math.round((width + addedWidth) * 1000) / 1000;
+        if (Number.isFinite(expandedWidth) && expandedWidth > width) {
+          rectangles.push({length:secondaryLength,width:expandedWidth,
+            area:secondaryLength*expandedWidth});
+          completeL = true;
+        } else issue = 'Review L measurements';
+      }
+    }
+    // Largest means the rectangle with the greatest area, breaking an equal
+    // area tie in favor of wider usable width, then greater length.
+    rectangles.sort((a,b) =>
+      b.area-a.area || b.width-a.width || b.length-a.length);
+    return {isL,completeL,issue,rectangles,
+      largest:rectangles.length ? rectangles[0] : null};
+  }
+  function visualRectSearchText(record) {
+    return visualRectCandidates(record).rectangles.map(rect => {
+      const a = visualRectDimension(rect.length);
+      const b = visualRectDimension(rect.width);
+      return a + 'x' + b + ' ' + a + '×' + b + ' ' + a + ' x ' + b;
+    }).join(' ');
+  }
+  function visualMaxRectangleMarkup(record) {
+    const calc = visualRectCandidates(record);
+    if (!calc.isL) return '';
+    if (!calc.completeL)
+      return '<div class="zmwm-visual-max-rect is-incomplete">' +
+        '<span class="zmwm-visual-max-rect-heading">AUTO RECTANGLE</span>' +
+        '<span class="zmwm-visual-max-rect-warning">' +
+          esc(calc.issue || 'L measurements incomplete') +
+        '</span></div>';
+    const alternate = calc.rectangles[1];
+    return '<div class="zmwm-visual-max-rect"' +
+      ' title="Geometric fit from the four L measurements. Confirm dimensions, ' +
+        'stone condition, vein direction and cutting allowance before use.">' +
+      '<span class="zmwm-visual-max-rect-heading">LARGEST RECTANGLE · AUTO</span>' +
+      '<strong class="zmwm-visual-max-rect-value">' +
+        esc(visualRectText(calc.largest)) + ' in</strong>' +
+      (alternate ? '<span class="zmwm-visual-max-rect-alternate">' +
+        'Also fits: ' + esc(visualRectText(alternate)) + ' in</span>' : '') +
+      '</div>';
+  }
+  function visualMaxRectangleCell(record) {
+    const calc = visualRectCandidates(record);
+    if (calc.isL && !calc.completeL)
+      return '<span class="zmwm-visual-max-rect-unavailable" title="' +
+        esc(calc.issue) + '">Incomplete L dims</span>';
+    if (!calc.largest) return '<span class="zmwm-visual-table-blank">—</span>';
+    const isRectangle = toText(field(record,'shape')).trim().toLowerCase() === 'rectangle';
+    if (!calc.isL && !isRectangle)
+      return '<span class="zmwm-visual-table-blank" title="Only L shapes and ' +
+        'rectangles have an automatic rectangle calculation">—</span>';
+    const alternate = calc.isL && calc.rectangles[1] ?
+      '<span class="zmwm-visual-table-max-rect-alt">Also ' +
+        esc(visualRectText(calc.rectangles[1])) + '</span>' : '';
+    return '<span class="zmwm-visual-table-max-rect">' +
+      esc(visualRectText(calc.largest)) + ' in' +
+      (calc.isL ? ' <small>Auto L</small>' : '') + '</span>' + alternate;
+  }
   // Kintone attachment fields can each contain multiple image files.
   // Preserve exact-picture order, then example-picture order, without duplicates.
   function visualImages(record) {
@@ -208,17 +307,22 @@
     if (visualState.pieceTypes.size && !visualState.pieceTypes.has(getPieceType(record))) return false;
     if (visualState.sale && getSale(record) !== visualState.sale) return false;
     if (visualState.photosOnly && !visualPhotoKeys(record).length) return false;
-    if (visualState.minLength !== '' &&
-      !(visualNumericDimension(field(record,'length')) >= Number(visualState.minLength))) return false;
-    if (visualState.minWidth !== '' &&
-      !(visualNumericDimension(field(record,'width')) >= Number(visualState.minWidth))) return false;
+    if (visualState.minLength !== '' || visualState.minWidth !== '') {
+      const minLength = visualState.minLength === '' ? 0 : Number(visualState.minLength);
+      const minWidth = visualState.minWidth === '' ? 0 : Number(visualState.minWidth);
+      // BOTH thresholds must fit within the SAME physical rectangle.
+      // Do not combine primary A with the wider C x (B + D) section.
+      if (!visualRectCandidates(record).rectangles.some(rect =>
+        rect.length >= minLength && rect.width >= minWidth)) return false;
+    }
     const terms = visualState.search.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
     if (!terms.length) return true;
     const haystack = [
       getId(record), getColor(record), getRack(record), getMaterial(record),
       getPieceType(record), field(record,'color'), field(record,'zmv_num'),
       field(record,'shape'), field(record,'job'), getInventoryStatus(record),
-      visualState.lotAvailable ? getLot(record) : ''
+      visualState.lotAvailable ? getLot(record) : '',
+      visualRectSearchText(record)
     ].map(value => str(value).toLocaleLowerCase()).join(' ');
     return terms.every(term => haystack.includes(term));
   }
@@ -230,10 +334,10 @@
     {key:'inventory',label:'In / Out'}, {key:'type',label:'Piece Type'}, {key:'material',label:'Material'},
     {key:'rack',label:'Rack'}, {key:'staging',label:'Staging'}, {key:'lot',label:'Lot #'}, {key:'length',label:'Length (in)'},
     {key:'width',label:'Width (in)'}, {key:'shape',label:'Shape / Extra'},
-    {key:'status',label:'Status'}, {key:'job',label:'Job'},
+    {key:'maxRect',label:'Max Rect (in)'}, {key:'status',label:'Status'}, {key:'job',label:'Job'},
     {key:'notes',label:'In / Out Notes'}, {key:'id',label:'Record #'}
   ]);
-  const VISUAL_NUMERIC_SORTS = new Set(['photo','length','width','id']);
+  const VISUAL_NUMERIC_SORTS = new Set(['photo','length','width','maxRect','id']);
   const visualSortCollator = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
   function visualSortValue(record,key) {
     switch(key) {
@@ -251,6 +355,13 @@
         return value ? visualNumericDimension(value) : NaN;
       }
       case 'shape': return toText(field(record,'shape'));
+      case 'maxRect': {
+        const calc = visualRectCandidates(record);
+        const knownRectangle =
+          toText(field(record,'shape')).trim().toLowerCase() === 'rectangle';
+        return (calc.isL ? calc.completeL : knownRectangle) && calc.largest ?
+          calc.largest.area : NaN;
+      }
       case 'status': {
         const sale = getSale(record);
         return sale === 'Avl' ? 'Available' : sale === 'Hold' ? 'Hold' :
@@ -333,6 +444,7 @@
       '<div class="zmwm-visual-size' + (geometry.lCode ? ' zmwm-visual-size-l' : '') +
         '"' + (geometry.lCode ? ' title="' + esc(geometry.display) + '"' : '') +
         '>' + esc(geometry.display) + '</div>' +
+      visualMaxRectangleMarkup(record) +
       (geometry.nonRect && !geometry.lCode ? '<div class="zmwm-visual-geometry">' +
         '<span class="zmwm-visual-shape">' + esc(geometry.shape) + '</span>' +
         (geometry.extras ? '<span class="zmwm-visual-extras">' +
@@ -696,10 +808,11 @@
     const nextDirection = selected && ascending ? 'descending' : 'ascending';
     const ariaSort = selected ? (ascending ? 'ascending' : 'descending') : 'none';
     const arrow = selected ? (ascending ? '▲' : '▼') : '↕';
+    const sortLabel = column.key === 'maxRect' ? 'Max Rect area' : column.label;
     return '<th scope="col" aria-sort="' + ariaSort + '">' +
       '<button type="button" class="zmwm-visual-table-sort' + (selected ? ' is-sorted' : '') +
       '" data-visual-action="sort" data-visual-sort="' + esc(column.key) + '"' +
-      ' aria-label="Sort by ' + esc(column.label) + ', ' + nextDirection + '">' +
+      ' aria-label="Sort by ' + esc(sortLabel) + ', ' + nextDirection + '">' +
       esc(column.label) + '<span aria-hidden="true" class="zmwm-visual-sort-arrow">' +
       arrow + '</span></button></th>';
   }
@@ -750,6 +863,8 @@
       '<td><span class="zmwm-visual-table-shape">' + esc(shape || '—') + '</span>' +
         (extraLabel ? '<span class="zmwm-visual-table-extra">' + esc(extraLabel) +
         '</span>' : '') + '</td>' +
+      '<td class="zmwm-visual-table-max-rect-cell">' +
+        visualMaxRectangleCell(record) + '</td>' +
       '<td class="zmwm-visual-table-status-cell">' +
         (visualStatusMarkup(sale) || '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
       '<td>' + (visualJobMarkup(record) || '<span class="zmwm-visual-table-blank">—</span>') +
@@ -768,7 +883,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.11">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.12">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
@@ -806,6 +921,10 @@
       '<label class="zmwm-visual-toggle"><input id="zmwm-visual-photos-only" type="checkbox">' +
       '<span>Photos only</span></label>' +
       '<button class="zmwm-visual-reset" type="button" data-visual-action="reset">Reset</button></div>' +
+      '<p class="zmwm-visual-rect-filter-hint">' +
+        'Size filters check one rectangle that fits both minimums. ' +
+        'L-shapes automatically include their wider section when all four dimensions are recorded.' +
+      '</p>' +
       '<div id="zmwm-visual-feedback" class="zmwm-visual-feedback" role="status" aria-live="polite"></div>' +
       '<div id="zmwm-visual-group-banner"></div>' +
       '<div id="zmwm-visual-basket"></div>' +

@@ -17,6 +17,7 @@ on:
       - 'tests/visual-search-share-group.test.js'
       - 'tests/visual-search-saved-groups.test.js'
       - 'tests/visual-search-staging-status.test.js'
+      - 'tests/visual-search-l-rectangles.test.js'
       - '.github/workflows/visual-search-v3-smoke.yml'
   push:
     branches:
@@ -54,3 +55,5 @@ jobs:
         run: node tests/visual-search-saved-groups.test.js
       - name: Test staging field edit permissions and safe updates
         run: node tests/visual-search-staging-status.test.js
+      - name: Test largest usable rectangle calculations for LHL/RHL remnants
+        run: node tests/visual-search-l-rectangles.test.js

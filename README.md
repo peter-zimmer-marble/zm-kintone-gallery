@@ -48,6 +48,25 @@ The **standalone ZM Inventory App 6 Visual Search** can now create a temporary s
 
 Regression coverage: `tests/visual-search-saved-groups.test.js` validates saving, reopening after leaving the view, named updates, user isolation, delete confirmations, copied links, historical Out pieces, HTML escaping, cross-tab changes and storage errors. Live Kintone browser testing is still required.
 
+## Automatic largest rectangle for LHL / RHL pieces (2026-10-27)
+
+Visual Search **calculates usable rectangular sections** from existing Kintone fields; it never requires manually maintained notes or writes new values to inventory.
+
+For an LHL or RHL with dimensions **A × B × C × D**, the shape supports these two axis-aligned rectangular cuts:
+
+- The long, narrow section: **A × B**
+- The wider section: **C × (B + D)**
+
+Example: **89 × 16 × 63 × 12** allows either **89 × 16** or **63 × 28**. The **largest** rectangle is the one with greatest *area* (63 × 28 = 1,764 square inches here). Both rectangles remain eligible for search. For instance, min length 60 and min width 27 matches the wider section; min length 85 and min width 27 must **not** match, because no single rectangle fits both requirements. Values are measured in inches, without automatically rotating the piece.
+
+**Features:**
+- The four entered dimensions and LHL/RHL handedness remain unchanged on the Gallery card and photo viewer. A distinct *Largest rectangle · Auto* area also shows the maximum-area rectangle and the alternative rectangular fit. List view has a **Max Rect (in)** column sortable by rectangle *area*, while the primary Length/Width columns remain unchanged. Rectangles show their recorded full size in that column.
+- The existing **Min. Length** / **Min. Width** filters and free-text dimension searches now recognize both feasible sections. One and the same candidate must satisfy both minima—independent maximums may never be combined.
+- Missing or inaccessible Length 2 / Width 2 fields, nonnumeric/zero values, or a secondary length greater than the primary length generate a *cannot calculate* warning for L-shapes; the original primary dimensions can still be searched conservatively. Other irregular shapes continue to use the existing recorded Length/Width filter behavior without claiming an automatic maximal rectangle.
+- This is a **geometric rectangle calculation**, *not a guarantee of cuttable stone*. Operators must still confirm actual geometry, vein direction, damage, usable margins, saw kerf and placement before cutting. There is no automatic grain rotation, kerf deduction or modification of Kintone inventory fields.
+
+The implementation uses the existing operational allowlist fields (`shape`, `length`, `width`, `length_2`, `width_2`), preserving optional-field fallback and the original URLs. Tests in `tests/visual-search-l-rectangles.test.js` cover both handednesses, partial dimensions, decimal dimensions, false-positive avoidance, gallery/list/photo consistency, sorting and Kintone field permissions. The separate warehouse staging and greenfield inventory app are not modified.
+
 ## Inline staging dropdown (2026-10-27)
 
 In **Gallery**, **sortable List**, and **enlarged-photo details**, a user with confirmed Kintone record and `staging_status` edit access sees the **colored status badge as a native dropdown**. There is no intermediate Change button or second selector. Staff without edit access see the same color-coded status as static text, with no dropdown.
