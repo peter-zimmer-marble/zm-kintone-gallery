@@ -444,6 +444,7 @@
       '<div class="zmwm-visual-size' + (geometry.lCode ? ' zmwm-visual-size-l' : '') +
         '"' + (geometry.lCode ? ' title="' + esc(geometry.display) + '"' : '') +
         '>' + esc(geometry.display) + '</div>' +
+      visualMaxRectangleMarkup(record) +
       (geometry.nonRect && !geometry.lCode ? '<div class="zmwm-visual-geometry">' +
         '<span class="zmwm-visual-shape">' + esc(geometry.shape) + '</span>' +
         (geometry.extras ? '<span class="zmwm-visual-extras">' +
@@ -862,6 +863,8 @@
       '<td><span class="zmwm-visual-table-shape">' + esc(shape || '—') + '</span>' +
         (extraLabel ? '<span class="zmwm-visual-table-extra">' + esc(extraLabel) +
         '</span>' : '') + '</td>' +
+      '<td class="zmwm-visual-table-max-rect-cell">' +
+        visualMaxRectangleCell(record) + '</td>' +
       '<td class="zmwm-visual-table-status-cell">' +
         (visualStatusMarkup(sale) || '<span class="zmwm-visual-table-blank">—</span>') + '</td>' +
       '<td>' + (visualJobMarkup(record) || '<span class="zmwm-visual-table-blank">—</span>') +
@@ -918,6 +921,10 @@
       '<label class="zmwm-visual-toggle"><input id="zmwm-visual-photos-only" type="checkbox">' +
       '<span>Photos only</span></label>' +
       '<button class="zmwm-visual-reset" type="button" data-visual-action="reset">Reset</button></div>' +
+      '<p class="zmwm-visual-rect-filter-hint">' +
+        'Size filters check one rectangle that fits both minimums. ' +
+        'L-shapes automatically include their wider section when all four dimensions are recorded.' +
+      '</p>' +
       '<div id="zmwm-visual-feedback" class="zmwm-visual-feedback" role="status" aria-live="polite"></div>' +
       '<div id="zmwm-visual-group-banner"></div>' +
       '<div id="zmwm-visual-basket"></div>' +
