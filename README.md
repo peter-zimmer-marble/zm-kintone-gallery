@@ -48,9 +48,11 @@ The **standalone ZM Inventory App 6 Visual Search** can now create a temporary s
 
 Regression coverage: `tests/visual-search-saved-groups.test.js` validates saving, reopening after leaving the view, named updates, user isolation, delete confirmations, copied links, historical Out pieces, HTML escaping, cross-tab changes and storage errors. Live Kintone browser testing is still required.
 
-## Click the staging badge to edit (2026-10-27)
+## Inline staging dropdown (2026-10-27)
 
-In **Gallery**, **sortable List**, and **enlarged-photo details**, a permitted user can click the **colored staging-status badge itself** (shown with a small dropdown chevron) to open the existing staging choices plus **Save** / **Cancel**. The separate **Change** button is removed. Focus moves to the dropdown when opening and returns to the status badge when canceling. Users without confirmed Kintone record/field-edit permission continue to see the colored status text **without a clickable button**. Permission checks, allowed values from Kintone, explicit Save, and revision-protected single-field PUTs remain unchanged. No other inventory fields are modified.
+In **Gallery**, **sortable List**, and **enlarged-photo details**, a user with confirmed Kintone record and `staging_status` edit access sees the **colored status badge as a native dropdown**. There is no intermediate Change button or second selector. Staff without edit access see the same color-coded status as static text, with no dropdown.
+
+Choosing a different value previews the corresponding color and shows an **Unsaved** indicator with **Save / Cancel** next to the badge. The change **does not write to Kintone until Save**; Cancel restores the prior value and color. The existing Kintone permissions check is repeated before writing, choices come from the actual form, and the revision-checked PUT changes **only** `staging_status`. Unconfigured/legacy statuses are shown faithfully without silently selecting the first available option. Native select controls support keyboard, mouse and touch; unauthorized users never receive an editable selector. No Kintone customization URL or inventory schema change is needed.
 
 ## Color-coded staging status (2026-10-26)
 
