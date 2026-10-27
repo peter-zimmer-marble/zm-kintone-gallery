@@ -8,7 +8,8 @@ const css=fs.readFileSync('zm-visual-search-v2.css','utf8');
 new vm.Script(source);
 function node(){
  return {innerHTML:'',textContent:'',value:'',checked:false,hidden:true,
-   classList:{toggle(){}},querySelector(){return null;},querySelectorAll(){return [];}};
+   classList:{flags:new Map(),toggle(name,value){this.flags.set(name,value);}},
+   querySelector(){return null;},querySelectorAll(){return [];}};
 }
 const nodes=new Map(),listeners=new Map(),events=[];
 for(const id of [
