@@ -268,6 +268,9 @@ async function reopen(){
   assert.equal(writes.length,0);
   send('change',{dataset:{visualStageChoice:'2'},value:'RTS'});
   assert.equal(controls(2),'','Selecting current status requires no Save');
+  // A user cannot forge an option that is not in the actual Kintone form.
+  send('change',{dataset:{visualStageChoice:'2'},value:'INVALID OPTION'});
+  assert.equal(controls(2),'','Unknown values cannot become a pending update');
   assert.equal(writes.length,0);
 
   // Explicit Save re-evaluates ACL then reads a fresh revision and updates
@@ -347,12 +350,18 @@ async function reopen(){
     'Enlarged photo must retain color styling');
   assert.match(css,/\.zmwm-visual-card\.is-out > \.zmwm-visual-staging/,
     'Out inventory retains its warning while status is colored');
-  assert.match(css,/\.zmwm-visual-stage-pill-button/,
-    'The colored status pill must be styled as the button');
-  assert.match(css,/\.zmwm-visual-stage-pill-button:focus-visible/,
-    'The button must support keyboard focus');
+  assert.match(css,/\.zmwm-visual-stage-pill-select/,
+    'The native select itself must be styled as the colored badge');
+  assert.match(css,/\.zmwm-visual-stage-pill-select:focus-visible/,
+    'The inline select must have visible keyboard focus');
+  assert.match(css,/\.zmwm-visual-stage-value\.is-clickable::after/,
+    'A dropdown chevron belongs to the colored pill');
+  assert.match(css,/\.zmwm-visual-staging\.is-pending/,
+    'A draft change must remain visibly unsaved');
+  assert.doesNotMatch(css,/\.zmwm-visual-stage-pill-button/,
+    'The former intermediate button must be removed');
   assert.doesNotMatch(css,/\.zmwm-visual-stage-change/,
-    'The old Change button styling must be removed');
+    'The old Change button must remain removed');
   console.log('Staging status: display, record/field ACL, gallery/list, '+
     'dynamic choices, guarded single-field revisioned PUT, revoked rights, '+
     'stale values, denied fields and failed metadata passed.');
