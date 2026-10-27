@@ -240,29 +240,40 @@ async function reopen(){
   assert.match(html(),/class="zmwm-visual-staging is-view-staging"/,
     'List layout uses the same blue staging badge');
 
-  // A forged click for a read-only field must not update anything.
-  action('edit-staging',1);action('save-staging',1);
+  // Forged changes and Save on a read-only record must not write anything.
+  send('change',{dataset:{visualStageChoice:'1'},value:'View Staging'});
+  action('save-staging',1);
   assert.equal(writes.length,0);
   assert.equal(controls(1),'');
+  assert.doesNotMatch(badge(1),/<select/);
 
-  // Authorized editor sees true Kintone choice values including form-defined
-  // extra options, rather than hardcoded RTS/View Staging.
-  action('edit-staging',2);
-  assert.match(controls(2),/data-visual-stage-choice="2"/);
-  assert.match(controls(2),/Ready for Shop/);
+  // The badge IS the native dropdown. Only an actual selection change reveals
+  // Save and Cancel; selection by itself cannot write to inventory.
+  send('change',{dataset:{visualStageChoice:'2'},value:'View Staging'});
+  assert.match(badge(2),/data-visual-stage-choice="2"/);
+  assert.match(badge(2),/value="View Staging" selected/);
+  assert.match(controls(2),/Unsaved/);
   assert.match(controls(2),/data-visual-action="save-staging"/);
   assert.match(controls(2),/data-visual-action="cancel-staging"/);
-  assert.doesNotMatch(badge(2),/data-visual-action="edit-staging"/,
-    'Badge stops being clickable while editor is open');
+  assert.doesNotMatch(controls(2),/<select/,
+    'No second dropdown must appear beside the status pill');
+  assert.equal(stageClass(2,'is-view-staging'),true);
+  assert.equal(stageClass(2,'is-pending'),true);
+  assert.equal(writes.length,0);
   action('cancel-staging',2);
-  assert.equal(controls(2),'','Cancel restores the status badge alone');
-  assert.match(badge(2),/data-visual-action="edit-staging"/);
+  assert.equal(controls(2),'','Cancel returns to the original pill');
+  assert.match(badge(2),/value="RTS" selected/);
+  assert.equal(stageClass(2,'is-rts'),true);
+  assert.equal(stageClass(2,'is-pending'),false);
+  assert.equal(writes.length,0);
+  send('change',{dataset:{visualStageChoice:'2'},value:'RTS'});
+  assert.equal(controls(2),'','Selecting current status requires no Save');
   assert.equal(writes.length,0);
 
   // Explicit Save re-evaluates ACL then reads a fresh revision and updates
   // exactly the staging_status field. No inventory notes or photos are sent.
-  action('edit-staging',2);
   send('change',{dataset:{visualStageChoice:'2'},value:'View Staging'});
+  assert.equal(writes.length,0,'Selection must not autosave');
   action('save-staging',2);await flush();
   assert.equal(writes.length,1);
   assert.equal(writes[0].record.staging_status.value,'View Staging');
@@ -277,7 +288,6 @@ async function reopen(){
 
   // Concurrent revision conflict after the final read must fail cleanly.
   forcePutError=true;
-  action('edit-staging',2);
   send('change',{dataset:{visualStageChoice:'2'},value:'RTS'});
   action('save-staging',2);await flush();
   assert.equal(writes.length,1,'Failed PUT must not be reported as saved');
@@ -286,12 +296,12 @@ async function reopen(){
   forcePutError=false;
 
   // Cancel and unchanged selections never issue writes.
-  action('edit-staging',4);action('cancel-staging',4);
+  send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
+  action('cancel-staging',4);
   assert.equal(writes.length,1);
 
   // A revoked permission before Save must prevent PUT and hide editor.
   canEdit.delete('4');
-  action('edit-staging',4);
   send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
   action('save-staging',4);await flush();
   assert.equal(writes.length,1);
@@ -302,9 +312,8 @@ async function reopen(){
   // Load an editor with a staging value that changed after list fetch.
   canEdit.add('4');
   await reopen();
-  action('edit-staging',4);
-  records[3].staging_status.value='View Staging';
   send('change',{dataset:{visualStageChoice:'4'},value:'RTS'});
+  records[3].staging_status.value='View Staging';
   action('save-staging',4);await flush();
   assert.equal(writes.length,1,'Do not overwrite newer staging value');
   assert.match(html(),/changed since this page loaded/);
@@ -322,6 +331,8 @@ async function reopen(){
   formFailure=true;
   await reopen();
   assert.equal(controls(2),'');
+  assert.doesNotMatch(badge(2),/<select/,
+    'Cannot edit when form choices are not readable');
   assert.equal(writes.length,1);
   formFailure=false;
   assert.ok(css.includes('.zmwm-visual-table-stage'));
