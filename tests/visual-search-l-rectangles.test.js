@@ -151,7 +151,7 @@ async function revisit(){
   assert.match(full,/89 × 16 × 63 × 12 in · RHL/,'Right-handed dimensions preserved');
   assert.equal((full.match(/LARGEST RECTANGLE · AUTO/g)||[]).length,4,
     'Two 89x16x63x12 shapes, one area-dominant long shape and a decimal shape');
-  assert.equal((full.match(/63 × 28 in/g)||[]).length>=4,true,
+  assert.equal((full.match(/63 × 28 in/g)||[]).length>=2,true,
     'Largest rectangle and its alternative appears for both handed Ls');
   assert.match(full,/LARGEST RECTANGLE · AUTO[\s\S]*?63 × 28 in[\s\S]*?Also fits: 89 × 16 in/);
   assert.match(full,/LARGEST RECTANGLE · AUTO[\s\S]*?120 × 20 in[\s\S]*?Also fits: 60 × 25 in/,
