@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.9 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.10 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1043,14 +1043,12 @@
   min-width:0;margin-left:auto;
 }
 #zm-visual-search-root .zmwm-visual-stage-actions:empty {display:none;}
-#zm-visual-search-root .zmwm-visual-stage-change,
 #zm-visual-search-root .zmwm-visual-stage-editor > button {
   display:inline-flex;align-items:center;justify-content:center;
   border:1px solid #a1bdab;background:#fff;color:#276342;
   padding:4px 8px;min-height:27px;line-height:1.2;
   font-size:10px;font-weight:850;cursor:pointer;border-radius:2px;
 }
-#zm-visual-search-root .zmwm-visual-stage-change:hover,
 #zm-visual-search-root .zmwm-visual-stage-editor > button:hover {
   background:#e5f2e8;border-color:#61966e;
 }
@@ -1205,5 +1203,40 @@
 @media(max-width:470px) {
   #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-staging .zmwm-visual-stage-value {
     padding:3px 6px;min-height:24px;font-size:10px;
+  }
+}
+
+/* v3.10 — the status pill itself is the only staging edit trigger.
+   Unprivileged users get the identical color badge without a button. */
+#zm-visual-search-root .zmwm-visual-stage-value.is-clickable {
+  padding:0;
+}
+#zm-visual-search-root .zmwm-visual-stage-pill-button {
+  display:inline-flex;align-items:center;justify-content:space-between;
+  gap:8px;max-width:100%;min-height:30px;
+  padding:4px 9px;margin:0;
+  background:transparent;border:0;border-radius:2px;
+  color:inherit;font:inherit;font-size:inherit;font-weight:900;
+  line-height:1.35;text-align:left;cursor:pointer;overflow-wrap:anywhere;
+}
+#zm-visual-search-root .zmwm-visual-stage-pill-button:hover {
+  background:rgba(255,255,255,.38);
+  box-shadow:inset 0 0 0 1px var(--zm-stage-accent);
+}
+#zm-visual-search-root .zmwm-visual-stage-pill-button:focus-visible {
+  outline:3px solid var(--zm-stage-accent);
+  outline-offset:2px;
+}
+#zm-visual-search-root .zmwm-visual-stage-pill-arrow {
+  color:var(--zm-stage-ink);
+  font-size:13px;font-weight:950;line-height:1;flex-shrink:0;
+  opacity:.8;
+}
+@media(max-width:470px) {
+  #zm-visual-search-root .zmwm-visual-grid .zmwm-visual-stage-value.is-clickable {
+    padding:0;
+  }
+  #zm-visual-search-root .zmwm-visual-stage-pill-button {
+    min-height:34px;padding:6px 8px;gap:5px;
   }
 }
