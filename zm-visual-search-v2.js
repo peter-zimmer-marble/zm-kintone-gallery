@@ -1920,9 +1920,31 @@
     ui.addEventListener('change',event => {
       if (event.target.dataset && event.target.dataset.visualStageChoice) {
         const id = str(event.target.dataset.visualStageChoice);
-        if (visualState.stageEditId === id &&
-            visualState.stageRights.get(id) === true && !visualState.stageSavingId)
-          visualState.stageDraft = str(event.target.value);
+        const record = visualState.records.find(r => getId(r) === id);
+        if (!record || !visualStageCanSelect(record) ||
+            visualState.stageSavingId) return;
+        const value = str(event.target.value);
+        const settings = visualState.stageSettings;
+        if (!settings.choices.includes(value) &&
+            !(value === '' && !settings.required)) {
+          visualRefreshStageControls();
+          return;
+        }
+        if (value === getStage(record)) {
+          visualState.stageEditId = '';
+          visualState.stageDraft = '';
+        } else {
+          // One pending edit at a time; the other card reverts to its saved value.
+          visualState.stageEditId = id;
+          visualState.stageDraft = value;
+        }
+        visualState.stageMessages.delete(id);
+        const host = typeof event.target.closest === 'function' ?
+          event.target.closest('[data-visual-staging-record]') : null;
+        visualRefreshStageControls();
+        const replacement = host && host.querySelector ?
+          host.querySelector('[data-visual-stage-choice]') : null;
+        if (replacement && replacement.focus) replacement.focus({preventScroll:true});
         return;
       }
       const filter = event.target.dataset ? event.target.dataset.visualFilter : '';
@@ -1985,24 +2007,12 @@
         }
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
-      if (action === 'edit-staging') {
-        // Capture the host before the badge button is replaced with the editor.
-        const host = typeof button.closest === 'function' ?
-          button.closest('[data-visual-staging-record]') : null;
-        const id = str(button.dataset.visualStageId);
-        visualEditStage(id);
-        // Keyboard and touchscreen users go straight to the new selector.
-        const select = host && host.querySelector ?
-          host.querySelector('[data-visual-stage-choice]') : null;
-        if (select && select.focus) select.focus({preventScroll:true});
-        return;
-      }
       if (action === 'cancel-staging') {
         const host = typeof button.closest === 'function' ?
           button.closest('[data-visual-staging-record]') : null;
         visualCancelStage(str(button.dataset.visualStageId));
         const badge = host && host.querySelector ?
-          host.querySelector('.zmwm-visual-stage-pill-button') : null;
+          host.querySelector('.zmwm-visual-stage-pill-select') : null;
         if (badge && badge.focus) badge.focus({preventScroll:true});
         return;
       }
