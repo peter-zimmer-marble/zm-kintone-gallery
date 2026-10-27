@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.9 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.10 (v2 asset URL retained for Kintone compatibility)
  * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -380,10 +380,8 @@
     if (visualState.stageRights.get(id) !== true || !visualState.stageSettings) return '';
     if (visualState.stageSavingId === id)
       return '<span class="zmwm-visual-stage-busy" role="status">Saving…</span>';
-    if (visualState.stageEditId !== id)
-      return '<button type="button" class="zmwm-visual-stage-change"' +
-        ' data-visual-action="edit-staging" data-visual-stage-id="' + esc(id) +
-        '">Change</button>';
+    // The colored status badge itself opens editing. No separate Change button.
+    if (visualState.stageEditId !== id) return '';
     const current = getStage(record);
     const choices = visualState.stageSettings.choices;
     const optionalBlank = !visualState.stageSettings.required ?
@@ -414,6 +412,25 @@
     if (stage === 'view staging') return 'is-view-staging';
     return 'is-other';
   }
+  function visualStageCanOpen(record) {
+    const id = getId(record);
+    return visualState.stageFieldAvailable &&
+      visualState.stageRights.get(id) === true && !!visualState.stageSettings &&
+      visualState.stageEditId !== id && visualState.stageSavingId !== id;
+  }
+  function visualStageValueMarkup(record) {
+    const label = esc(getStage(record) || 'Not staged');
+    if (!visualStageCanOpen(record)) return label;
+    const id = getId(record);
+    return '<button type="button" class="zmwm-visual-stage-pill-button"' +
+      ' data-visual-action="edit-staging" data-visual-stage-id="' + esc(id) + '"' +
+      ' title="Click to change staging status"' +
+      ' aria-label="Change staging status for ' + esc(getColorCombined(record)) +
+        ' (currently ' + label + ')">' +
+      '<span>' + label + '</span>' +
+      '<span class="zmwm-visual-stage-pill-arrow" aria-hidden="true">▾</span>' +
+      '</button>';
+  }
   function visualStageMarkup(record) {
     if (!visualState.stageFieldAvailable) return '';
     const id = getId(record);
@@ -422,8 +439,9 @@
     return '<div class="zmwm-visual-staging ' + visualStageTone(stage) +
       '" data-visual-staging-record="' + esc(id) + '">' +
       '<span class="zmwm-visual-stage-label">STAGING</span>' +
-      '<strong class="zmwm-visual-stage-value" data-visual-stage-value>' +
-        esc(stage || 'Not staged') + '</strong>' +
+      '<span class="zmwm-visual-stage-value' +
+        (visualStageCanOpen(record) ? ' is-clickable' : '') +
+        '" data-visual-stage-value>' + visualStageValueMarkup(record) + '</span>' +
       '<span class="zmwm-visual-stage-actions" data-visual-stage-actions>' +
         visualStageActionsMarkup(record) + '</span>' +
       '<span class="zmwm-visual-stage-feedback" data-visual-stage-feedback' +
@@ -441,7 +459,11 @@
       const status = host.querySelector('[data-visual-stage-value]');
       const actions = host.querySelector('[data-visual-stage-actions]');
       const note = host.querySelector('[data-visual-stage-feedback]');
-      if (status) status.textContent = getStage(record) || 'Not staged';
+      if (status) {
+        status.innerHTML = visualStageValueMarkup(record);
+        if (status.classList)
+          status.classList.toggle('is-clickable',visualStageCanOpen(record));
+      }
       if (actions) actions.innerHTML = visualStageActionsMarkup(record);
       if (note) note.textContent = visualState.stageMessages.get(getId(record)) || '';
     });
@@ -737,7 +759,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.9">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.10">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
@@ -1955,11 +1977,24 @@
       }
       if (action === 'download-photo') downloadVisualLightboxPhoto();
       if (action === 'edit-staging') {
-        visualEditStage(str(button.dataset.visualStageId));
+        // Capture the host before the badge button is replaced with the editor.
+        const host = typeof button.closest === 'function' ?
+          button.closest('[data-visual-staging-record]') : null;
+        const id = str(button.dataset.visualStageId);
+        visualEditStage(id);
+        // Keyboard and touchscreen users go straight to the new selector.
+        const select = host && host.querySelector ?
+          host.querySelector('[data-visual-stage-choice]') : null;
+        if (select && select.focus) select.focus({preventScroll:true});
         return;
       }
       if (action === 'cancel-staging') {
+        const host = typeof button.closest === 'function' ?
+          button.closest('[data-visual-staging-record]') : null;
         visualCancelStage(str(button.dataset.visualStageId));
+        const badge = host && host.querySelector ?
+          host.querySelector('.zmwm-visual-stage-pill-button') : null;
+        if (badge && badge.focus) badge.focus({preventScroll:true});
         return;
       }
       if (action === 'save-staging') {

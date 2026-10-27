@@ -8,7 +8,8 @@ const css=fs.readFileSync('zm-visual-search-v2.css','utf8');
 new vm.Script(source);
 function node(){
  return {innerHTML:'',textContent:'',value:'',checked:false,hidden:true,
-   classList:{toggle(){}},querySelector(){return null;},querySelectorAll(){return [];}};
+   classList:{flags:new Map(),toggle(name,value){this.flags.set(name,value);}},
+   querySelector(){return null;},querySelectorAll(){return [];}};
 }
 const nodes=new Map(),listeners=new Map(),events=[];
 for(const id of [
@@ -180,6 +181,8 @@ function action(name,id){
 }
 const html=()=>nodes.get('zmwm-visual-results').innerHTML;
 const controls=id=>hostFor(String(id)).parts.get('actions').innerHTML;
+const badge=id=>hostFor(String(id)).parts.get('value').innerHTML;
+const clickable=id=>hostFor(String(id)).parts.get('value').classList.flags.get('is-clickable');
 const feedback=id=>hostFor(String(id)).parts.get('feedback').textContent;
 async function reopen(){
  handler({viewName:'Gallery A',viewType:'custom'});
@@ -202,10 +205,24 @@ async function reopen(){
   assert.match(html(),/class="zmwm-visual-staging is-other" data-visual-staging-record="5"/);
   assert.match(html(),/<\/a><div class="zmwm-visual-staging is-rts"/,
     'Gallery staging widget must be outside the record link');
-  assert.match(controls(2),/data-visual-action="edit-staging"/);
-  assert.match(controls(4),/data-visual-action="edit-staging"/);
+  assert.match(badge(2),/class="zmwm-visual-stage-pill-button"/);
+  assert.match(badge(2),/data-visual-action="edit-staging"/);
+  assert.match(badge(4),/data-visual-action="edit-staging"/);
+  assert.match(badge(2),/currently RTS/);
+  assert.equal(clickable(2),true);
+  assert.equal(clickable(4),true);
+  assert.equal(controls(2),'','No separate Change button should render');
+  assert.equal(controls(4),'','No separate Change button should render');
   assert.equal(controls(1),'','Read-only fields must expose no editor');
   assert.equal(controls(3),'','Non-editable records must expose no editor');
+  assert.doesNotMatch(badge(1),/data-visual-action="edit-staging"/,
+    'Read-only status is a non-clickable color badge');
+  assert.doesNotMatch(badge(3),/data-visual-action="edit-staging"/,
+    'Non-editable record is a non-clickable badge');
+  assert.equal(clickable(1),false);
+  assert.equal(clickable(3),false);
+  assert.doesNotMatch(source,/class="zmwm-visual-stage-change"/,
+    'Legacy Change button must be removed');
   assert.equal(formCalls,1,'Form settings loaded only after ACL edit permission');
   assert.equal(writes.length,0);
 
@@ -229,8 +246,12 @@ async function reopen(){
   assert.match(controls(2),/data-visual-stage-choice="2"/);
   assert.match(controls(2),/Ready for Shop/);
   assert.match(controls(2),/data-visual-action="save-staging"/);
+  assert.match(controls(2),/data-visual-action="cancel-staging"/);
+  assert.doesNotMatch(badge(2),/data-visual-action="edit-staging"/,
+    'Badge stops being clickable while editor is open');
   action('cancel-staging',2);
-  assert.match(controls(2),/data-visual-action="edit-staging"/);
+  assert.equal(controls(2),'','Cancel restores the status badge alone');
+  assert.match(badge(2),/data-visual-action="edit-staging"/);
   assert.equal(writes.length,0);
 
   // Explicit Save re-evaluates ACL then reads a fresh revision and updates
@@ -310,6 +331,12 @@ async function reopen(){
     'Enlarged photo must retain color styling');
   assert.match(css,/\.zmwm-visual-card\.is-out > \.zmwm-visual-staging/,
     'Out inventory retains its warning while status is colored');
+  assert.match(css,/\.zmwm-visual-stage-pill-button/,
+    'The colored status pill must be styled as the button');
+  assert.match(css,/\.zmwm-visual-stage-pill-button:focus-visible/,
+    'The button must support keyboard focus');
+  assert.doesNotMatch(css,/\.zmwm-visual-stage-change/,
+    'The old Change button styling must be removed');
   console.log('Staging status: display, record/field ACL, gallery/list, '+
     'dynamic choices, guarded single-field revisioned PUT, revoked rights, '+
     'stale values, denied fields and failed metadata passed.');
