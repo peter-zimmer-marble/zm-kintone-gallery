@@ -1989,7 +1989,12 @@
         return;
       }
       if (action === 'cancel-staging') {
+        const host = typeof button.closest === 'function' ?
+          button.closest('[data-visual-staging-record]') : null;
         visualCancelStage(str(button.dataset.visualStageId));
+        const badge = host && host.querySelector ?
+          host.querySelector('.zmwm-visual-stage-pill-button') : null;
+        if (badge && badge.focus) badge.focus({preventScroll:true});
         return;
       }
       if (action === 'save-staging') {
