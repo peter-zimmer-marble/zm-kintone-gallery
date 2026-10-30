@@ -89,7 +89,7 @@ const piece=(html,type,cls)=>assert.ok(
  piece(html,'Stan-Rem','type-standard-rem');
  // Stock slab and stock rem are prominent, distinct gallery cards, not just
  // differently colored classifications buried in the details.
- assert.equal((html.match(/class="zmwm-visual-stock-banner/g)||[]).length,2,
+ assert.equal((html.match(/class="zmwm-visual-stock-banner is-stock-(?:slab|rem)"/g)||[]).length,2,
    'Only the two exact stock classifications get prominent header banners');
  assert.match(html,/class="zmwm-visual-stock-banner is-stock-slab"/);
  assert.match(html,/class="zmwm-visual-stock-banner is-stock-rem"/);
