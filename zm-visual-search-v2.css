@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.13 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.14 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1339,66 +1339,102 @@
   #zm-visual-search-root .zmwm-visual-rect-filter-hint {font-size:10.5px;}
 }
 
-/* v3.13 — Stock Slab vs Stock Rem Gallery cards.
-   Inventory type has its own visually prominent band ABOVE the photo, never
-   competing with SOLD/HOLD badges, OUT photo overlays, or selection controls. */
-#zm-visual-search-root .zmwm-visual-stock-banner {
+
+/* v3.14 — every piece type has a prominent Gallery header matching its
+   existing type chip. Colors and two-letter identifiers distinguish the five
+   Kintone Master Inventory types; generic future types remain visibly named.
+   None of these treatments redefines SOLD/HOLD/OUT or selection status. */
+#zm-visual-search-root .zmwm-visual-type-banner {
+  --zmwm-piece-band:#4a5f58;
+  --zmwm-piece-edge:#a2b7a8;
   display:flex;align-items:center;gap:8px;box-sizing:border-box;
-  min-height:38px;padding:7px 10px;min-width:0;
-  color:#fff;line-height:1.2;
-  border-bottom:2px solid rgba(255,255,255,.23);
+  min-height:39px;padding:7px 10px;min-width:0;
+  background:var(--zmwm-piece-band);color:#fff;
+  line-height:1.2;border-bottom:2px solid var(--zmwm-piece-edge);
 }
-#zm-visual-search-root .zmwm-visual-stock-banner.is-stock-slab {
-  background:#205f48;
-  border-bottom-color:#72b28f;
+#zm-visual-search-root .zmwm-visual-type-banner.type-stock-slab {
+  --zmwm-piece-band:#205f48;--zmwm-piece-edge:#72b28f;
 }
-#zm-visual-search-root .zmwm-visual-stock-banner.is-stock-rem {
-  background:#98531d;
-  border-bottom-color:#e9b16d;
+#zm-visual-search-root .zmwm-visual-type-banner.type-so-slab {
+  --zmwm-piece-band:#285d8a;--zmwm-piece-edge:#86b5df;
 }
-#zm-visual-search-root .zmwm-visual-stock-banner-symbol {
+#zm-visual-search-root .zmwm-visual-type-banner.type-consigned-slab {
+  --zmwm-piece-band:#5d5488;--zmwm-piece-edge:#b9ace2;
+}
+#zm-visual-search-root .zmwm-visual-type-banner.type-stock-rem {
+  --zmwm-piece-band:#98531d;--zmwm-piece-edge:#e9b16d;
+}
+#zm-visual-search-root .zmwm-visual-type-banner.type-standard-rem {
+  --zmwm-piece-band:#126b63;--zmwm-piece-edge:#81c7c1;
+}
+#zm-visual-search-root .zmwm-visual-type-banner.type-remnant {
+  --zmwm-piece-band:#835e26;--zmwm-piece-edge:#d2b57a;
+}
+#zm-visual-search-root .zmwm-visual-type-banner.type-slab {
+  --zmwm-piece-band:#3b6675;--zmwm-piece-edge:#8eb6c6;
+}
+#zm-visual-search-root .zmwm-visual-type-banner.type-other {
+  --zmwm-piece-band:#4a5f58;--zmwm-piece-edge:#a2b7a8;
+}
+#zm-visual-search-root .zmwm-visual-type-banner-symbol {
   display:inline-flex;align-items:center;justify-content:center;
-  flex:0 0 23px;width:23px;height:23px;
-  border:1px solid rgba(255,255,255,.67);
+  flex:0 0 26px;width:26px;height:24px;
+  border:1px solid rgba(255,255,255,.65);
   background:rgba(255,255,255,.15);
-  color:#fff;font-size:13px;font-weight:950;line-height:1;
+  color:#fff;font-size:11.5px;font-weight:950;line-height:1;
+  letter-spacing:.15px;
 }
-#zm-visual-search-root .zmwm-visual-stock-banner-title {
+#zm-visual-search-root .zmwm-visual-type-banner-title {
   display:block;min-width:0;flex:1 1 auto;
   color:#fff;font-size:12px;font-weight:950;
-  letter-spacing:.8px;line-height:1.2;
-  overflow-wrap:normal;white-space:nowrap;
+  letter-spacing:.65px;line-height:1.25;
+  overflow-wrap:anywhere;
 }
-#zm-visual-search-root .zmwm-visual-stock-banner-descriptor {
+#zm-visual-search-root .zmwm-visual-type-banner-descriptor {
   display:inline-flex;flex:0 0 auto;align-items:center;
   padding:4px 5px;background:rgba(255,255,255,.14);
   border:1px solid rgba(255,255,255,.34);
   color:#fff;font-size:9px;font-weight:850;
-  letter-spacing:.5px;white-space:nowrap;
+  letter-spacing:.35px;white-space:nowrap;
 }
-/* The subtle body tint carries the classification down the card while keeping
-   the high-priority OUT warning/background and SOLD/HOLD card borders intact. */
+/* Gentle classification tints below the banner reinforce scanning without
+   affecting OUT cards' red backgrounds or SOLD/HOLD border colors. */
 #zm-visual-search-root .zmwm-visual-card:not(.is-out) >
-  .zmwm-visual-stock-banner.is-stock-slab ~ .zmwm-visual-link
+  .zmwm-visual-type-banner.type-stock-slab ~ .zmwm-visual-link
   .zmwm-visual-card-details {
   background:linear-gradient(180deg,#f1f8f4 0,#fff 115px);
 }
 #zm-visual-search-root .zmwm-visual-card:not(.is-out) >
-  .zmwm-visual-stock-banner.is-stock-rem ~ .zmwm-visual-link
+  .zmwm-visual-type-banner.type-so-slab ~ .zmwm-visual-link
+  .zmwm-visual-card-details {
+  background:linear-gradient(180deg,#eef6fc 0,#fff 115px);
+}
+#zm-visual-search-root .zmwm-visual-card:not(.is-out) >
+  .zmwm-visual-type-banner.type-consigned-slab ~ .zmwm-visual-link
+  .zmwm-visual-card-details {
+  background:linear-gradient(180deg,#f3f0fa 0,#fff 115px);
+}
+#zm-visual-search-root .zmwm-visual-card:not(.is-out) >
+  .zmwm-visual-type-banner.type-stock-rem ~ .zmwm-visual-link
   .zmwm-visual-card-details {
   background:linear-gradient(180deg,#fff6ed 0,#fff 115px);
 }
+#zm-visual-search-root .zmwm-visual-card:not(.is-out) >
+  .zmwm-visual-type-banner.type-standard-rem ~ .zmwm-visual-link
+  .zmwm-visual-card-details {
+  background:linear-gradient(180deg,#edf9f7 0,#fff 115px);
+}
 @media(max-width:540px) {
-  #zm-visual-search-root .zmwm-visual-stock-banner {
+  #zm-visual-search-root .zmwm-visual-type-banner {
     padding:6px 7px;min-height:35px;gap:6px;
   }
-  #zm-visual-search-root .zmwm-visual-stock-banner-symbol {
-    flex-basis:20px;width:20px;height:20px;font-size:11px;
+  #zm-visual-search-root .zmwm-visual-type-banner-symbol {
+    flex-basis:23px;width:23px;height:22px;font-size:10px;
   }
-  #zm-visual-search-root .zmwm-visual-stock-banner-title {
-    font-size:10.5px;letter-spacing:.35px;
+  #zm-visual-search-root .zmwm-visual-type-banner-title {
+    font-size:10.5px;letter-spacing:.25px;
   }
-  #zm-visual-search-root .zmwm-visual-stock-banner-descriptor {
+  #zm-visual-search-root .zmwm-visual-type-banner-descriptor {
     display:none;
   }
 }
