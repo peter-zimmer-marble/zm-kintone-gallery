@@ -87,6 +87,21 @@ const piece=(html,type,cls)=>assert.ok(
  piece(html,'Cosigned Slab','type-consigned-slab');
  piece(html,'STOCK Rem','type-stock-rem');
  piece(html,'Stan-Rem','type-standard-rem');
+ // Stock slab and stock rem are prominent, distinct gallery cards, not just
+ // differently colored classifications buried in the details.
+ assert.equal((html.match(/class="zmwm-visual-stock-banner is-stock-(?:slab|rem)"/g)||[]).length,2,
+   'Only the two exact stock classifications get prominent header banners');
+ assert.match(html,/class="zmwm-visual-stock-banner is-stock-slab"/);
+ assert.match(html,/class="zmwm-visual-stock-banner is-stock-rem"/);
+ assert.match(html,/STOCK SLAB<\/strong>/);
+ assert.match(html,/STOCK REM<\/strong>/);
+ assert.match(html,/FULL SLAB<\/span>/);
+ assert.match(html,/REMNANT<\/span>/);
+ // The type banner is above (not over) the photo and remains non-interactive.
+ assert.match(html,
+   /<div class="zmwm-visual-stock-banner is-stock-slab">[\s\S]*?<\/div><div class="zmwm-visual-gallery-media">/);
+ assert.match(html,
+   /<div class="zmwm-visual-stock-banner is-stock-rem">[\s\S]*?<\/div><div class="zmwm-visual-gallery-media">/);
  const adjacent='class="zmwm-visual-material">Marble</span>'+
    '<span class="zmwm-visual-rack">Rack: Z-5A</span>';
  assert.ok(html.includes(adjacent),'Rack must sit right of material at same prominence');
@@ -128,5 +143,13 @@ const piece=(html,type,cls)=>assert.ok(
  assert.match(css,/\.zmwm-visual-lightbox-info/);
  assert.match(css,/\.zmwm-visual-rack/);
  assert.match(css,/\.zmwm-visual-lot/);
- console.log('Photo viewer: colored type, adjacent rack, status, dimensions, job, notes, photos and close passed.');
+ for(const cls of ['.zmwm-visual-stock-banner.is-stock-slab',
+   '.zmwm-visual-stock-banner.is-stock-rem',
+   '.zmwm-visual-stock-banner-symbol',
+   '.zmwm-visual-stock-banner-title']) {
+   assert.ok(css.includes(cls),'Missing gallery category treatment: '+cls);
+ }
+ assert.match(css,/\.zmwm-visual-card:not\(\.is-out\)/,
+   'OUT card background must keep its existing strong warning');
+ console.log('Photo viewer and stock cards: prominent slab/rem banners, independent photo links, type detail parity and safe styles passed.');
 })().catch(err=>{console.error(err);process.exitCode=1;});

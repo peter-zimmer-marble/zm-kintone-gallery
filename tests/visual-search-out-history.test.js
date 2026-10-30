@@ -150,6 +150,9 @@ function listIds(){
   assert.equal(count(),4);
   assert.match(html(),/class="zmwm-visual-card is-sold is-out"/);
   assert.match(html(),/class="zmwm-visual-card is-out"/);
+  assert.match(html(),
+    /<article class="zmwm-visual-card is-sold is-out"><div class="zmwm-visual-stock-banner is-stock-slab">/,
+    'An OUT stock slab retains both its new category header and OUT warning');
   assert.match(html(),/OUT — NOT CURRENTLY IN INVENTORY/);
   assert.match(html(),/class="zmwm-visual-out-overlay">OUT<\/span>/);
   assert.match(html(),/data-visual-photo="old-a"/);

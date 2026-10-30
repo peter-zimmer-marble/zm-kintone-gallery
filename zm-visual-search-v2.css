@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.12 at the existing v2 URL. Standalone styles, scoped to the
+ * ZM Inventory - Visual Search v3.13 at the existing v2 URL. Standalone styles, scoped to the
  * dedicated Kintone Custom View container. Does not style normal inventory views.
  */
 #zm-visual-search-root {
@@ -1337,4 +1337,68 @@
   #zm-visual-search-root .zmwm-visual-max-rect-value {font-size:13px;}
   #zm-visual-search-root .zmwm-visual-max-rect-alternate {font-size:10px;}
   #zm-visual-search-root .zmwm-visual-rect-filter-hint {font-size:10.5px;}
+}
+
+/* v3.13 — Stock Slab vs Stock Rem Gallery cards.
+   Inventory type has its own visually prominent band ABOVE the photo, never
+   competing with SOLD/HOLD badges, OUT photo overlays, or selection controls. */
+#zm-visual-search-root .zmwm-visual-stock-banner {
+  display:flex;align-items:center;gap:8px;box-sizing:border-box;
+  min-height:38px;padding:7px 10px;min-width:0;
+  color:#fff;line-height:1.2;
+  border-bottom:2px solid rgba(255,255,255,.23);
+}
+#zm-visual-search-root .zmwm-visual-stock-banner.is-stock-slab {
+  background:#205f48;
+  border-bottom-color:#72b28f;
+}
+#zm-visual-search-root .zmwm-visual-stock-banner.is-stock-rem {
+  background:#98531d;
+  border-bottom-color:#e9b16d;
+}
+#zm-visual-search-root .zmwm-visual-stock-banner-symbol {
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 23px;width:23px;height:23px;
+  border:1px solid rgba(255,255,255,.67);
+  background:rgba(255,255,255,.15);
+  color:#fff;font-size:13px;font-weight:950;line-height:1;
+}
+#zm-visual-search-root .zmwm-visual-stock-banner-title {
+  display:block;min-width:0;flex:1 1 auto;
+  color:#fff;font-size:12px;font-weight:950;
+  letter-spacing:.8px;line-height:1.2;
+  overflow-wrap:normal;white-space:nowrap;
+}
+#zm-visual-search-root .zmwm-visual-stock-banner-descriptor {
+  display:inline-flex;flex:0 0 auto;align-items:center;
+  padding:4px 5px;background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.34);
+  color:#fff;font-size:9px;font-weight:850;
+  letter-spacing:.5px;white-space:nowrap;
+}
+/* The subtle body tint carries the classification down the card while keeping
+   the high-priority OUT warning/background and SOLD/HOLD card borders intact. */
+#zm-visual-search-root .zmwm-visual-card:not(.is-out) >
+  .zmwm-visual-stock-banner.is-stock-slab ~ .zmwm-visual-link
+  .zmwm-visual-card-details {
+  background:linear-gradient(180deg,#f1f8f4 0,#fff 115px);
+}
+#zm-visual-search-root .zmwm-visual-card:not(.is-out) >
+  .zmwm-visual-stock-banner.is-stock-rem ~ .zmwm-visual-link
+  .zmwm-visual-card-details {
+  background:linear-gradient(180deg,#fff6ed 0,#fff 115px);
+}
+@media(max-width:540px) {
+  #zm-visual-search-root .zmwm-visual-stock-banner {
+    padding:6px 7px;min-height:35px;gap:6px;
+  }
+  #zm-visual-search-root .zmwm-visual-stock-banner-symbol {
+    flex-basis:20px;width:20px;height:20px;font-size:11px;
+  }
+  #zm-visual-search-root .zmwm-visual-stock-banner-title {
+    font-size:10.5px;letter-spacing:.35px;
+  }
+  #zm-visual-search-root .zmwm-visual-stock-banner-descriptor {
+    display:none;
+  }
 }
