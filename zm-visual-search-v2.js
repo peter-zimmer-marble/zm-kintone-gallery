@@ -1,5 +1,5 @@
 /*
- * ZM Inventory - Visual Search v3.12 (v2 asset URL retained for Kintone compatibility)
+ * ZM Inventory - Visual Search v3.13 (v2 asset URL retained for Kintone compatibility)
  * Kintone Custom View for App 6 (only staging_status may be edited by authorized users).
  * Install in ZM Inventory only, using a Custom View named exactly "Visual Search"
  * with HTML: <div id="zm-visual-search-root"></div>
@@ -759,6 +759,24 @@
       }
     }
   }
+  // An unmistakable inventory TYPE strip above Gallery photos.
+  // Use the exact Stock Slab / Stock Rem classifications only. The strip is
+  // non-interactive and independent of SOLD, HOLD, OUT and selection controls.
+  function visualStockCardBanner(type) {
+    const kind = visualPieceTypeClass(type);
+    if (kind !== 'type-stock-slab' && kind !== 'type-stock-rem') return '';
+    const slab = kind === 'type-stock-slab';
+    return '<div class="zmwm-visual-stock-banner ' +
+      (slab ? 'is-stock-slab' : 'is-stock-rem') + '">' +
+      '<span class="zmwm-visual-stock-banner-symbol" aria-hidden="true">' +
+        (slab ? 'S' : 'R') + '</span>' +
+      '<strong class="zmwm-visual-stock-banner-title">' +
+        (slab ? 'STOCK SLAB' : 'STOCK REM') + '</strong>' +
+      '<span class="zmwm-visual-stock-banner-descriptor">' +
+        (slab ? 'FULL SLAB' : 'REMNANT') + '</span>' +
+      '</div>';
+  }
+
   function visualCard(record) {
     const id = getId(record);
     const name = getColorCombined(record);
@@ -783,6 +801,7 @@
     return '<article class="zmwm-visual-card' + cardStatus +
       (isVisualOut(record) ? ' is-out' : '') +
       (selected ? ' is-selected' : '') + '">' +
+      visualStockCardBanner(type) +
       '<div class="zmwm-visual-gallery-media">' + photo + selectMarkup + '</div>' +
       '<a class="zmwm-visual-link" href="' + url +
       '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(name) +
@@ -883,7 +902,7 @@
       '</tbody></table></div>';
   }
   function visualShell() {
-    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.12">' +
+    return '<main class="zmwm-visual-app" id="zmwm-visual-root" data-visual-version="3.13">' +
       '<header class="zmwm-visual-header"><div><div class="zmwm-visual-eyebrow">ZM / INVENTORY</div>' +
       '<h1>Visual Search</h1><p>Browse pieces by photo, material, size and job.</p></div>' +
       '<div class="zmwm-visual-header-actions"><span>LIVE INVENTORY</span>' +
