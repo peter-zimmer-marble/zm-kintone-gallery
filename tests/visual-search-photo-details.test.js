@@ -46,7 +46,11 @@ const records=[
    {fileKey:'b',name:'b.jpg',contentType:'image/jpeg'}]),
  record(3,'Cosigned Slab','Granite','Hold','Z-6B','',[]),
  record(4,'STOCK Rem','Quartz','Avl','Z-4A','',[]),
- record(5,'Stan-Rem','Marble','Avl','Z-3A','',[])
+ record(5,'Stan-Rem','Marble','Avl','Z-3A','',[]),
+ record(6,'Unusual Piece','Quartz','Avl','Z-7A','',[]),
+ record(7,'Custom Remnant','Quartz','Avl','Z-8A','',[]),
+ record(8,'Experimental Slab','Quartz','Avl','Z-9A','',[]),
+ record(9,'<img src=x onerror=alert(1)>','Quartz','Avl','Z-10A','',[])
 ];
 const registrations=[];
 const api=async (url,method,options)=>{
@@ -87,21 +91,35 @@ const piece=(html,type,cls)=>assert.ok(
  piece(html,'Cosigned Slab','type-consigned-slab');
  piece(html,'STOCK Rem','type-stock-rem');
  piece(html,'Stan-Rem','type-standard-rem');
- // Stock slab and stock rem are prominent, distinct gallery cards, not just
- // differently colored classifications buried in the details.
- assert.equal((html.match(/class="zmwm-visual-stock-banner is-stock-(?:slab|rem)"/g)||[]).length,2,
-   'Only the two exact stock classifications get prominent header banners');
- assert.match(html,/class="zmwm-visual-stock-banner is-stock-slab"/);
- assert.match(html,/class="zmwm-visual-stock-banner is-stock-rem"/);
- assert.match(html,/STOCK SLAB<\/strong>/);
- assert.match(html,/STOCK REM<\/strong>/);
- assert.match(html,/FULL SLAB<\/span>/);
- assert.match(html,/REMNANT<\/span>/);
- // The type banner is above (not over) the photo and remains non-interactive.
- assert.match(html,
-   /<div class="zmwm-visual-stock-banner is-stock-slab">[\s\S]*?<\/div><div class="zmwm-visual-gallery-media">/);
- assert.match(html,
-   /<div class="zmwm-visual-stock-banner is-stock-rem">[\s\S]*?<\/div><div class="zmwm-visual-gallery-media">/);
+ // Each of the FIVE exact Kintone types gets a unique banner color,
+ // two-letter code, actual type name and a useful descriptor. They sit above
+ // photos, independent of image, card selection and sale/inventory status.
+ const exactTypes=[
+  ['type-stock-slab','SS','STOCK SLAB','FULL SLAB'],
+  ['type-so-slab','SO','SO-SLAB','SPECIAL ORDER'],
+  ['type-consigned-slab','CS','COSIGNED SLAB','CONSIGNED'],
+  ['type-stock-rem','SR','STOCK REM','STOCK REMNANT'],
+  ['type-standard-rem','ST','STAN-REM','STANDARD REMNANT']
+ ];
+ for(const [cls,symbol,name,descriptor] of exactTypes){
+   assert.match(html,new RegExp('class="zmwm-visual-type-banner '+cls+'"'),
+     'Missing distinctive banner for '+name);
+   assert.ok(html.includes('>'+symbol+'</span>'),'Missing type code '+symbol);
+   assert.ok(html.includes('>'+name+'</strong>'),'Missing visible type name '+name);
+   assert.ok(html.includes('>'+descriptor+'</span>'),'Missing descriptor '+descriptor);
+   assert.match(html,new RegExp(
+    '<div class="zmwm-visual-type-banner '+cls+'">[\\s\\S]*?<\\/div><div class="zmwm-visual-gallery-media">'),
+    'Classification header must be above the photo, not overlay it');
+ }
+ assert.equal((html.match(/class="zmwm-visual-type-banner/g)||[]).length,9,
+   'Every piece classification gets a banner, even new types');
+ for(const cls of ['type-other','type-remnant','type-slab']) {
+   assert.match(html,new RegExp('class="zmwm-visual-type-banner '+cls+'"'),
+     'Unknown/legacy type category should still have a visible banner: '+cls);
+ }
+ assert.match(html,/&lt;IMG SRC=X ONERROR=ALERT\(1\)&gt;<\/strong>/,
+   'Type labels are always safely HTML-escaped');
+ assert.doesNotMatch(html,/<img src=x onerror=alert\(1\)>/);
  const adjacent='class="zmwm-visual-material">Marble</span>'+
    '<span class="zmwm-visual-rack">Rack: Z-5A</span>';
  assert.ok(html.includes(adjacent),'Rack must sit right of material at same prominence');
@@ -143,13 +161,15 @@ const piece=(html,type,cls)=>assert.ok(
  assert.match(css,/\.zmwm-visual-lightbox-info/);
  assert.match(css,/\.zmwm-visual-rack/);
  assert.match(css,/\.zmwm-visual-lot/);
- for(const cls of ['.zmwm-visual-stock-banner.is-stock-slab',
-   '.zmwm-visual-stock-banner.is-stock-rem',
-   '.zmwm-visual-stock-banner-symbol',
-   '.zmwm-visual-stock-banner-title']) {
-   assert.ok(css.includes(cls),'Missing gallery category treatment: '+cls);
- }
+ for(const cls of [
+   ...exactTypes.map(([key])=>'.zmwm-visual-type-banner.'+key),
+   '.zmwm-visual-type-banner-symbol','.zmwm-visual-type-banner-title',
+   '.zmwm-visual-type-banner.type-other'
+ ]) assert.ok(css.includes(cls),'Missing unique category color or style: '+cls);
+ const colors=[...css.matchAll(/\.zmwm-visual-type-banner\.(type-(?:stock-slab|so-slab|consigned-slab|stock-rem|standard-rem))\s*\{\s*--zmwm-piece-band:(#[0-9a-f]{6})/g)];
+ assert.equal(colors.length,5,'Five configured inventory types must have color variables');
+ assert.equal(new Set(colors.map(x=>x[2])).size,5,'All five banner colors must differ');
  assert.match(css,/\.zmwm-visual-card:not\(\.is-out\)/,
-   'OUT card background must keep its existing strong warning');
- console.log('Photo viewer and stock cards: prominent slab/rem banners, independent photo links, type detail parity and safe styles passed.');
+   'OUT card backgrounds must retain their existing warning');
+ console.log('Photo viewer and all piece types: 5 unique banners/colors, generic fallbacks, escaped labels, photo parity and safe status styles passed.');
 })().catch(err=>{console.error(err);process.exitCode=1;});
