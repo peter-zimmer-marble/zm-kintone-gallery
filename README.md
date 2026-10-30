@@ -48,6 +48,17 @@ The **standalone ZM Inventory App 6 Visual Search** can now create a temporary s
 
 Regression coverage: `tests/visual-search-saved-groups.test.js` validates saving, reopening after leaving the view, named updates, user isolation, delete confirmations, copied links, historical Out pieces, HTML escaping, cross-tab changes and storage errors. Live Kintone browser testing is still required.
 
+## Distinct Stock Slab and Stock Rem gallery cards (2026-10-30)
+
+In **ZM Inventory App 6 → Visual Search → Gallery**, the exact Kintone piece classifications **Stock Slab** and **STOCK Rem** now use easily recognizable, full-width category headers **above the photo**:
+
+- **Stock Slab:** dark forest-green band marked **STOCK SLAB** / **FULL SLAB**, with an “S” monogram and a gentle cool-green tint behind card details.
+- **STOCK Rem:** warm bronze band marked **STOCK REM** / **REMNANT**, with an “R” monogram and a gentle warm tint behind card details.
+
+These category cues are separate from the existing piece-type chips (which still appear in detail/list views). Other piece classifications are unchanged. The banner is non-interactive and sits above the image, so it cannot obscure the **SOLD / HOLD / OUT** indicators, the photo-enlarge button, or the share-group selection checkbox. **OUT** cards retain their red warning border/background; selected cards retain the green selection ring. Compact cards show the large type text even when the secondary descriptor hides on narrow mobile screens. Gallery filters, sorting, staging edits, inventory records, saved groups, photo modal and share links are otherwise unchanged.
+
+No Kintone configuration changes or inventory writes are needed: this is an in-place style update to the current Visual Search JS/CSS asset URLs. Regression tests exercise stock-only banners, selected remnant cards, historical Out stock slabs, and photo/card parity; live Kintone visual verification is still recommended.
+
 ## Automatic largest rectangle for LHL / RHL pieces (2026-10-27)
 
 Visual Search **calculates usable rectangular sections** from existing Kintone fields; it never requires manually maintained notes or writes new values to inventory.
