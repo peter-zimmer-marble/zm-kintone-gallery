@@ -168,6 +168,8 @@ function recordIds(html){
   assert.match(basket(),/0 pieces selected/);
   assert.match(basket(),/Check pieces in Gallery or List view/);
   assert.equal((html().match(/<article class="zmwm-visual-card/g)||[]).length,7);
+  assert.equal((html().match(/class="zmwm-visual-stock-banner is-stock-rem"/g)||[]).length,4);
+  assert.equal((html().match(/class="zmwm-visual-stock-banner is-stock-slab"/g)||[]).length,3);
   assert.equal((html().match(/data-visual-select-id="/g)||[]).length,7);
   assert.match(html(),/class="zmwm-visual-gallery-media"/);
   assert.match(html(),/class="zmwm-visual-card-select"/);
@@ -193,6 +195,8 @@ function recordIds(html){
   search('Remnant');
   assert.equal((html().match(/<article class="zmwm-visual-card/g)||[]).length,4);
   assert.match(html(),/class="zmwm-visual-card is-selected"/);
+  assert.match(html(),/<article class="zmwm-visual-card is-selected"><div class="zmwm-visual-stock-banner is-stock-rem">/,
+    'The remnant header remains visible when a card is selected');
   assert.match(html(),/data-visual-select-id="1" checked/);
   select(2); // No-photo remnant via Gallery.
   assert.match(basket(),/2 pieces selected/);
@@ -213,6 +217,7 @@ function recordIds(html){
   assert.equal(recordIds(html()).length,3);
   send('change',{id:'zmwm-visual-list-view',checked:false,dataset:{}});
   assert.equal((html().match(/<article class="zmwm-visual-card/g)||[]).length,3);
+  assert.equal((html().match(/class="zmwm-visual-stock-banner is-stock-slab"/g)||[]).length,3);
   select(5);
   select(6);
   assert.match(basket(),/6 pieces selected/);
