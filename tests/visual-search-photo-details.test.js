@@ -111,7 +111,7 @@ const piece=(html,type,cls)=>assert.ok(
     '<div class="zmwm-visual-type-banner '+cls+'">[\\s\\S]*?<\\/div><div class="zmwm-visual-gallery-media">'),
     'Classification header must be above the photo, not overlay it');
  }
- assert.equal((html.match(/class="zmwm-visual-type-banner/g)||[]).length,9,
+ assert.equal((html.match(/class="zmwm-visual-type-banner type-/g)||[]).length,9,
    'Every piece classification gets a banner, even new types');
  for(const cls of ['type-other','type-remnant','type-slab']) {
    assert.match(html,new RegExp('class="zmwm-visual-type-banner '+cls+'"'),
